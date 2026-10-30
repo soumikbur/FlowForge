@@ -57,3 +57,4 @@ export function computeWorkflowContentHash(definition: WorkflowDefinition): stri
   const payload = JSON.stringify(canonical);
   return crypto.createHash("sha256").update(payload).digest("hex");
 }
+

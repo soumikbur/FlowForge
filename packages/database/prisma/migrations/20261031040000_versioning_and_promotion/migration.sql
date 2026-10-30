@@ -36,3 +36,4 @@ ALTER TABLE "workflow_deployments" ADD CONSTRAINT "workflow_deployments_organiza
 ALTER TABLE "workflow_deployments" ADD CONSTRAINT "workflow_deployments_workflowId_fkey" FOREIGN KEY ("workflowId") REFERENCES "workflows"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "workflow_deployments" ADD CONSTRAINT "workflow_deployments_workflowVersionId_fkey" FOREIGN KEY ("workflowVersionId") REFERENCES "workflow_versions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "workflow_deployments" ADD CONSTRAINT "workflow_deployments_deployedById_fkey" FOREIGN KEY ("deployedById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
