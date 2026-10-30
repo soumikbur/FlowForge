@@ -38,12 +38,19 @@ In case of errors:
 
 ## 2. Authentication & Organization Endpoints
 
-- `POST /api/v1/auth/register`: Create user and primary organization.
+- `POST /api/v1/auth/register`: Create user and primary organization (transactional).
 - `POST /api/v1/auth/login`: Authenticate and issue secure session cookie.
-- `POST /api/v1/auth/logout`: Invalidate current session.
-- `GET /api/v1/auth/me`: Retrieve current user profile and memberships.
-- `GET /api/v1/organizations`: List user organizations.
-- `POST /api/v1/organizations/switch`: Switch active organization context.
+- `POST /api/v1/auth/logout`: Invalidate current session and clear cookie.
+- `GET /api/v1/auth/me`: Retrieve current user profile, active organization context, and RBAC permissions.
+- `GET /api/v1/organizations`: List all organizations where the caller holds membership.
+- `POST /api/v1/organizations`: Create new organization (assigns caller as `OWNER`).
+- `GET /api/v1/organizations/:organizationId`: Retrieve organization details.
+- `PATCH /api/v1/organizations/:organizationId`: Update organization details (requires `org:write`).
+- `GET /api/v1/organizations/:organizationId/members`: List members and assigned roles (requires `org:members:read`).
+- `POST /api/v1/organizations/:organizationId/members`: Invite/add member (requires `org:members:write`; non-owners cannot assign `OWNER`).
+- `PATCH /api/v1/organizations/:organizationId/members/:membershipId`: Update member role (enforces Last Owner Protection; requires `org:members:write`).
+- `DELETE /api/v1/organizations/:organizationId/members/:membershipId`: Remove member from organization (enforces Last Owner Protection; requires `org:members:delete`).
+- `GET /api/v1/organizations/:organizationId/audit-logs`: Query organization audit log events with pagination (`?page=1&pageSize=20`; requires `audit:read`).
 
 ## 3. Workflows Endpoints
 

@@ -5,6 +5,7 @@ import cookieParser from "cookie-parser";
 import crypto from "crypto";
 import { rateLimit } from "./middleware/rate-limit.js";
 import { authRouter } from "./routes/auth.routes.js";
+import { organizationRouter } from "./routes/organization.routes.js";
 import { workflowRouter } from "./routes/workflow.routes.js";
 import { executionRouter } from "./routes/execution.routes.js";
 import { approvalRouter } from "./routes/approval.routes.js";
@@ -89,6 +90,7 @@ app.get("/ready", async (req, res) => {
 
 // Mount API v1 Routers
 app.use("/api/v1/auth", authRouter);
+app.use("/api/v1/organizations", organizationRouter);
 app.use("/api/v1/workflows", workflowRouter);
 app.use("/api/v1/executions", executionRouter);
 app.use("/api/v1/approvals", approvalRouter);

@@ -36,8 +36,22 @@ export interface WorkflowRecord {
   status: "DRAFT" | "ACTIVE" | "ARCHIVED";
   draftDefinition: WorkflowDefinition;
   publishedVersionId?: string;
+  createdById?: string;
+  deletedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface AuditLogRecord {
+  id: string;
+  organizationId: string;
+  userId?: string;
+  action: string;
+  resourceType: string;
+  resourceId: string;
+  metadata?: Record<string, unknown>;
+  ipAddress?: string;
+  createdAt: Date;
 }
 
 export interface WorkflowVersionRecord {
@@ -116,7 +130,17 @@ export class InMemoryDatabase {
   public executions = new Map<string, WorkflowExecutionRecord>();
   public steps = new Map<string, ExecutionStepRecord>();
   public approvals = new Map<string, ApprovalRecord>();
-  public auditLogs: Array<Record<string, unknown>> = [];
+  public auditLogs: Array<AuditLogRecord> = [];
+
+  public recordAudit(record: Omit<AuditLogRecord, "id" | "createdAt">): AuditLogRecord {
+    const auditRecord: AuditLogRecord = {
+      id: `audit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      createdAt: new Date(),
+      ...record,
+    };
+    this.auditLogs.push(auditRecord);
+    return auditRecord;
+  }
 
   public clear(): void {
     this.users.clear();

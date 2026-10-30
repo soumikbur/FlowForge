@@ -94,3 +94,57 @@
 - **ACTUAL RESULTS**: 7/7 tests passing in `tests/unit/database-entities.test.ts`.
 - **KNOWN LIMITATIONS**: Host workstation lacks native PostgreSQL daemon; tests use in-memory store adapter while DDL migration is prepared for containerized PostgreSQL.
 - **STATUS**: DONE
+
+
+---
+
+### TASK-018: Multi-Tenant Organization Management & RBAC API
+
+- **OBJECTIVE**: Implement organization management endpoints (`/api/v1/organizations`), member management (`/members`), role mutation with last owner protection, session tenant selection, and audit logging.
+- **DEPENDENCIES**: TASK-005, TASK-004
+- **ALLOWED FILES**: `apps/api/src/routes/organization.routes.ts`, `apps/api/src/app.ts`, `apps/api/src/middleware/auth.ts`, `packages/shared/src/index.ts`
+- **REQUIREMENTS**:
+  1. Organization CRUD (`GET /`, `POST /`, `GET /:id`, `PATCH /:id`).
+  2. Member management (`GET /members`, `POST /members`, `PATCH /members/:membershipId`, `DELETE /members/:membershipId`).
+  3. Last owner protection invariant: Cannot demote or remove the last OWNER in an organization.
+  4. Non-owners cannot assign OWNER role, promote to OWNER, or remove an OWNER.
+  5. Audit log query endpoint (`GET /api/v1/organizations/:id/audit-logs`).
+- **ACCEPTANCE CRITERIA**: All organization endpoints pass unit and integration verification.
+- **REQUIRED TESTS**: `tests/unit/organization-auth.test.ts`, `tests/integration/organization-lifecycle.test.ts`
+- **ACTUAL RESULTS**: All 19 tests passing.
+- **STATUS**: DONE
+
+---
+
+### TASK-019: Workflow Pagination, Search, Version Snapshots & Audit
+
+- **OBJECTIVE**: Enhance workflow management API with pagination, search, status filtering, soft-deletion/archival, immutable version snapshots, and audit trail generation.
+- **DEPENDENCIES**: TASK-006, TASK-018
+- **ALLOWED FILES**: `apps/api/src/routes/workflow.routes.ts`, `packages/shared/src/index.ts`
+- **REQUIREMENTS**:
+  1. Pagination (`page`, `pageSize`, `meta: { total, totalPages }`).
+  2. Case-insensitive search on name and description.
+  3. Soft deletion (`deletedAt`, status `ARCHIVED`) preserving historical execution audit trails.
+  4. Immutable published versions (`POST /:id/publish`, `GET /:id/versions`, `GET /:id/versions/:versionId`).
+  5. Graph validation endpoint (`POST /:id/validate`).
+  6. Audit logging on workflow create, update, publish, and delete.
+- **ACCEPTANCE CRITERIA**: Workflow lifecycle tests verify pagination, search, immutability, and soft-delete invariants.
+- **REQUIRED TESTS**: `tests/integration/workflow-pagination-versions.test.ts`
+- **ACTUAL RESULTS**: All 14 tests passing.
+- **STATUS**: DONE
+
+---
+
+### TASK-020: Phase 2 Comprehensive Test Suites & Verification
+
+- **OBJECTIVE**: Run full automated test suite, typechecking, linting, formatting, and production build verification across all workspace packages and apps.
+- **DEPENDENCIES**: TASK-018, TASK-019
+- **ALLOWED FILES**: `tests/*`
+- **REQUIREMENTS**:
+  1. Verify zero lint errors, zero typecheck errors.
+  2. Verify 100% test pass rate across all suites.
+  3. Verify clean production build of all apps and packages.
+- **ACCEPTANCE CRITERIA**: All checks pass with 0 errors.
+- **VERIFICATION COMMANDS**: `pnpm typecheck; pnpm lint; pnpm test; pnpm -r build`
+- **ACTUAL RESULTS**: 89/89 tests passing across 11 test suites; Next.js 14 web app and Node.js API/Worker apps compiled cleanly.
+- **STATUS**: DONE

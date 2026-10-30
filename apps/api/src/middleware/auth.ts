@@ -69,9 +69,14 @@ export function requireAuth(
   }
 
   // Find user membership
-  const membership = Array.from(apiStore.memberships.values()).find(
+  const userMemberships = Array.from(apiStore.memberships.values()).filter(
     (m) => m.userId === user.id,
   );
+
+  const requestedOrgId = (req.headers["x-organization-id"] as string) || undefined;
+  const membership = requestedOrgId
+    ? userMemberships.find((m) => m.organizationId === requestedOrgId)
+    : userMemberships[0];
 
   req.user = {
     id: user.id,

@@ -1,0 +1,553 @@
+openapi: 3.0.3
+info:
+  title: FlowForge REST API
+  description: Business Workflow Automation Engine API with Multi-Tenant Authorization, Workflow Lifecycle Management, and Immutable Versioning.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3001
+    description: Local API Development Server
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: flowforge_session
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    ApiResponseEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          nullable: true
+        error:
+          type: object
+          nullable: true
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+            pageSize:
+              type: integer
+            total:
+              type: integer
+            totalPages:
+              type: integer
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - firstName
+        - lastName
+        - organizationName
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        firstName:
+          type: string
+        lastName:
+          type: string
+        organizationName:
+          type: string
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    CreateOrganizationRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+    UpdateOrganizationRequest:
+      type: object
+      properties:
+        name:
+          type: string
+    InviteMemberRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [OWNER, ADMIN, MEMBER]
+          default: MEMBER
+    UpdateMemberRoleRequest:
+      type: object
+      required:
+        - role
+      properties:
+        role:
+          type: string
+          enum: [OWNER, ADMIN, MEMBER]
+    CreateWorkflowRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+    UpdateWorkflowRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        nodes:
+          type: array
+          items:
+            type: object
+        edges:
+          type: array
+          items:
+            type: object
+
+paths:
+  /health:
+    get:
+      summary: Liveness health check
+      responses:
+        '200':
+          description: Service process is running
+  /ready:
+    get:
+      summary: Dependency readiness check
+      responses:
+        '200':
+          description: Dependencies are connected and ready
+        '503':
+          description: Dependencies disconnected
+
+  /api/v1/auth/register:
+    post:
+      summary: Register user and provision primary organization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User and organization successfully registered
+        '400':
+          description: Validation failure
+        '409':
+          description: User email already registered
+
+  /api/v1/auth/login:
+    post:
+      summary: Authenticate user credentials and establish session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Successful authentication
+        '401':
+          description: Invalid email or password
+
+  /api/v1/auth/logout:
+    post:
+      summary: Terminate session and invalidate session cookie
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logged out successfully
+
+  /api/v1/auth/me:
+    get:
+      summary: Retrieve current authenticated user profile and memberships
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Profile and active organization context
+
+  /api/v1/organizations:
+    get:
+      summary: List all organizations the user is a member of
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of organizations
+    post:
+      summary: Create new organization and assign caller as OWNER
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganizationRequest'
+      responses:
+        '201':
+          description: Organization created
+
+  /api/v1/organizations/{organizationId}:
+    get:
+      summary: Get organization details
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: organizationId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Organization details
+        '403':
+          description: Non-member access denied
+        '404':
+          description: Organization not found
+    patch:
+      summary: Update organization settings
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: organizationId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrganizationRequest'
+      responses:
+        '200':
+          description: Organization updated
+
+  /api/v1/organizations/{organizationId}/members:
+    get:
+      summary: List members in an organization
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: organizationId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Member list
+    post:
+      summary: Invite or add member to organization
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: organizationId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteMemberRequest'
+      responses:
+        '201':
+          description: Member added
+        '403':
+          description: Insufficient permissions or unauthorized role assignment
+        '409':
+          description: User is already a member
+
+  /api/v1/organizations/{organizationId}/members/{membershipId}:
+    patch:
+      summary: Update member role (enforcing Last Owner Protection)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: organizationId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: membershipId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMemberRoleRequest'
+      responses:
+        '200':
+          description: Member role updated
+        '400':
+          description: Cannot demote the last owner
+        '403':
+          description: Forbidden
+    delete:
+      summary: Remove member from organization (enforcing Last Owner Protection)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: organizationId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: membershipId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Member removed
+        '400':
+          description: Cannot remove the last owner
+        '403':
+          description: Forbidden
+
+  /api/v1/organizations/{organizationId}/audit-logs:
+    get:
+      summary: Query organization audit log events
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: organizationId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Paginated audit log records
+
+  /api/v1/workflows:
+    get:
+      summary: List workflows with pagination, search, and status filtering
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [DRAFT, ACTIVE, ARCHIVED]
+      responses:
+        '200':
+          description: Paginated workflows
+    post:
+      summary: Create workflow draft
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkflowRequest'
+      responses:
+        '201':
+          description: Workflow draft created
+
+  /api/v1/workflows/{id}:
+    get:
+      summary: Retrieve single workflow draft and published versions
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Workflow details
+        '404':
+          description: Workflow not found or archived
+    patch:
+      summary: Update workflow draft definition
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkflowRequest'
+      responses:
+        '200':
+          description: Workflow draft updated
+    delete:
+      summary: Soft-delete / archive workflow (preserves executions and versions)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Workflow archived successfully
+
+  /api/v1/workflows/{id}/validate:
+    post:
+      summary: Validate workflow draft graph without publishing
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Validation result object with AST errors
+
+  /api/v1/workflows/{id}/publish:
+    post:
+      summary: Validate draft and publish as a new immutable version
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Workflow published into immutable version
+        '400':
+          description: Graph validation failed
+
+  /api/v1/workflows/{id}/versions:
+    get:
+      summary: List all immutable published versions of a workflow
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of published version snapshots
+  /api/v1/workflows/{id}/versions/{versionId}:
+    get:
+      summary: Retrieve specific immutable version snapshot
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: versionId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Immutable version snapshot definition

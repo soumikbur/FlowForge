@@ -10,6 +10,10 @@ export type Permission =
   | "org:read"
   | "org:write"
   | "org:delete"
+  | "org:members:read"
+  | "org:members:write"
+  | "org:members:delete"
+  | "org:owner:transfer"
   | "workflow:read"
   | "workflow:write"
   | "workflow:publish"
@@ -26,6 +30,10 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "org:read",
     "org:write",
     "org:delete",
+    "org:members:read",
+    "org:members:write",
+    "org:members:delete",
+    "org:owner:transfer",
     "workflow:read",
     "workflow:write",
     "workflow:publish",
@@ -40,17 +48,27 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   ADMIN: [
     "org:read",
     "org:write",
+    "org:members:read",
+    "org:members:write",
+    "org:members:delete",
     "workflow:read",
     "workflow:write",
     "workflow:publish",
     "workflow:execute",
+    "workflow:delete",
     "approval:read",
     "approval:decide",
     "credentials:read",
     "credentials:write",
     "audit:read",
   ],
-  MEMBER: ["org:read", "workflow:read", "workflow:execute", "approval:read"],
+  MEMBER: [
+    "org:read",
+    "org:members:read",
+    "workflow:read",
+    "workflow:execute",
+    "approval:read"
+  ],
 };
 
 export function hasPermission(role: Role, permission: Permission): boolean {
@@ -233,3 +251,32 @@ export const DecideApprovalSchema = z.object({
   comment: z.string().optional(),
 });
 export type DecideApprovalRequest = z.infer<typeof DecideApprovalSchema>;
+
+export const CreateOrganizationSchema = z.object({
+  name: z.string().min(1, "Organization name is required"),
+});
+export type CreateOrganizationRequest = z.infer<typeof CreateOrganizationSchema>;
+
+export const UpdateOrganizationSchema = z.object({
+  name: z.string().min(1, "Organization name cannot be empty").optional(),
+});
+export type UpdateOrganizationRequest = z.infer<typeof UpdateOrganizationSchema>;
+
+export const InviteMemberSchema = z.object({
+  email: z.string().email("Valid email required"),
+  role: RoleEnum.default("MEMBER"),
+});
+export type InviteMemberRequest = z.infer<typeof InviteMemberSchema>;
+
+export const UpdateMemberRoleSchema = z.object({
+  role: RoleEnum,
+});
+export type UpdateMemberRoleRequest = z.infer<typeof UpdateMemberRoleSchema>;
+
+export const PaginationQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce.number().int().positive().max(100).default(20),
+  search: z.string().optional(),
+  status: z.string().optional(),
+});
+export type PaginationQuery = z.infer<typeof PaginationQuerySchema>;
