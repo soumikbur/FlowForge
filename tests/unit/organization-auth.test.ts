@@ -55,3 +55,4 @@ describe("Organization RBAC & Role Permissions Unit Tests", () => {
     expect(hasPermission("MEMBER", "invalid:perm" as Permission)).toBe(false);
   });
 });
+

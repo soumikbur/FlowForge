@@ -148,3 +148,24 @@
 - **VERIFICATION COMMANDS**: `pnpm typecheck; pnpm lint; pnpm test; pnpm -r build`
 - **ACTUAL RESULTS**: 89/89 tests passing across 11 test suites; Next.js 14 web app and Node.js API/Worker apps compiled cleanly.
 - **STATUS**: DONE
+
+
+---
+
+### TASK-021: Visual Workflow Builder, Node Registry & Graph Serialization
+
+- **OBJECTIVE**: Implement the React Flow visual workflow editor (`/workflows/:id/builder`), centralized node registry, canonical graph serialization/deserialization, node configuration panels, dirty tracking, validation banner, and published read-only inspection.
+- **DEPENDENCIES**: TASK-006, TASK-013, TASK-019
+- **ALLOWED FILES**: `apps/web/src/lib/*`, `apps/web/src/components/workflow/*`, `apps/web/src/app/workflows/[id]/builder/*`, `tests/*`
+- **REQUIREMENTS**:
+  1. Top toolbar: editable name, status badges, save state indicators, undo/redo, validate, save draft, publish.
+  2. Searchable left node palette with drag-and-drop & click-to-add for all 7 node types.
+  3. React Flow canvas with custom nodes, custom handles (Condition True/False handles), minimap, controls, grid, empty canvas guidance.
+  4. Right node configuration drawer for all 7 node types matching shared Zod schemas.
+  5. Pure serialization/deserialization between React Flow and canonical AST with zero ID churn.
+  6. Real backend API integration for draft saving (`PATCH`), draft loading (`GET`), graph validation (`POST /validate`), and publishing (`POST /publish`).
+  7. Read-only viewer for historical published versions via `?versionId=...`.
+- **ACCEPTANCE CRITERIA**: Unit and integration tests pass, typechecks pass, production web build passes.
+- **REQUIRED TESTS**: `tests/unit/graph-serializer.test.ts`, `tests/unit/node-registry.test.ts`, `tests/integration/workflow-builder-api.test.ts`
+- **ACTUAL RESULTS**: All 15 tests passing across 3 test suites; Next.js 14 production build succeeds with 0 errors.
+- **STATUS**: DONE

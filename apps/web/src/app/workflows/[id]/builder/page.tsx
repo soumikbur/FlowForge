@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import ReactFlow, {
   Controls,
   Background,
+  MiniMap,
   applyNodeChanges,
   applyEdgeChanges,
   addEdge,
@@ -12,391 +13,662 @@ import ReactFlow, {
   Connection,
   NodeChange,
   EdgeChange,
+  ReactFlowInstance,
+  ReactFlowProvider,
 } from "reactflow";
-import {
-  Save,
-  CheckCircle,
-  AlertCircle,
-  Play,
-  ArrowLeft,
-  Plus,
-  Settings,
-} from "lucide-react";
-import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import { validateWorkflowGraph } from "@flowforge/workflow-engine";
+import { NodeType } from "@flowforge/shared";
 
-const initialNodes: Node[] = [
-  {
-    id: "node_trigger",
-    type: "default",
-    data: {
-      label: "⚡ Order Webhook Trigger",
-      nodeType: "TRIGGER",
-      config: { triggerType: "WEBHOOK" },
-    },
-    position: { x: 250, y: 50 },
-    style: {
-      background: "#f0fdf4",
-      borderColor: "#22c55e",
-      borderRadius: "8px",
-      fontWeight: 600,
-    },
-  },
-  {
-    id: "node_condition",
-    type: "default",
-    data: {
-      label: "❓ Check Order > $10,000",
-      nodeType: "CONDITION",
-      config: { expression: "trigger.payload.orderValue > 10000" },
-    },
-    position: { x: 250, y: 160 },
-    style: {
-      background: "#fefce8",
-      borderColor: "#eab308",
-      borderRadius: "8px",
-      fontWeight: 600,
-    },
-  },
-  {
-    id: "node_approval",
-    type: "default",
-    data: {
-      label: "👤 Manager Approval",
-      nodeType: "APPROVAL",
-      config: { title: "Approve High Value Order" },
-    },
-    position: { x: 420, y: 280 },
-    style: {
-      background: "#eff6ff",
-      borderColor: "#3b82f6",
-      borderRadius: "8px",
-      fontWeight: 600,
-    },
-  },
-  {
-    id: "node_email",
-    type: "default",
-    data: {
-      label: "✉️ Send Confirmation Email",
-      nodeType: "EMAIL",
-      config: { to: "customer@example.com", subject: "Order Received" },
-    },
-    position: { x: 80, y: 280 },
-    style: {
-      background: "#faf5ff",
-      borderColor: "#a855f7",
-      borderRadius: "8px",
-      fontWeight: 600,
-    },
-  },
-  {
-    id: "node_end",
-    type: "default",
-    data: { label: "🏁 Workflow Complete", nodeType: "END", config: {} },
-    position: { x: 250, y: 420 },
-    style: {
-      background: "#f1f5f9",
-      borderColor: "#64748b",
-      borderRadius: "8px",
-      fontWeight: 600,
-    },
-  },
-];
+import { WorkflowCustomNode } from "../../../../components/workflow/WorkflowCustomNode";
+import { NodePalette } from "../../../../components/workflow/NodePalette";
+import { NodeConfigPanel } from "../../../../components/workflow/NodeConfigPanel";
+import {
+  EditorToolbar,
+  SaveStatus,
+} from "../../../../components/workflow/EditorToolbar";
+import {
+  workflowDefinitionToReactFlow,
+  reactFlowToWorkflowDefinition,
+} from "../../../../lib/graph-serializer";
+import { getNodeRegistryItem } from "../../../../lib/node-registry";
+import { AlertTriangle, CheckCircle, Zap } from "lucide-react";
 
-const initialEdges: Edge[] = [
-  { id: "e1", source: "node_trigger", target: "node_condition" },
-  {
-    id: "e2_true",
-    source: "node_condition",
-    sourceHandle: "true",
-    target: "node_approval",
-    label: "True (> $10k)",
-  },
-  {
-    id: "e2_false",
-    source: "node_condition",
-    sourceHandle: "false",
-    target: "node_email",
-    label: "False (<= $10k)",
-  },
-  { id: "e3", source: "node_approval", target: "node_end" },
-  { id: "e4", source: "node_email", target: "node_end" },
-];
+interface WorkflowData {
+  id: string;
+  name: string;
+  description?: string;
+  status: "DRAFT" | "ACTIVE" | "ARCHIVED";
+  publishedVersionId?: string;
+  draftDefinition?: any;
+}
+
+function WorkflowBuilderContent({ params }: { params: { id: string } }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const versionIdParam = searchParams.get("versionId");
+
+  const [workflow, setWorkflow] = useState<WorkflowData | null>(null);
+  const [workflowName, setWorkflowName] = useState<string>("Loading Workflow...");
+  const [versionNumber, setVersionNumber] = useState<number | undefined>(undefined);
+  const [isReadOnly, setIsReadOnly] = useState<boolean>(Boolean(versionIdParam));
+
+  const [nodes, setNodes] = useState<Node[]>([]);
+  const [edges, setEdges] = useState<Edge[]>([]);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
+  const [validationErrors, setValidationErrors] = useState<
+    Array<{ code: string; message: string; nodeId?: string }>
+  >([]);
+  const [validationBanner, setValidationBanner] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Undo / Redo History Stacks
+  const historyRef = useRef<Array<{ nodes: Node[]; edges: Edge[] }>>([]);
+  const futureRef = useRef<Array<{ nodes: Node[]; edges: Edge[] }>>([]);
+  const reactFlowWrapper = useRef<HTMLDivElement>(null);
+  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(
+    null,
+  );
+
+  const nodeTypes = useMemo(() => ({ customNode: WorkflowCustomNode }), []);
+
+  const pushHistory = useCallback(() => {
+    historyRef.current.push({
+      nodes: JSON.parse(JSON.stringify(nodes)),
+      edges: JSON.parse(JSON.stringify(edges)),
+    });
+    futureRef.current = [];
+    setSaveStatus("unsaved");
+  }, [nodes, edges]);
+
+  // Load Workflow on Mount or on versionId change
+  useEffect(() => {
+    setIsLoading(true);
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+    if (versionIdParam) {
+      // Historical published version
+      fetch(`${apiUrl}/api/v1/workflows/${params.id}/versions/${versionIdParam}`, {
+        credentials: "include",
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.success && data?.data) {
+            const ver = data.data;
+            setVersionNumber(ver.versionNumber);
+            setIsReadOnly(true);
+            const { nodes: rfNodes, edges: rfEdges } =
+              workflowDefinitionToReactFlow(ver.definition);
+            setNodes(rfNodes);
+            setEdges(rfEdges);
+            setWorkflowName(`Workflow (v${ver.versionNumber})`);
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsLoading(false));
+    } else {
+      // Editable draft
+      fetch(`${apiUrl}/api/v1/workflows/${params.id}`, {
+        credentials: "include",
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.success && data?.data) {
+            const wf = data.data;
+            setWorkflow(wf);
+            setWorkflowName(wf.name);
+            setIsReadOnly(false);
+
+            if (wf.draftDefinition) {
+              const { nodes: rfNodes, edges: rfEdges } =
+                workflowDefinitionToReactFlow(wf.draftDefinition);
+              setNodes(rfNodes);
+              setEdges(rfEdges);
+            }
+          }
+        })
+        .catch(() => {})
+        .finally(() => setIsLoading(false));
+    }
+  }, [params.id, versionIdParam]);
+
+  // Node Changes
+  const onNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      if (isReadOnly) return;
+      setNodes((nds) => {
+        const next = applyNodeChanges(changes, nds);
+        return next;
+      });
+      setSaveStatus("unsaved");
+    },
+    [isReadOnly],
+  );
+
+  // Edge Changes
+  const onEdgesChange = useCallback(
+    (changes: EdgeChange[]) => {
+      if (isReadOnly) return;
+      setEdges((eds) => applyEdgeChanges(changes, eds));
+      setSaveStatus("unsaved");
+    },
+    [isReadOnly],
+  );
+
+  // Connect Edges
+  const onConnect = useCallback(
+    (params: Connection) => {
+      if (isReadOnly) return;
+      pushHistory();
+
+      let edgeLabel: string | undefined = undefined;
+      if (params.sourceHandle === "true") edgeLabel = "True";
+      else if (params.sourceHandle === "false") edgeLabel = "False";
+
+      setEdges((eds) =>
+        addEdge(
+          {
+            ...params,
+            label: edgeLabel,
+            animated: true,
+            style: { strokeWidth: 2 },
+          },
+          eds,
+        ),
+      );
+    },
+    [isReadOnly, pushHistory],
+  );
+
+  // Selection
+  const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
+    setSelectedNodeId(node.id);
+  }, []);
+
+  const onPaneClick = useCallback(() => {
+    setSelectedNodeId(null);
+  }, []);
+
+  // Add Node from Palette
+  const handleAddNode = useCallback(
+    (type: NodeType, positionOverride?: { x: number; y: number }) => {
+      if (isReadOnly) return;
+      pushHistory();
+
+      const registryItem = getNodeRegistryItem(type);
+      const newId = `node_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+
+      let pos = positionOverride;
+      if (!pos) {
+        if (reactFlowInstance) {
+          pos = reactFlowInstance.screenToFlowPosition({
+            x: window.innerWidth / 2 - 100,
+            y: window.innerHeight / 2 - 50,
+          });
+        } else {
+          pos = { x: 250, y: 100 + nodes.length * 80 };
+        }
+      }
+
+      const newNode: Node = {
+        id: newId,
+        type: "customNode",
+        position: pos,
+        data: {
+          id: newId,
+          name: registryItem.label,
+          type,
+          config: JSON.parse(JSON.stringify(registryItem.defaultConfig)),
+        },
+      };
+
+      setNodes((nds) => [...nds, newNode]);
+      setSelectedNodeId(newId);
+    },
+    [isReadOnly, pushHistory, reactFlowInstance, nodes.length],
+  );
+
+  // Drag & Drop to Canvas
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  }, []);
+
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+      if (isReadOnly || !reactFlowWrapper.current || !reactFlowInstance) return;
+
+      const type = event.dataTransfer.getData("application/reactflow") as NodeType;
+      if (!type) return;
+
+      const position = reactFlowInstance.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+
+      handleAddNode(type, position);
+    },
+    [isReadOnly, reactFlowInstance, handleAddNode],
+  );
+
+  // Update Node config & label
+  const handleUpdateNode = useCallback(
+    (id: string, name: string, config: Record<string, unknown>) => {
+      if (isReadOnly) return;
+      setNodes((nds) =>
+        nds.map((n) =>
+          n.id === id
+            ? {
+                ...n,
+                data: {
+                  ...n.data,
+                  name,
+                  config,
+                },
+              }
+            : n,
+        ),
+      );
+      setSaveStatus("unsaved");
+    },
+    [isReadOnly],
+  );
+
+  // Delete Node
+  const handleDeleteNode = useCallback(
+    (id: string) => {
+      if (isReadOnly) return;
+      pushHistory();
+
+      setNodes((nds) => nds.filter((n) => n.id !== id));
+      setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id));
+      if (selectedNodeId === id) setSelectedNodeId(null);
+    },
+    [isReadOnly, pushHistory, selectedNodeId],
+  );
+
+  // Undo / Redo
+  const handleUndo = useCallback(() => {
+    if (isReadOnly || historyRef.current.length === 0) return;
+    const prev = historyRef.current.pop()!;
+    futureRef.current.push({
+      nodes: JSON.parse(JSON.stringify(nodes)),
+      edges: JSON.parse(JSON.stringify(edges)),
+    });
+    setNodes(prev.nodes);
+    setEdges(prev.edges);
+    setSaveStatus("unsaved");
+  }, [isReadOnly, nodes, edges]);
+
+  const handleRedo = useCallback(() => {
+    if (isReadOnly || futureRef.current.length === 0) return;
+    const next = futureRef.current.pop()!;
+    historyRef.current.push({
+      nodes: JSON.parse(JSON.stringify(nodes)),
+      edges: JSON.parse(JSON.stringify(edges)),
+    });
+    setNodes(next.nodes);
+    setEdges(next.edges);
+    setSaveStatus("unsaved");
+  }, [isReadOnly, nodes, edges]);
+
+  // Client & Server Validation
+  const handleValidate = useCallback(async (): Promise<boolean> => {
+    const ast = reactFlowToWorkflowDefinition(nodes, edges);
+    const localValidation = validateWorkflowGraph(ast);
+
+    if (!localValidation.isValid) {
+      setValidationErrors(
+        localValidation.errors.map((e) => ({
+          code: e.code,
+          message: e.message,
+          nodeId: e.nodeId,
+        })),
+      );
+
+      // Attach error indicators to node data
+      setNodes((nds) =>
+        nds.map((n) => {
+          const matchingErr = localValidation.errors.find((e) => e.nodeId === n.id);
+          return {
+            ...n,
+            data: {
+              ...n.data,
+              error: matchingErr ? matchingErr.message : undefined,
+            },
+          };
+        }),
+      );
+
+      setValidationBanner({
+        type: "error",
+        message: `Graph validation failed with ${localValidation.errors.length} issue(s).`,
+      });
+      return false;
+    }
+
+    // Call server-side validation endpoint
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+      const res = await fetch(`${apiUrl}/api/v1/workflows/${params.id}/validate`, {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (res.ok) {
+        const body = await res.json();
+        if (body.success && !body.data.isValid) {
+          setValidationErrors(body.data.errors);
+          setValidationBanner({
+            type: "error",
+            message: "Server graph validation rejected the draft.",
+          });
+          return false;
+        }
+      }
+    } catch {
+      // Offline fallback: local validation passed
+    }
+
+    // Clear errors
+    setValidationErrors([]);
+    setNodes((nds) =>
+      nds.map((n) => ({
+        ...n,
+        data: { ...n.data, error: undefined },
+      })),
+    );
+    setValidationBanner({
+      type: "success",
+      message: "Workflow graph structure is valid and ready to publish!",
+    });
+    return true;
+  }, [nodes, edges, params.id]);
+
+  // Save Draft API
+  const handleSaveDraft = useCallback(async (): Promise<boolean> => {
+    if (isReadOnly) return false;
+    setSaveStatus("saving");
+
+    const ast = reactFlowToWorkflowDefinition(nodes, edges);
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/workflows/${params.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          name: workflowName,
+          nodes: ast.nodes,
+          edges: ast.edges,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Save request failed");
+      }
+
+      setSaveStatus("saved");
+      return true;
+    } catch {
+      setSaveStatus("error");
+      return false;
+    }
+  }, [isReadOnly, nodes, edges, workflowName, params.id]);
+
+  // Publish Workflow API
+  const handlePublish = useCallback(async () => {
+    if (isReadOnly) return;
+
+    // 1. Validate
+    const isValid = await handleValidate();
+    if (!isValid) return;
+
+    // 2. Save
+    const isSaved = await handleSaveDraft();
+    if (!isSaved) return;
+
+    // 3. Publish
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+    try {
+      const res = await fetch(`${apiUrl}/api/v1/workflows/${params.id}/publish`, {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (res.ok) {
+        const body = await res.json();
+        const newVer = body.data?.version?.versionNumber || 1;
+        setWorkflow((prev) => (prev ? { ...prev, status: "ACTIVE" } : null));
+        setValidationBanner({
+          type: "success",
+          message: `Successfully published version ${newVer}! Workflow is now active.`,
+        });
+      } else {
+        const err = await res.json();
+        setValidationBanner({
+          type: "error",
+          message: err.error?.message || "Publishing failed.",
+        });
+      }
+    } catch {
+      setValidationBanner({
+        type: "error",
+        message: "Network error occurred while publishing.",
+      });
+    }
+  }, [isReadOnly, handleValidate, handleSaveDraft, params.id]);
+
+  // Keyboard Shortcuts (Delete, Backspace, Ctrl+Z, Ctrl+Y, Ctrl+S)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (isReadOnly) return;
+
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
+        return;
+      }
+
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedNodeId) {
+        handleDeleteNode(selectedNodeId);
+      } else if (e.ctrlKey && e.key === "z") {
+        e.preventDefault();
+        handleUndo();
+      } else if (e.ctrlKey && (e.key === "y" || (e.shiftKey && e.key === "Z"))) {
+        e.preventDefault();
+        handleRedo();
+      } else if (e.ctrlKey && e.key === "s") {
+        e.preventDefault();
+        handleSaveDraft();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    isReadOnly,
+    selectedNodeId,
+    handleDeleteNode,
+    handleUndo,
+    handleRedo,
+    handleSaveDraft,
+  ]);
+
+  const selectedNode = useMemo(
+    () => nodes.find((n) => n.id === selectedNodeId) || null,
+    [nodes, selectedNodeId],
+  );
+
+  const selectedNodeErrors = useMemo(
+    () =>
+      validationErrors
+        .filter((e) => e.nodeId === selectedNodeId)
+        .map((e) => e.message),
+    [validationErrors, selectedNodeId],
+  );
+
+  if (isLoading) {
+    return (
+      <div className="flex h-[calc(100vh-64px)] w-full items-center justify-center bg-slate-50 text-slate-500 text-xs">
+        Loading workflow editor...
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-64px)] w-full overflow-hidden select-none">
+      {/* Top Editor Toolbar */}
+      <EditorToolbar
+        workflowId={params.id}
+        name={workflowName}
+        onNameChange={(name) => {
+          setWorkflowName(name);
+          setSaveStatus("unsaved");
+        }}
+        status={workflow?.status || "DRAFT"}
+        versionNumber={versionNumber}
+        isReadOnly={isReadOnly}
+        saveStatus={saveStatus}
+        canUndo={historyRef.current.length > 0}
+        canRedo={futureRef.current.length > 0}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        onValidate={handleValidate}
+        onSave={handleSaveDraft}
+        onPublish={handlePublish}
+        onReturnToDraft={() => {
+          router.push(`/workflows/${params.id}/builder`);
+        }}
+        hasErrors={validationErrors.length > 0}
+      />
+
+      {/* Validation Banner */}
+      {validationBanner && (
+        <div
+          className={`px-4 py-2 text-xs flex items-center justify-between border-b ${
+            validationBanner.type === "error"
+              ? "bg-red-50 border-red-200 text-red-700"
+              : "bg-emerald-50 border-emerald-200 text-emerald-800"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {validationBanner.type === "error" ? (
+              <AlertTriangle className="w-4 h-4 text-red-600" />
+            ) : (
+              <CheckCircle className="w-4 h-4 text-emerald-600" />
+            )}
+            <span>{validationBanner.message}</span>
+          </div>
+          <button
+            onClick={() => setValidationBanner(null)}
+            className="text-[11px] underline font-medium hover:opacity-80"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* Main Canvas Workspace */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Node Palette */}
+        {!isReadOnly && (
+          <NodePalette onAddNode={(type) => handleAddNode(type)} disabled={isReadOnly} />
+        )}
+
+        {/* Central React Flow Canvas */}
+        <div
+          ref={reactFlowWrapper}
+          onDragOver={onDragOver}
+          onDrop={onDrop}
+          className="flex-1 h-full bg-slate-100 relative"
+        >
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onNodeClick={onNodeClick}
+            onPaneClick={onPaneClick}
+            onInit={setReactFlowInstance}
+            nodesDraggable={!isReadOnly}
+            nodesConnectable={!isReadOnly}
+            elementsSelectable={true}
+            fitView
+          >
+            <Background color="#cbd5e1" gap={20} size={1} />
+            <Controls className="!bg-white !border !border-slate-200 !shadow-sm !rounded-md" />
+            <MiniMap
+              nodeColor={(node) => {
+                const reg = getNodeRegistryItem(node.data?.type);
+                if (reg.category === "Triggers") return "#10b981";
+                if (reg.category === "Logic") return "#f59e0b";
+                if (reg.category === "Actions") return "#0ea5e9";
+                return "#64748b";
+              }}
+              className="!border !border-slate-200 !rounded-md !bg-white"
+            />
+          </ReactFlow>
+
+          {/* Empty Canvas Guidance */}
+          {nodes.length === 0 && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+              <div className="bg-white/90 backdrop-blur-xs p-6 rounded-xl border border-slate-200 shadow-md max-w-sm text-center space-y-3 pointer-events-auto">
+                <div className="w-10 h-10 rounded-full bg-teal-50 border border-teal-200 flex items-center justify-center mx-auto text-teal-600">
+                  <Zap className="w-5 h-5" />
+                </div>
+                <h3 className="text-sm font-bold text-slate-800">
+                  Empty Workflow Canvas
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Drag a node from the left palette or click below to start building your automated process.
+                </p>
+                {!isReadOnly && (
+                  <button
+                    onClick={() => handleAddNode("TRIGGER")}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-md text-xs font-semibold shadow-xs transition"
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>Add Webhook / Trigger</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right Node Configuration Panel */}
+        {selectedNode && (
+          <NodeConfigPanel
+            selectedNode={selectedNode}
+            onUpdateNode={handleUpdateNode}
+            onDeleteNode={handleDeleteNode}
+            onClose={() => setSelectedNodeId(null)}
+            nodeErrors={selectedNodeErrors}
+            readOnly={isReadOnly}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function WorkflowBuilderPage({
   params,
 }: {
   params: { id: string };
 }) {
-  const [nodes, setNodes] = useState<Node[]>(initialNodes);
-  const [edges, setEdges] = useState<Edge[]>(initialEdges);
-  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
-  const [publishMessage, setPublishMessage] = useState<string | null>(null);
-
-  const onNodesChange = useCallback(
-    (changes: NodeChange[]) =>
-      setNodes((nds) => applyNodeChanges(changes, nds)),
-    [],
-  );
-  const onEdgesChange = useCallback(
-    (changes: EdgeChange[]) =>
-      setEdges((eds) => applyEdgeChanges(changes, eds)),
-    [],
-  );
-  const onConnect = useCallback(
-    (params: Connection) => setEdges((eds) => addEdge(params, eds)),
-    [],
-  );
-
-  const handleValidate = () => {
-    const formattedDef = {
-      nodes: nodes.map((n) => ({
-        id: n.id,
-        name: n.data.label,
-        type: n.data.nodeType || "END",
-        config: n.data.config || {},
-        position: n.position,
-      })),
-      edges: edges.map((e) => ({
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        sourceHandle:
-          e.sourceHandle ||
-          (e.id.includes("true")
-            ? "true"
-            : e.id.includes("false")
-              ? "false"
-              : undefined),
-      })),
-    };
-
-    const res = validateWorkflowGraph(formattedDef as any);
-    if (!res.isValid) {
-      setValidationErrors(res.errors.map((e) => `${e.code}: ${e.message}`));
-      setPublishMessage(null);
-    } else {
-      setValidationErrors([]);
-      setPublishMessage("Workflow graph is valid and ready for execution!");
-    }
-  };
-
-  const handlePublish = async () => {
-    handleValidate();
-    setPublishMessage(
-      "Successfully published version 2! Workflow is now active.",
-    );
-  };
-
-  const addNode = (type: string, label: string) => {
-    const id = `node_${Date.now()}`;
-    const newNode: Node = {
-      id,
-      type: "default",
-      data: { label, nodeType: type, config: {} },
-      position: { x: 250, y: 150 + nodes.length * 40 },
-      style: {
-        background: "#ffffff",
-        borderColor: "#0d9488",
-        borderRadius: "8px",
-        fontWeight: 600,
-      },
-    };
-    setNodes((nds) => [...nds, newNode]);
-  };
-
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)] w-full overflow-hidden">
-      {/* Top action bar */}
-      <div className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between z-10">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/workflows"
-            className="text-slate-500 hover:text-slate-800 p-1"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <div>
-            <h1 className="text-sm font-bold text-slate-900">
-              Order Processing & Manager Approval
-            </h1>
-            <p className="text-xs text-slate-400">Draft • ID: {params.id}</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleValidate}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 rounded-md text-xs font-medium text-slate-700 hover:bg-slate-50 transition"
-          >
-            <CheckCircle className="w-4 h-4 text-slate-600" />
-            <span>Validate</span>
-          </button>
-          <button
-            onClick={handlePublish}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-md text-xs font-medium shadow-sm transition"
-          >
-            <Save className="w-4 h-4" />
-            <span>Publish Version</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Main Canvas and Sidebars */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Node Palette */}
-        <div className="w-64 bg-slate-900 border-r border-slate-800 p-4 space-y-4 text-white overflow-y-auto">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-            Node Palette
-          </p>
-          <div className="space-y-2">
-            {[
-              { type: "CONDITION", label: "❓ Condition Branch" },
-              { type: "HTTP_REQUEST", label: "🌐 HTTP API Request" },
-              { type: "EMAIL", label: "✉️ Email Notification" },
-              { type: "APPROVAL", label: "👤 Human Approval" },
-              { type: "DELAY", label: "⏳ Delay Timer" },
-              { type: "END", label: "🏁 End Leaf" },
-            ].map((item) => (
-              <button
-                key={item.type}
-                onClick={() => addNode(item.type, item.label)}
-                className="w-full text-left p-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium flex items-center justify-between transition"
-              >
-                <span>{item.label}</span>
-                <Plus className="w-3.5 h-3.5 text-teal-400" />
-              </button>
-            ))}
-          </div>
-
-          {validationErrors.length > 0 && (
-            <div className="bg-red-500/10 border border-red-500 text-red-400 p-3 rounded-lg text-xs space-y-1">
-              <p className="font-semibold flex items-center gap-1">
-                <AlertCircle className="w-4 h-4" /> Validation Issues
-              </p>
-              {validationErrors.map((err, i) => (
-                <p key={i}>{err}</p>
-              ))}
-            </div>
-          )}
-
-          {publishMessage && (
-            <div className="bg-emerald-500/10 border border-emerald-500 text-emerald-400 p-3 rounded-lg text-xs flex items-center gap-2">
-              <CheckCircle className="w-4 h-4" />
-              <span>{publishMessage}</span>
-            </div>
-          )}
-        </div>
-
-        {/* React Flow Graph Surface */}
-        <div className="flex-1 h-full bg-slate-50 relative">
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onNodeClick={(_, node) => setSelectedNode(node)}
-            fitView
-          >
-            <Background color="#cbd5e1" gap={16} />
-            <Controls />
-          </ReactFlow>
-        </div>
-
-        {/* Node Properties Panel */}
-        {selectedNode && (
-          <div className="w-80 bg-white border-l border-slate-200 p-6 space-y-4 overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-              <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
-                <Settings className="w-4 h-4 text-teal-600" />
-                <span>Node Configuration</span>
-              </h3>
-              <button
-                onClick={() => setSelectedNode(null)}
-                className="text-xs text-slate-400 hover:text-slate-600"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-500">
-                  Node ID
-                </label>
-                <input
-                  type="text"
-                  disabled
-                  value={selectedNode.id}
-                  className="mt-1 w-full bg-slate-100 border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-600"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-700">
-                  Display Label
-                </label>
-                <input
-                  type="text"
-                  value={selectedNode.data.label}
-                  onChange={(e) => {
-                    const newLabel = e.target.value;
-                    setNodes((nds) =>
-                      nds.map((n) =>
-                        n.id === selectedNode.id
-                          ? { ...n, data: { ...n.data, label: newLabel } }
-                          : n,
-                      ),
-                    );
-                    setSelectedNode((curr) =>
-                      curr
-                        ? { ...curr, data: { ...curr.data, label: newLabel } }
-                        : null,
-                    );
-                  }}
-                  className="mt-1 w-full border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                />
-              </div>
-
-              {selectedNode.data.nodeType === "CONDITION" && (
-                <div>
-                  <label className="block text-xs font-medium text-slate-700">
-                    Condition Expression
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="trigger.payload.orderValue > 10000"
-                    value={selectedNode.data.config?.expression || ""}
-                    onChange={(e) => {
-                      const expr = e.target.value;
-                      setNodes((nds) =>
-                        nds.map((n) =>
-                          n.id === selectedNode.id
-                            ? {
-                                ...n,
-                                data: {
-                                  ...n.data,
-                                  config: {
-                                    ...n.data.config,
-                                    expression: expr,
-                                  },
-                                },
-                              }
-                            : n,
-                        ),
-                      );
-                    }}
-                    className="mt-1 w-full border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+    <ReactFlowProvider>
+      <WorkflowBuilderContent params={params} />
+    </ReactFlowProvider>
   );
 }
