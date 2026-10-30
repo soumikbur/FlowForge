@@ -1,0 +1,37 @@
+{
+  "name": "flowforge-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FlowForge - Resilient Multi-tenant Business Workflow Automation Platform",
+  "scripts": {
+    "dev": "concurrently -n \"api,worker,web\" -c \"blue,green,magenta\" \"pnpm --filter @flowforge/api dev\" \"pnpm --filter @flowforge/worker dev\" \"pnpm --filter @flowforge/web dev\"",
+    "build": "pnpm -r --stream build",
+    "typecheck": "pnpm -r --parallel exec tsc --noEmit",
+    "lint": "eslint . --ext .ts,.tsx",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit packages",
+    "test:integration": "vitest run tests/integration",
+    "test:security": "vitest run tests/security",
+    "db:generate": "pnpm --filter @flowforge/database generate",
+    "db:migrate": "pnpm --filter @flowforge/database migrate",
+    "db:seed": "pnpm --filter @flowforge/database seed"
+  },
+  "devDependencies": {
+    "@types/supertest": "^6.0.2",
+    "concurrently": "^9.1.2",
+    "eslint": "^9.20.0",
+    "prettier": "^3.5.0",
+    "supertest": "^7.0.0",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "bcrypt",
+      "esbuild",
+      "prisma"
+    ]
+  }
+}

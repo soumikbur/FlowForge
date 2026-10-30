@@ -1,0 +1,179 @@
+import { WorkflowDefinition, Role } from '@flowforge/shared';
+
+export interface UserRecord {
+  id: string;
+  email: string;
+  passwordHash: string;
+  firstName?: string;
+  lastName?: string;
+}
+
+export interface OrganizationRecord {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export interface MembershipRecord {
+  id: string;
+  organizationId: string;
+  userId: string;
+  role: Role;
+}
+
+export interface SessionRecord {
+  id: string;
+  userId: string;
+  token: string;
+  expiresAt: Date;
+}
+
+export interface WorkflowRecord {
+  id: string;
+  organizationId: string;
+  name: string;
+  description?: string;
+  status: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
+  draftDefinition: WorkflowDefinition;
+  publishedVersionId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface WorkflowVersionRecord {
+  id: string;
+  workflowId: string;
+  versionNumber: number;
+  definition: WorkflowDefinition;
+  publishedAt: Date;
+  publishedById?: string;
+}
+
+export interface WorkflowExecutionRecord {
+  id: string;
+  organizationId: string;
+  workflowId: string;
+  workflowVersionId: string;
+  triggerType: 'MANUAL' | 'WEBHOOK' | 'SCHEDULE';
+  triggerPayload: Record<string, unknown>;
+  status: 'QUEUED' | 'RUNNING' | 'WAITING_APPROVAL' | 'WAITING_DELAY' | 'RETRYING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
+  contextData: Record<string, unknown>;
+  currentNodeId?: string;
+  startedAt?: Date;
+  completedAt?: Date;
+  retryCount: number;
+  errorDetails?: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ExecutionStepRecord {
+  id: string;
+  executionId: string;
+  nodeId: string;
+  nodeType: string;
+  nodeName: string;
+  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'SKIPPED' | 'WAITING';
+  inputPayload?: Record<string, unknown>;
+  outputPayload?: Record<string, unknown>;
+  errorMessage?: string;
+  startedAt?: Date;
+  completedAt?: Date;
+  attempt: number;
+}
+
+export interface ApprovalRecord {
+  id: string;
+  organizationId: string;
+  executionId: string;
+  stepId: string;
+  title: string;
+  description?: string;
+  requiredRole: Role;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'TIMEOUT';
+  decisionComment?: string;
+  decidedById?: string;
+  decidedAt?: Date;
+  createdAt: Date;
+}
+
+export class InMemoryDatabase {
+  public users = new Map<string, UserRecord>();
+  public organizations = new Map<string, OrganizationRecord>();
+  public memberships = new Map<string, MembershipRecord>();
+  public sessions = new Map<string, SessionRecord>();
+  public workflows = new Map<string, WorkflowRecord>();
+  public versions = new Map<string, WorkflowVersionRecord>();
+  public executions = new Map<string, WorkflowExecutionRecord>();
+  public steps = new Map<string, ExecutionStepRecord>();
+  public approvals = new Map<string, ApprovalRecord>();
+  public auditLogs: Array<Record<string, unknown>> = [];
+
+  public clear(): void {
+    this.users.clear();
+    this.organizations.clear();
+    this.memberships.clear();
+    this.sessions.clear();
+    this.workflows.clear();
+    this.versions.clear();
+    this.executions.clear();
+    this.steps.clear();
+    this.approvals.clear();
+    this.auditLogs = [];
+  }
+}
+
+export const sampleOrderWorkflow: WorkflowDefinition = {
+  nodes: [
+    {
+      id: 'node_trigger',
+      type: 'TRIGGER',
+      name: 'Order Webhook',
+      config: { triggerType: 'WEBHOOK', webhookPath: '/orders' },
+      position: { x: 100, y: 50 }
+    },
+    {
+      id: 'node_condition',
+      type: 'CONDITION',
+      name: 'Check Order > $10,000',
+      config: { expression: 'trigger.payload.orderValue > 10000' },
+      position: { x: 100, y: 180 }
+    },
+    {
+      id: 'node_approval',
+      type: 'APPROVAL',
+      name: 'Manager Approval Required',
+      config: {
+        title: 'High Value Order Approval',
+        requiredRole: 'ADMIN',
+        timeoutSeconds: 86400
+      },
+      position: { x: 260, y: 320 }
+    },
+    {
+      id: 'node_email',
+      type: 'EMAIL',
+      name: 'Send Customer Confirmation',
+      config: {
+        to: 'customer@example.com',
+        subject: 'Order Processed',
+        template: 'Your order of ${{trigger.payload.orderValue}} has been approved!'
+      },
+      position: { x: -60, y: 320 }
+    },
+    {
+      id: 'node_end',
+      type: 'END',
+      name: 'Workflow Complete',
+      config: {},
+      position: { x: 100, y: 480 }
+    }
+  ],
+  edges: [
+    { id: 'e1', source: 'node_trigger', target: 'node_condition' },
+    { id: 'e2_true', source: 'node_condition', sourceHandle: 'true', target: 'node_approval' },
+    { id: 'e2_false', source: 'node_condition', sourceHandle: 'false', target: 'node_email' },
+    { id: 'e3', source: 'node_approval', target: 'node_email' },
+    { id: 'e4', source: 'node_email', target: 'node_end' }
+  ]
+};

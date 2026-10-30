@@ -1,0 +1,295 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum WorkflowStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum TriggerType {
+  MANUAL
+  WEBHOOK
+  SCHEDULE
+}
+
+enum ExecutionStatus {
+  QUEUED
+  RUNNING
+  WAITING_APPROVAL
+  WAITING_DELAY
+  RETRYING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum StepStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  SKIPPED
+  WAITING
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  TIMEOUT
+}
+
+enum CredentialType {
+  SMTP
+  API_KEY
+  BEARER_TOKEN
+  BASIC_AUTH
+}
+
+model Organization {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  memberships OrganizationMembership[]
+  workflows   Workflow[]
+  executions  WorkflowExecution[]
+  approvals   Approval[]
+  credentials IntegrationCredential[]
+  webhooks    WebhookEvent[]
+  auditLogs   AuditLog[]
+
+  @@map("organizations")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  firstName    String?
+  lastName     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships      OrganizationMembership[]
+  sessions         Session[]
+  publishedVersions WorkflowVersion[]       @relation("VersionPublisher")
+  decidedApprovals Approval[]              @relation("ApprovalDecider")
+  auditLogs        AuditLog[]
+
+  @@map("users")
+}
+
+model OrganizationMembership {
+  id             String       @id @default(uuid())
+  organizationId String
+  userId         String
+  role           Role         @default(MEMBER)
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+  @@map("organization_memberships")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("sessions")
+}
+
+model Workflow {
+  id                 String         @id @default(uuid())
+  organizationId     String
+  name               String
+  description        String?
+  status             WorkflowStatus @default(DRAFT)
+  draftDefinition    Json           @default("{\"nodes\":[],\"edges\":[]}")
+  publishedVersionId String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  organization       Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  versions           WorkflowVersion[]
+  executions         WorkflowExecution[]
+  webhooks           WebhookEvent[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@map("workflows")
+}
+
+model WorkflowVersion {
+  id            String   @id @default(uuid())
+  workflowId    String
+  versionNumber Int
+  definition    Json
+  publishedAt   DateTime @default(now())
+  publishedById String?
+
+  workflow      Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  publishedBy   User?    @relation("VersionPublisher", fields: [publishedById], references: [id], onDelete: SetNull)
+  executions    WorkflowExecution[]
+
+  @@unique([workflowId, versionNumber])
+  @@index([workflowId])
+  @@map("workflow_versions")
+}
+
+model WorkflowExecution {
+  id                String          @id @default(uuid())
+  organizationId    String
+  workflowId        String
+  workflowVersionId String
+  triggerType       TriggerType
+  triggerPayload    Json            @default("{}")
+  status            ExecutionStatus @default(QUEUED)
+  contextData       Json            @default("{}")
+  currentNodeId     String?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  retryCount        Int             @default(0)
+  errorDetails      Json?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workflow          Workflow        @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  workflowVersion   WorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Cascade)
+  steps             ExecutionStep[]
+  approvals         Approval[]
+
+  @@index([organizationId])
+  @@index([workflowId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("workflow_executions")
+}
+
+model ExecutionStep {
+  id            String     @id @default(uuid())
+  executionId   String
+  nodeId        String
+  nodeType      String
+  nodeName      String
+  status        StepStatus @default(PENDING)
+  inputPayload  Json?
+  outputPayload Json?
+  errorMessage  String?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  attempt       Int        @default(1)
+
+  execution     WorkflowExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  approvals     Approval[]
+
+  @@index([executionId])
+  @@index([nodeId])
+  @@map("execution_steps")
+}
+
+model Approval {
+  id             String         @id @default(uuid())
+  organizationId String
+  executionId    String
+  stepId         String
+  title          String
+  description    String?
+  requiredRole   Role           @default(ADMIN)
+  status         ApprovalStatus @default(PENDING)
+  decisionComment String?
+  decidedById    String?
+  decidedAt      DateTime?
+  createdAt      DateTime       @default(now())
+
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  execution      WorkflowExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  step           ExecutionStep     @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  decidedBy      User?             @relation("ApprovalDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([executionId])
+  @@index([status])
+  @@map("approvals")
+}
+
+model IntegrationCredential {
+  id             String         @id @default(uuid())
+  organizationId String
+  name           String
+  type           CredentialType
+  encryptedData  String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("integration_credentials")
+}
+
+model WebhookEvent {
+  id             String   @id @default(uuid())
+  organizationId String
+  workflowId     String
+  idempotencyKey String?
+  source         String?
+  payload        Json
+  status         String   @default("PENDING")
+  createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workflow       Workflow     @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([workflowId])
+  @@map("webhook_events")
+}
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String?
+  action         String
+  resourceType   String
+  resourceId     String
+  metadata       Json?
+  ipAddress      String?
+  createdAt      DateTime @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

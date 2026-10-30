@@ -1,0 +1,36 @@
+# FlowForge Development Roadmap
+
+- **Phase 0: Architecture & Tooling Audit (Done)**
+  - Establish directory isolation, verify development tools, author specifications.
+- **Phase 1: Monorepo Foundation & Tooling (Current)**
+  - Setup pnpm workspace, root configurations, shared scripts, Docker Compose, CI setup.
+- **Phase 2: Database Schema & Shared Contracts**
+  - Implement Prisma models, Zod validation schemas, TypeScript domain models.
+- **Phase 3: Authentication & Multi-Tenant Authorization**
+  - Session auth, password hashing, RBAC middleware, organization isolation.
+- **Phase 4: Workflow Management REST API**
+  - CRUD operations, version snapshotting, publish validations, execution trigger endpoints.
+- **Phase 5: Frontend Foundation**
+  - Next.js 14/15 App router, Tailwind CSS layout, auth state, UI components.
+- **Phase 6: Visual Workflow Builder**
+  - React Flow graph editor, custom nodes (Trigger, Condition, HTTP, Email, Approval, Delay, End), property panels, live serialization.
+- **Phase 7: Workflow Graph Validation Engine**
+  - Standalone pure validation package: DAG cycle checks, unreachable nodes, handle validation, condition syntax checks.
+- **Phase 8: Workflow Execution Engine & State Machine**
+  - Pure execution engine, step orchestrator, condition evaluator, retry calculator, terminal state resolution.
+- **Phase 9: Background Worker & Recovery**
+  - BullMQ job queue consumer, failure recovery, worker interruption safety, idempotency guarantees.
+- **Phase 10: Human Approval Inbox**
+  - Inbox API and UI, approval decisions, execution resumption.
+- **Phase 11: Integrations Subsystem**
+  - Webhook receiver, safe HTTP request sender (SSRF guarded), email notifier, scheduled triggers.
+- **Phase 12: Dashboard & Execution History**
+  - Metrics aggregations, real-time status indicators, step log timelines.
+- **Phase 13: Observability & Diagnostics**
+  - Structured logging, correlation IDs, health check endpoints.
+- **Phase 14: Security Hardening & Penetration Tests**
+  - Cross-tenant boundaries, SSRF prevention tests, rate limiting, sanitization.
+- **Phase 15: Automated Test Verification**
+  - Vitest test suites, full journey coverage.
+- **Phase 16 & 17: Final Verification & Production Documentation**
+  - Complete check of clean builds, migrations, tests, and documentation.

@@ -1,0 +1,26 @@
+{
+  "name": "@flowforge/worker",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@flowforge/config": "workspace:*",
+    "@flowforge/database": "workspace:*",
+    "@flowforge/integrations": "workspace:*",
+    "@flowforge/shared": "workspace:*",
+    "@flowforge/test-utils": "workspace:*",
+    "@flowforge/workflow-engine": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}
