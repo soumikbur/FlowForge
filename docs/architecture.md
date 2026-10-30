@@ -54,3 +54,38 @@ The codebase is structured as a pnpm monorepo with distinct separation of concer
 - **Zero Framework Coupling**: Operates independently of Next.js, Express, PostgreSQL, and BullMQ.
 - **Pure Functional Core**: Graph validation (`validateWorkflowDefinition`), cycle detection (DFS with recursion stack), topological sorting (Kahn's algorithm with deterministic tie-breaking), and condition evaluation operate on pure in-memory data structures without network or database I/O.
 - **Node Registry & Handler Contracts**: Defines strongly-typed handler interfaces (`NodeHandler`, `ExecutionContext`, `StepExecutionResult`) and metadata registries used by the API for validation and by the worker for step execution.
+
+## 6. Workflow Lifecycle, Versioning & Multi-Environment Promotion Architecture
+
+```mermaid
+flowchart LR
+    Draft[Draft Workflow Definition] -->|Graph Validation & Hashing| Publish[Publish Version]
+    Publish -->|Auto-deploy| DevEnv[(Development)]
+    DevEnv -->|Promote with Idempotency Guard| StagingEnv[(Staging)]
+    StagingEnv -->|Elevated RBAC Promotion: Admin/Owner| ProdEnv[(Production)]
+    ProdEnv -->|Emergency Rollback| PrevVer[Previous Version Restored]
+    
+    subgraph Trigger Resolution
+        Webhooks[Inbound Webhooks] -->|Resolves Active Version| ProdEnv
+        Schedules[Cron Schedules] -->|Resolves Active Version| ProdEnv
+        Manual[Manual Builder Trigger] -->|Resolves Active Version| DevEnv
+    end
+```
+
+### 6.1 Canonical Content Hashing
+To guarantee reproducible identity and detect true semantic modifications without false positives caused by UI canvas layout changes:
+- `canonicalizeWorkflowDefinition`: Normalizes node orders by identifier, filters out transient UI layout coordinates (`position`), sorts node configuration keys alphabetically, and standardizes edge fields (`id`, `source`, `target`, `sourceHandle`, `targetHandle`).
+- `computeWorkflowContentHash`: Produces a deterministic `SHA-256` hexadecimal digest of the canonical string representation.
+- Prevents duplicate publishing when draft contents have not semantically changed (`409 UNCHANGED_CONTENT`).
+- Re-verifies content integrity prior to environment promotion (`422 HASH_VERIFICATION_FAILED`).
+
+### 6.2 Immutable Version Guarantee
+- Published `WorkflowVersion` entities are strictly append-only.
+- Direct mutations (`PUT`, `PATCH`, `DELETE`) on published versions are unconditionally rejected (`405 VERSION_IMMUTABLE`).
+- Draft rollbacks / historical version restorations operate by copying the historical snapshot into the draft workspace (`draftRevision = currentRevision + 1`), preserving complete audit trails.
+
+### 6.3 Multi-Environment Promotion & Rollback Mechanics
+- Environments supported: `development`, `staging`, `production`.
+- Deployments tracked via `WorkflowDeployment` with statuses `ACTIVE`, `SUPERSEDED`, and `ROLLED_BACK`.
+- **Production Safeguards**: Non-admin members (`MEMBER`) are restricted from deploying or rolling back production (`403 PRODUCTION_DEPLOY_UNAUTHORIZED`); `ADMIN` and `OWNER` privileges are enforced.
+- **Rollback Guarantee**: Restores traffic to a prior immutable version without deleting deployment logs or altering in-flight workflow executions. Running executions remain bound to the version snapshot recorded at trigger acceptance time.

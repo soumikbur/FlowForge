@@ -12,6 +12,7 @@ import {
 import { apiStore, ScheduleRecord, WorkflowExecutionRecord } from "../store.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
+import { resolveActiveWorkflowVersionId } from "./workflow.routes.js";
 
 export const scheduleRouter = Router();
 
@@ -342,12 +343,14 @@ scheduleRouter.post(
 
     const executionId = `exec_${crypto.randomUUID()}`;
     const now = new Date();
+    const resolvedVersionId = resolveActiveWorkflowVersionId(workflow.id, "production") || workflow.publishedVersionId;
 
     const execution: WorkflowExecutionRecord = {
       id: executionId,
       organizationId: req.organizationId!,
       workflowId: workflow.id,
-      workflowVersionId: workflow.publishedVersionId,
+      workflowVersionId: resolvedVersionId,
+      environment: "production",
       triggerType: "SCHEDULE",
       triggerPayload: {
         scheduleId: schedule.id,

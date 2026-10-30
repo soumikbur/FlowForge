@@ -16,6 +16,7 @@ import {
 } from "../store.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
+import { resolveActiveWorkflowVersionId } from "./workflow.routes.js";
 
 export const webhookRouter = Router();
 
@@ -129,12 +130,14 @@ const handleInboundWebhook = async (req: Request, res: Response) => {
   // 4. Create and persist execution & trigger event
   const executionId = `exec_${crypto.randomUUID()}`;
   const now = new Date();
+  const resolvedVersionId = resolveActiveWorkflowVersionId(workflow.id, "production") || workflow.publishedVersionId;
 
   const execution: WorkflowExecutionRecord = {
     id: executionId,
     organizationId: workflow.organizationId,
     workflowId: workflow.id,
-    workflowVersionId: workflow.publishedVersionId,
+    workflowVersionId: resolvedVersionId,
+    environment: "production",
     triggerType: "WEBHOOK",
     triggerPayload: req.body,
     status: "QUEUED",

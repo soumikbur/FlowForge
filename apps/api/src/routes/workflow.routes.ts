@@ -5,13 +5,22 @@ import {
   UpdateWorkflowSchema,
   TriggerWorkflowSchema,
   PaginationQuerySchema,
+  PublishWorkflowSchema,
+  PromoteWorkflowSchema,
+  RollbackWorkflowSchema,
+  WorkflowEnvironment,
 } from "@flowforge/shared";
-import { validateWorkflowGraph } from "@flowforge/workflow-engine";
+import {
+  validateWorkflowGraph,
+  computeWorkflowContentHash,
+  compareWorkflowDefinitions,
+} from "@flowforge/workflow-engine";
 import {
   apiStore,
   WorkflowRecord,
   WorkflowVersionRecord,
   WorkflowExecutionRecord,
+  WorkflowDeploymentRecord,
 } from "../store.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
@@ -19,6 +28,27 @@ import { requirePermission } from "../middleware/rbac.js";
 export const workflowRouter = Router();
 
 workflowRouter.use(requireAuth);
+
+/**
+ * Resolves the authoritative active deployed workflow version for an environment,
+ * falling back to the workflow's latest published version.
+ */
+export function resolveActiveWorkflowVersionId(
+  workflowId: string,
+  environment: "development" | "staging" | "production" = "production",
+): string | undefined {
+  const activeDeployment = Array.from(apiStore.deployments.values()).find(
+    (d) =>
+      d.workflowId === workflowId &&
+      d.environment === environment &&
+      d.status === "ACTIVE",
+  );
+  if (activeDeployment) {
+    return activeDeployment.workflowVersionId;
+  }
+  const wf = apiStore.workflows.get(workflowId);
+  return wf?.publishedVersionId;
+}
 
 // ==========================================
 // 1. List Workflows (with pagination, search, status filter)
@@ -100,6 +130,7 @@ workflowRouter.post("/", requirePermission("workflow:write"), (req, res) => {
     name,
     description,
     status: "DRAFT",
+    draftRevision: 1,
     createdById: req.user?.id,
     draftDefinition: {
       nodes: [
@@ -137,7 +168,7 @@ workflowRouter.post("/", requirePermission("workflow:write"), (req, res) => {
 });
 
 // ==========================================
-// 3. Get single workflow
+// 3. Get single workflow with versions and environment deployments
 // ==========================================
 workflowRouter.get("/:id", requirePermission("workflow:read"), (req, res) => {
   const workflow = apiStore.workflows.get(req.params.id);
@@ -154,18 +185,29 @@ workflowRouter.get("/:id", requirePermission("workflow:read"), (req, res) => {
     .filter((v) => v.workflowId === workflow.id)
     .sort((a, b) => b.versionNumber - a.versionNumber);
 
+  const deployments = Array.from(apiStore.deployments.values())
+    .filter((d) => d.workflowId === workflow.id && d.status === "ACTIVE");
+
+  const environments: Record<string, WorkflowDeploymentRecord | null> = {
+    development: deployments.find((d) => d.environment === "development") || null,
+    staging: deployments.find((d) => d.environment === "staging") || null,
+    production: deployments.find((d) => d.environment === "production") || null,
+  };
+
   res.json({
     success: true,
     data: {
       ...workflow,
+      draftRevision: workflow.draftRevision || 1,
       versions,
+      environments,
     },
     error: null,
   });
 });
 
 // ==========================================
-// 4. Update workflow draft
+// 4. Update workflow draft with optimistic concurrency protection
 // ==========================================
 workflowRouter.patch(
   "/:id",
@@ -195,6 +237,28 @@ workflowRouter.patch(
       return;
     }
 
+    // Optimistic Concurrency Control
+    const expectedRevision =
+      parseResult.data.expectedRevision !== undefined
+        ? parseResult.data.expectedRevision
+        : req.headers["if-match"]
+          ? parseInt(req.headers["if-match"] as string, 10)
+          : undefined;
+
+    const currentRevision = workflow.draftRevision || 1;
+    if (expectedRevision !== undefined && expectedRevision !== currentRevision) {
+      res.status(409).json({
+        success: false,
+        data: null,
+        error: {
+          code: "DRAFT_CONFLICT",
+          message: `Draft was modified by another session (expected revision ${expectedRevision}, current is ${currentRevision}). Refresh to review latest changes.`,
+          details: { currentRevision, expectedRevision },
+        },
+      });
+      return;
+    }
+
     const { name, description, nodes, edges } = parseResult.data;
 
     if (name !== undefined) workflow.name = name;
@@ -205,6 +269,7 @@ workflowRouter.patch(
         edges: edges ?? workflow.draftDefinition.edges,
       };
     }
+    workflow.draftRevision = currentRevision + 1;
     workflow.updatedAt = new Date();
 
     apiStore.workflows.set(workflow.id, workflow);
@@ -215,7 +280,7 @@ workflowRouter.patch(
       action: "workflow.updated",
       resourceType: "workflow",
       resourceId: workflow.id,
-      metadata: { name: workflow.name },
+      metadata: { name: workflow.name, revision: workflow.draftRevision },
       ipAddress: req.ip,
     });
 
@@ -244,7 +309,6 @@ workflowRouter.delete(
       return;
     }
 
-    // Invariant: Soft delete preserves execution history and immutable version snapshots
     workflow.deletedAt = new Date();
     workflow.status = "ARCHIVED";
     workflow.updatedAt = new Date();
@@ -313,6 +377,7 @@ workflowRouter.post(
       return;
     }
 
+    // 1. Validate complete workflow graph
     const validation = validateWorkflowGraph(workflow.draftDefinition);
     if (!validation.isValid) {
       res.status(400).json({
@@ -327,37 +392,100 @@ workflowRouter.post(
       return;
     }
 
-    // Version sequencing: count existing published versions
+    // 2. Parse publish options
+    const parseResult = PublishWorkflowSchema.safeParse(req.body);
+    const releaseNotes = parseResult.success ? parseResult.data.releaseNotes : undefined;
+    const force = parseResult.success ? parseResult.data.force : false;
+
+    // 3. Compute deterministic canonical content hash
+    const contentHash = computeWorkflowContentHash(workflow.draftDefinition);
+
+    // 4. Duplicate Publication Guard
+    if (workflow.publishedVersionId && !force) {
+      const currentVersion = apiStore.versions.get(workflow.publishedVersionId);
+      if (currentVersion && currentVersion.contentHash === contentHash) {
+        res.status(409).json({
+          success: false,
+          data: {
+            currentVersion,
+            contentHash,
+          },
+          error: {
+            code: "UNCHANGED_CONTENT",
+            message: "Draft definition is identical to currently published version. Duplicate publication rejected.",
+          },
+        });
+        return;
+      }
+    }
+
+    // 5. Version sequencing
     const existingVersions = Array.from(apiStore.versions.values()).filter(
       (v) => v.workflowId === workflow.id,
     );
     const nextVersionNumber = existingVersions.length + 1;
     const versionId = `ver_${crypto.randomUUID()}`;
 
-    // Immutable snapshot
+    // 6. Immutable snapshot
     const newVersion: WorkflowVersionRecord = {
       id: versionId,
       workflowId: workflow.id,
       versionNumber: nextVersionNumber,
       definition: JSON.parse(JSON.stringify(workflow.draftDefinition)),
+      contentHash,
+      releaseNotes,
       publishedAt: new Date(),
       publishedById: req.user?.id,
     };
 
     apiStore.versions.set(versionId, newVersion);
 
+    // 7. Update workflow reference
     workflow.publishedVersionId = versionId;
     workflow.status = "ACTIVE";
     workflow.updatedAt = new Date();
     apiStore.workflows.set(workflow.id, workflow);
 
+    // 8. Auto-deploy to development environment
+    const depId = `dep_${crypto.randomUUID()}`;
+    const devDeployment: WorkflowDeploymentRecord = {
+      id: depId,
+      organizationId: workflow.organizationId,
+      workflowId: workflow.id,
+      workflowVersionId: versionId,
+      environment: "development",
+      status: "ACTIVE",
+      deployedById: req.user?.id,
+      deployedAt: new Date(),
+      releaseNotes,
+    };
+
+    // Supersede previous development deployment
+    for (const dep of apiStore.deployments.values()) {
+      if (
+        dep.workflowId === workflow.id &&
+        dep.environment === "development" &&
+        dep.status === "ACTIVE"
+      ) {
+        dep.status = "SUPERSEDED";
+        apiStore.deployments.set(dep.id, dep);
+      }
+    }
+    apiStore.deployments.set(depId, devDeployment);
+
+    // 9. Record audit event
     apiStore.recordAudit({
       organizationId: req.organizationId!,
       userId: req.user?.id,
       action: "workflow.published",
       resourceType: "workflow",
       resourceId: workflow.id,
-      metadata: { versionId, versionNumber: nextVersionNumber },
+      metadata: {
+        versionId,
+        versionNumber: nextVersionNumber,
+        contentHash,
+        releaseNotes,
+      },
       ipAddress: req.ip,
     });
 
@@ -366,6 +494,7 @@ workflowRouter.post(
       data: {
         workflow,
         version: newVersion,
+        deployment: devDeployment,
       },
       error: null,
     });
@@ -438,7 +567,519 @@ workflowRouter.get(
 );
 
 // ==========================================
-// 10. Trigger / Execute workflow execution
+// 10. Immutability Boundary: Reject mutation or deletion of published versions
+// ==========================================
+const immutableRejectHandler = (req: any, res: any) => {
+  res.status(405).json({
+    success: false,
+    data: null,
+    error: {
+      code: "VERSION_IMMUTABLE",
+      message: "Published workflow versions are immutable and cannot be updated or deleted.",
+    },
+  });
+};
+
+workflowRouter.put("/:id/versions/:versionId", immutableRejectHandler);
+workflowRouter.patch("/:id/versions/:versionId", immutableRejectHandler);
+workflowRouter.delete("/:id/versions/:versionId", immutableRejectHandler);
+
+// ==========================================
+// 11. Create new draft from an immutable historical version snapshot
+// ==========================================
+workflowRouter.post(
+  "/:id/versions/:versionId/create-draft",
+  requirePermission("workflow:write"),
+  (req, res) => {
+    const workflow = apiStore.workflows.get(req.params.id);
+    if (!workflow || workflow.organizationId !== req.organizationId || workflow.deletedAt) {
+      res.status(404).json({
+        success: false,
+        data: null,
+        error: { code: "NOT_FOUND", message: "Workflow not found." },
+      });
+      return;
+    }
+
+    const version = apiStore.versions.get(req.params.versionId);
+    if (!version || version.workflowId !== workflow.id) {
+      res.status(404).json({
+        success: false,
+        data: null,
+        error: { code: "NOT_FOUND", message: "Workflow version not found." },
+      });
+      return;
+    }
+
+    // Overwrite draft with version snapshot and increment draftRevision
+    workflow.draftDefinition = JSON.parse(JSON.stringify(version.definition));
+    workflow.draftRevision = (workflow.draftRevision || 1) + 1;
+    workflow.updatedAt = new Date();
+    apiStore.workflows.set(workflow.id, workflow);
+
+    apiStore.recordAudit({
+      organizationId: req.organizationId!,
+      userId: req.user?.id,
+      action: "workflow.draft_restored",
+      resourceType: "workflow",
+      resourceId: workflow.id,
+      metadata: { fromVersionId: version.id, versionNumber: version.versionNumber },
+      ipAddress: req.ip,
+    });
+
+    res.json({
+      success: true,
+      data: workflow,
+      error: null,
+    });
+  },
+);
+
+// ==========================================
+// 12. Version Comparison Endpoint (Semantic Diff + Sensitive Redaction)
+// ==========================================
+workflowRouter.get(
+  "/:id/compare",
+  requirePermission("workflow:read"),
+  (req, res) => {
+    const workflow = apiStore.workflows.get(req.params.id);
+    if (!workflow || workflow.organizationId !== req.organizationId || workflow.deletedAt) {
+      res.status(404).json({
+        success: false,
+        data: null,
+        error: { code: "NOT_FOUND", message: "Workflow not found." },
+      });
+      return;
+    }
+
+    const fromVersionId = (req.query.fromVersionId || req.query.baseVersionId) as string | undefined;
+    const toVersionId = (req.query.toVersionId || req.query.targetVersionId) as string | undefined;
+
+    let fromDef = workflow.draftDefinition;
+    let toDef = workflow.draftDefinition;
+
+    if (fromVersionId && fromVersionId !== "draft") {
+      const ver = apiStore.versions.get(fromVersionId as string);
+      if (!ver || ver.workflowId !== workflow.id) {
+        res.status(404).json({
+          success: false,
+          data: null,
+          error: { code: "NOT_FOUND", message: `Source version '${fromVersionId}' not found.` },
+        });
+        return;
+      }
+      fromDef = ver.definition;
+    } else if (!fromVersionId && workflow.publishedVersionId) {
+      const ver = apiStore.versions.get(workflow.publishedVersionId);
+      if (ver) fromDef = ver.definition;
+    }
+
+    if (toVersionId && toVersionId !== "draft") {
+      const ver = apiStore.versions.get(toVersionId as string);
+      if (!ver || ver.workflowId !== workflow.id) {
+        res.status(404).json({
+          success: false,
+          data: null,
+          error: { code: "NOT_FOUND", message: `Target version '${toVersionId}' not found.` },
+        });
+        return;
+      }
+      toDef = ver.definition;
+    }
+
+    const diff = compareWorkflowDefinitions(fromDef, toDef);
+
+    res.json({
+      success: true,
+      data: diff,
+      error: null,
+    });
+  },
+);
+
+// ==========================================
+// 13. List environment deployments for workflow
+// ==========================================
+workflowRouter.get(
+  "/:id/deployments",
+  requirePermission("workflow:read"),
+  (req, res) => {
+    const workflow = apiStore.workflows.get(req.params.id);
+    if (!workflow || workflow.organizationId !== req.organizationId) {
+      res.status(404).json({
+        success: false,
+        data: null,
+        error: { code: "NOT_FOUND", message: "Workflow not found." },
+      });
+      return;
+    }
+
+    const deployments = Array.from(apiStore.deployments.values())
+      .filter((d) => d.workflowId === workflow.id)
+      .sort((a, b) => b.deployedAt.getTime() - a.deployedAt.getTime());
+
+    res.json({
+      success: true,
+      data: deployments,
+      error: null,
+      meta: { total: deployments.length },
+    });
+  },
+);
+
+// ==========================================
+// 14. Get active deployment for specific environment
+// ==========================================
+workflowRouter.get(
+  "/:id/environments/:environment",
+  requirePermission("workflow:read"),
+  (req, res) => {
+    const workflow = apiStore.workflows.get(req.params.id);
+    if (!workflow || workflow.organizationId !== req.organizationId) {
+      res.status(404).json({
+        success: false,
+        data: null,
+        error: { code: "NOT_FOUND", message: "Workflow not found." },
+      });
+      return;
+    }
+
+    const env = req.params.environment;
+    const deployment = Array.from(apiStore.deployments.values()).find(
+      (d) => d.workflowId === workflow.id && d.environment === env && d.status === "ACTIVE",
+    );
+
+    res.json({
+      success: true,
+      data: deployment || null,
+      error: null,
+    });
+  },
+);
+
+// ==========================================
+// 15. Promote / Deploy workflow version to target environment
+// ==========================================
+const handlePromoteWorkflow = (req: any, res: any) => {
+  const workflow = apiStore.workflows.get(req.params.id);
+  if (!workflow || workflow.organizationId !== req.organizationId || workflow.deletedAt) {
+    res.status(404).json({
+      success: false,
+      data: null,
+      error: { code: "NOT_FOUND", message: "Workflow not found." },
+    });
+    return;
+  }
+
+  const parseResult = PromoteWorkflowSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    res.status(400).json({
+      success: false,
+      data: null,
+      error: {
+        code: "VALIDATION_FAILED",
+        message: "Invalid promotion payload",
+        details: parseResult.error.issues,
+      },
+    });
+    return;
+  }
+
+  const { versionId, targetEnvironment, releaseNotes } = parseResult.data;
+
+  // Production Deployment Safeguard:
+  // Requires elevated role (OWNER or ADMIN)
+  if (targetEnvironment === "production") {
+    const isPrivileged = req.role === "OWNER" || req.role === "ADMIN";
+    if (!isPrivileged) {
+      res.status(403).json({
+        success: false,
+        data: null,
+        error: {
+          code: "PRODUCTION_DEPLOY_UNAUTHORIZED",
+          message: "Elevated permissions required to promote or deploy to production environment.",
+        },
+      });
+      return;
+    }
+  }
+
+  // Verify source version exists and belongs to workflow
+  const version = apiStore.versions.get(versionId);
+  if (!version || version.workflowId !== workflow.id) {
+    res.status(404).json({
+      success: false,
+      data: null,
+      error: {
+        code: "VERSION_NOT_FOUND",
+        message: `Target version '${versionId}' does not belong to this workflow.`,
+      },
+    });
+    return;
+  }
+
+  // Verify content hash integrity
+  const calculatedHash = computeWorkflowContentHash(version.definition);
+  if (version.contentHash && version.contentHash !== calculatedHash) {
+    res.status(422).json({
+      success: false,
+      data: null,
+      error: {
+        code: "HASH_VERIFICATION_FAILED",
+        message: "Version content hash integrity verification failed.",
+      },
+    });
+    return;
+  }
+
+  // Idempotency check:
+  const idempotencyKey =
+    (req.headers["idempotency-key"] as string) || req.body?.idempotencyKey;
+
+  if (idempotencyKey) {
+    const existing = Array.from(apiStore.deployments.values()).find(
+      (d) =>
+        d.organizationId === req.organizationId &&
+        d.workflowId === workflow.id &&
+        d.idempotencyKey === idempotencyKey,
+    );
+    if (existing) {
+      res.status(200).json({
+        success: true,
+        data: existing,
+        error: null,
+        meta: { idempotent: true },
+      });
+      return;
+    }
+  }
+
+  // Find current active deployment for environment to link previousVersionId
+  const currentActive = Array.from(apiStore.deployments.values()).find(
+    (d) =>
+      d.workflowId === workflow.id &&
+      d.environment === targetEnvironment &&
+      d.status === "ACTIVE",
+  );
+
+  // If already active with same version and no new notes, return idempotently
+  if (currentActive && currentActive.workflowVersionId === versionId && !releaseNotes) {
+    res.status(200).json({
+      success: true,
+      data: currentActive,
+      error: null,
+      meta: { idempotent: true, message: "Version is already active in environment." },
+    });
+    return;
+  }
+
+  // Supersede current active deployment
+  if (currentActive) {
+    currentActive.status = "SUPERSEDED";
+    apiStore.deployments.set(currentActive.id, currentActive);
+  }
+
+  const deploymentId = `dep_${crypto.randomUUID()}`;
+  const newDeployment: WorkflowDeploymentRecord = {
+    id: deploymentId,
+    organizationId: req.organizationId!,
+    workflowId: workflow.id,
+    workflowVersionId: version.id,
+    environment: targetEnvironment,
+    status: "ACTIVE",
+    deployedById: req.user?.id,
+    deployedAt: new Date(),
+    previousVersionId: currentActive ? currentActive.workflowVersionId : undefined,
+    releaseNotes: releaseNotes || version.releaseNotes,
+    idempotencyKey,
+  };
+
+  apiStore.deployments.set(deploymentId, newDeployment);
+
+  apiStore.recordAudit({
+    organizationId: req.organizationId!,
+    userId: req.user?.id,
+    action: "workflow.promoted",
+    resourceType: "workflow",
+    resourceId: workflow.id,
+    metadata: {
+      deploymentId,
+      environment: targetEnvironment,
+      versionId: version.id,
+      versionNumber: version.versionNumber,
+      previousVersionId: newDeployment.previousVersionId,
+    },
+    ipAddress: req.ip,
+  });
+
+  res.status(201).json({
+    success: true,
+    data: newDeployment,
+    error: null,
+  });
+};
+
+workflowRouter.post(
+  "/:id/promote",
+  requireAuth,
+  handlePromoteWorkflow,
+);
+
+// Alias /deploy to /promote for deployment compatibility
+workflowRouter.post(
+  "/:id/deploy",
+  requireAuth,
+  handlePromoteWorkflow,
+);
+
+// ==========================================
+// 16. Rollback deployment in an environment
+// ==========================================
+workflowRouter.post(
+  "/:id/environments/:environment/rollback",
+  requireAuth,
+  (req, res) => {
+    const workflow = apiStore.workflows.get(req.params.id);
+    if (!workflow || workflow.organizationId !== req.organizationId || workflow.deletedAt) {
+      res.status(404).json({
+        success: false,
+        data: null,
+        error: { code: "NOT_FOUND", message: "Workflow not found." },
+      });
+      return;
+    }
+
+    const env = req.params.environment as WorkflowEnvironment;
+    if (!["development", "staging", "production"].includes(env)) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: { code: "INVALID_ENVIRONMENT", message: `Environment '${env}' is not supported.` },
+      });
+      return;
+    }
+
+    // Production Safeguard on Rollback
+    if (env === "production") {
+      const isPrivileged = req.role === "OWNER" || req.role === "ADMIN";
+      if (!isPrivileged) {
+        res.status(403).json({
+          success: false,
+          data: null,
+          error: {
+            code: "PRODUCTION_DEPLOY_UNAUTHORIZED",
+            message: "Elevated permissions required to perform rollback in production.",
+          },
+        });
+        return;
+      }
+    }
+
+    const parseResult = RollbackWorkflowSchema.safeParse(req.body);
+    const { targetVersionId, reason } = parseResult.success
+      ? parseResult.data
+      : { targetVersionId: undefined, reason: undefined };
+
+    const currentActive = Array.from(apiStore.deployments.values()).find(
+      (d) => d.workflowId === workflow.id && d.environment === env && d.status === "ACTIVE",
+    );
+
+    // Determine target version
+    let resolvedTargetVersionId = targetVersionId;
+    if (!resolvedTargetVersionId) {
+      if (currentActive?.previousVersionId) {
+        resolvedTargetVersionId = currentActive.previousVersionId;
+      } else {
+        // Find most recent superseded deployment for this environment
+        const pastDeployments = Array.from(apiStore.deployments.values())
+          .filter(
+            (d) =>
+              d.workflowId === workflow.id &&
+              d.environment === env &&
+              d.status === "SUPERSEDED",
+          )
+          .sort((a, b) => b.deployedAt.getTime() - a.deployedAt.getTime());
+
+        if (pastDeployments.length > 0) {
+          resolvedTargetVersionId = pastDeployments[0].workflowVersionId;
+        }
+      }
+    }
+
+    if (!resolvedTargetVersionId) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: {
+          code: "NO_ROLLBACK_TARGET",
+          message: "No previous deployment found to roll back to.",
+        },
+      });
+      return;
+    }
+
+    const targetVersion = apiStore.versions.get(resolvedTargetVersionId);
+    if (!targetVersion || targetVersion.workflowId !== workflow.id) {
+      res.status(404).json({
+        success: false,
+        data: null,
+        error: {
+          code: "VERSION_NOT_FOUND",
+          message: `Target rollback version '${resolvedTargetVersionId}' not found.`,
+        },
+      });
+      return;
+    }
+
+    // Mark current active as ROLLED_BACK
+    if (currentActive) {
+      currentActive.status = "ROLLED_BACK";
+      apiStore.deployments.set(currentActive.id, currentActive);
+    }
+
+    // Create new deployment record for the rollback
+    const rollbackDepId = `dep_rollback_${crypto.randomUUID()}`;
+    const rollbackDeployment: WorkflowDeploymentRecord = {
+      id: rollbackDepId,
+      organizationId: req.organizationId!,
+      workflowId: workflow.id,
+      workflowVersionId: targetVersion.id,
+      environment: env,
+      status: "ACTIVE",
+      deployedById: req.user?.id,
+      deployedAt: new Date(),
+      previousVersionId: currentActive ? currentActive.workflowVersionId : undefined,
+      rollbackReason: reason || "Rollback to previous stable version",
+    };
+
+    apiStore.deployments.set(rollbackDepId, rollbackDeployment);
+
+    apiStore.recordAudit({
+      organizationId: req.organizationId!,
+      userId: req.user?.id,
+      action: "workflow.rollback",
+      resourceType: "workflow",
+      resourceId: workflow.id,
+      metadata: {
+        deploymentId: rollbackDepId,
+        environment: env,
+        targetVersionId: targetVersion.id,
+        rolledBackFrom: currentActive?.workflowVersionId,
+        reason,
+      },
+      ipAddress: req.ip,
+    });
+
+    res.json({
+      success: true,
+      data: rollbackDeployment,
+      error: null,
+    });
+  },
+);
+
+// ==========================================
+// 17. Trigger / Execute workflow execution with Environment Version Resolution
 // ==========================================
 const dispatchExecutionHandler = async (req: any, res: any) => {
   const workflow = apiStore.workflows.get(req.params.id);
@@ -451,13 +1092,22 @@ const dispatchExecutionHandler = async (req: any, res: any) => {
     return;
   }
 
-  if (!workflow.publishedVersionId) {
+  // Resolve Environment and Deployed Workflow Version
+  const requestedEnv = (
+    (req.headers["x-environment"] as string) ||
+    req.body?.environment ||
+    "development"
+  ).toLowerCase() as "development" | "staging" | "production";
+
+  const resolvedVersionId = resolveActiveWorkflowVersionId(workflow.id, requestedEnv);
+
+  if (!resolvedVersionId) {
     res.status(400).json({
       success: false,
       data: null,
       error: {
         code: "WORKFLOW_NOT_PUBLISHED",
-        message: "Workflow must have a published version before execution.",
+        message: `Workflow has no active deployment in '${requestedEnv}' and no published version.`,
       },
     });
     return;
@@ -465,8 +1115,7 @@ const dispatchExecutionHandler = async (req: any, res: any) => {
 
   // Idempotency check
   const idempotencyKey =
-    (req.headers["idempotency-key"] as string) ||
-    req.body?.idempotencyKey;
+    (req.headers["idempotency-key"] as string) || req.body?.idempotencyKey;
 
   if (idempotencyKey) {
     const existing = Array.from(apiStore.executions.values()).find(
@@ -493,11 +1142,13 @@ const dispatchExecutionHandler = async (req: any, res: any) => {
   const executionId = `exec_${crypto.randomUUID()}`;
   const now = new Date();
 
+  // Bound immutably to resolvedVersionId and environment at trigger acceptance time!
   const execution: WorkflowExecutionRecord = {
     id: executionId,
     organizationId: req.organizationId!,
     workflowId: workflow.id,
-    workflowVersionId: workflow.publishedVersionId,
+    workflowVersionId: resolvedVersionId,
+    environment: requestedEnv,
     triggerType: "MANUAL",
     triggerPayload,
     idempotencyKey,

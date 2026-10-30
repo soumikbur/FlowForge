@@ -137,3 +137,36 @@ When validating a workflow draft via `POST /api/v1/workflows/:id/validate`, the 
 | `UNREACHABLE_NODE` | Node is disconnected/unreachable from trigger |
 | `CYCLE_DETECTED` | Directed cycle detected in workflow graph |
 | `MISSING_TERMINAL_PATH` | No path from trigger reaches an `END` node |
+
+## 9. Workflow Versioning, Deployments & Environment Promotion Endpoints
+
+### 9.1 Immutability Boundary & Draft Management
+- `PATCH /api/v1/workflows/:id`: Update workflow draft metadata or definition. Supports `expectedRevision` body parameter and `If-Match` header. Rejects concurrent modifications with `409 DRAFT_CONFLICT`.
+- `POST /api/v1/workflows/:id/publish`: Validate workflow graph, compute canonical content hash (`SHA-256`), prevent duplicate publishing of identical graphs (`409 UNCHANGED_CONTENT`), create immutable `WorkflowVersionRecord`, and automatically deploy to `development`.
+- `PUT|PATCH|DELETE /api/v1/workflows/:id/versions/:versionId`: Always rejected with `405 VERSION_IMMUTABLE`.
+- `POST /api/v1/workflows/:id/versions/:versionId/create-draft`: Restore a historical immutable version snapshot back into the editable draft definition, incrementing `draftRevision`.
+
+### 9.2 Semantic Version Comparison
+- `GET /api/v1/workflows/:id/compare?fromVersionId=:v1&toVersionId=:v2` (alias `baseVersionId`, `targetVersionId`):
+  - Returns structured semantic comparison between two published versions or draft (`isIdentical`, `addedNodes`, `removedNodes`, `modifiedNodes`, `addedEdges`, `removedEdges`, `summary`).
+  - Automatically redacts sensitive passwords, tokens, API keys, and credential references with `[REDACTED]`.
+
+### 9.3 Multi-Environment Promotion & Deployments
+- `GET /api/v1/workflows/:id/deployments`: List deployment history for workflow across all environments sorted by `deployedAt` descending.
+- `GET /api/v1/workflows/:id/environments/:environment`: Retrieve the currently active deployment for specified environment (`development`, `staging`, `production`).
+- `POST /api/v1/workflows/:id/promote` (alias `POST /:id/deploy`):
+  - Promotes a published version to `targetEnvironment` (`development`, `staging`, `production`).
+  - Supports `idempotency-key` header to prevent duplicate deployment transactions.
+  - Verifies version content hash integrity against definition AST before promotion (`422 HASH_VERIFICATION_FAILED`).
+  - Enforces elevated production RBAC: restricts `MEMBER` from deploying to `production` (`403 PRODUCTION_DEPLOY_UNAUTHORIZED`); requires `OWNER` or `ADMIN`.
+- `POST /api/v1/workflows/:id/environments/:environment/rollback`:
+  - Safely rolls back the target environment to a previous version or specified `targetVersionId`.
+  - Marks current active deployment as `ROLLED_BACK` and creates an audit-backed `ACTIVE` rollback deployment.
+  - Requires `OWNER` or `ADMIN` for `production` rollback (`403 PRODUCTION_DEPLOY_UNAUTHORIZED`).
+  - Does NOT mutate existing in-flight workflow executions.
+
+### 9.4 Execution Environment Version Resolution
+- `POST /api/v1/workflows/:id/trigger` and `POST /api/v1/workflows/:id/execute`:
+  - Accepts `x-environment` header or `environment` in body (defaulting to `development` for manual builder triggers).
+  - Webhooks and schedules default to active `production` deployment.
+  - Resolves active `workflowVersionId` and permanently records it on `WorkflowExecutionRecord`, guaranteeing execution immutability.

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Workflow, ExternalLink, Play, CheckCircle } from "lucide-react";
+import { Plus, Workflow, ExternalLink, Play, CheckCircle, History } from "lucide-react";
 
 interface WorkflowItem {
   id: string;
@@ -128,6 +128,13 @@ export default function WorkflowsPage() {
               </div>
 
               <div className="flex items-center gap-3">
+                <Link
+                  href={`/workflows/${wf.id}`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 rounded-md text-xs font-medium text-slate-700 hover:bg-slate-100 transition"
+                >
+                  <History className="w-3.5 h-3.5" />
+                  <span>Versions & Deploy</span>
+                </Link>
                 <Link
                   href={`/workflows/${wf.id}/builder`}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 rounded-md text-xs font-medium text-slate-700 hover:bg-slate-100 transition"

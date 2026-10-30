@@ -19,6 +19,9 @@
 | TASK-015 | Observability, Structured Logging & Health Diagnostics | TASK-006, TASK-009           | DevOps Engineer           | DONE   | API `/health`, `/ready`, correlation IDs, envelopes           |
 | TASK-016 | Automated Test Suite (Unit, Integration, Security)     | TASK-005..TASK-011           | QA Engineer               | DONE   | 56/56 passing tests across 8 test files                       |
 | TASK-017 | Docker Compose, Packaging & Deployment Verification    | TASK-002..TASK-015           | DevOps Engineer           | DONE   | Dockerfiles, docker-compose.yml & CI workflow                 |
+| TASK-024 | Durable Triggers, Scheduling, Webhooks & Integrations  | TASK-008..TASK-023           | Integration Engineer      | DONE   | Inbound webhooks, timezone cron & SSRF protection             |
+| TASK-025 | Human-in-the-Loop Approvals & Execution Controls       | TASK-008..TASK-024           | Reliability Engineer      | DONE   | Approval Inbox, step retry & cancellation                     |
+| TASK-026 | Workflow Versioning, Publishing & Environment Promotion| TASK-006..TASK-025           | Lifecycle Lead Engineer   | DONE   | Content hashing, promotions, rollbacks & comparison           |
 
 ---
 
@@ -266,4 +269,28 @@
 - **REQUIRED TESTS**: `tests/integration/approvals-execution-controls.test.ts`
 - **VERIFICATION COMMANDS**: `pnpm test; pnpm typecheck; pnpm lint; pnpm build`
 - **ACTUAL RESULTS**: All 16/16 Prompt 8 integration tests passing; 186/186 total tests passing across 18 test suites; Next.js 14 and all monorepo packages build with 0 errors.
+- **STATUS**: DONE
+
+---
+
+### TASK-026: Workflow Versioning, Publishing, and Environment Promotion (Prompt 9)
+
+- **OBJECTIVE**: Implement a production-grade workflow lifecycle, including optimistic concurrency draft revisions, server-enforced immutable published workflow versions with deterministic SHA-256 canonical content hashing, pre-publication graph validation, duplicate publication rejection (`UNCHANGED_CONTENT`), semantic version comparison (`/compare`) with credential redaction, multi-environment promotion (`development` -> `staging` -> `production`) with elevated production RBAC safeguards and idempotency guards, safe environment rollback preserving deployment history, deterministic trigger-to-version resolution, and a Next.js 14 frontend lifecycle management UI within `C:\Users\soumi\OneDrive\Documents\Antigravity\FlowForge`.
+- **DEPENDENCIES**: TASK-006, TASK-007, TASK-008, TASK-009, TASK-024, TASK-025
+- **ALLOWED FILES**: `packages/shared/src/*`, `packages/workflow-engine/src/*`, `packages/database/prisma/*`, `packages/test-utils/src/*`, `apps/api/src/*`, `apps/web/src/*`, `tests/integration/workflow-versioning-promotion.test.ts`, `docs/*`
+- **REQUIREMENTS**:
+  1. Optimistic Concurrency & Draft Management: `draftRevision` tracked on `WorkflowRecord` with monotonic incrementation; `PATCH /api/v1/workflows/:id` enforces `expectedRevision` returning 409 `DRAFT_CONFLICT` on stale edits.
+  2. Canonical Content Hashing: `@flowforge/workflow-engine/hasher.ts` normalizes node and edge order, strips transient UI presentation data (`position`), sorts JSON keys deterministically, and generates an immutable SHA-256 digest (`contentHash`).
+  3. Pre-publication Validation & Invariants: `POST /api/v1/workflows/:id/publish` validates graphs with `validateWorkflowGraph`, enforces single trigger and reachable terminal paths, computes content hash, rejects duplicate publication with identical hash (409 `UNCHANGED_CONTENT`), generates an immutable version record, auto-deploys to `development`, and updates `Workflow.publishedVersionId`.
+  4. Immutability Protection: `PUT`, `PATCH`, and `DELETE` on `/api/v1/workflows/:id/versions/:versionId` are rejected with 405 `VERSION_IMMUTABLE`. Historical snapshots can be restored to the editable draft via `POST /:id/versions/:versionId/create-draft`.
+  5. Semantic Version Comparison: `GET /api/v1/workflows/:id/compare` compares any two versions or draft with detailed node additions, removals, modifications, and edge diffs, while sanitizing sensitive credentials via `redactSensitiveValues`.
+  6. Multi-Environment Promotion Pipeline: `WorkflowDeployment` model in Prisma with `status: "ACTIVE" | "SUPERSEDED" | "ROLLED_BACK"`, `environment: "development" | "staging" | "production"`. `POST /api/v1/workflows/:id/promote` supports promotion with `idempotency-key` and enforces elevated production RBAC (OWNER or ADMIN required for `production`, returning 403 `PRODUCTION_DEPLOY_UNAUTHORIZED` for MEMBER).
+  7. Safe Environment Rollback: `POST /api/v1/workflows/:id/environments/:env/rollback` re-activates a previous version in the specified environment without rewriting history or mutating active executions.
+  8. Trigger-to-Version Resolution: Triggers (manual `/trigger`, webhook `/webhooks/:id`, schedule runner) resolve the active deployed version for the target environment at trigger acceptance time and record it permanently on `WorkflowExecutionRecord.workflowVersionId`.
+  9. Frontend Lifecycle & Deployment UI: Next.js 14 `/workflows/[id]` lifecycle cockpit featuring Environment Deployment Cards (`development`, `staging`, `production`), Promote Version modal, Rollback modal, Semantic Version Comparison drawer, and Immutable Version History table.
+  10. Automated Tests: `tests/integration/workflow-versioning-promotion.test.ts` verifying all 23 lifecycle, concurrency, hashing, promotion, RBAC, rollback, and cross-tenant boundaries.
+- **ACCEPTANCE CRITERIA**: 100% test pass rate across new and existing integration test suites (209/209 tests passing); zero TypeScript, lint, or build errors; Next.js 14 compiles with zero errors.
+- **REQUIRED TESTS**: `tests/integration/workflow-versioning-promotion.test.ts`
+- **VERIFICATION COMMANDS**: `pnpm test; pnpm typecheck; pnpm lint; pnpm build`
+- **ACTUAL RESULTS**: All 23/23 Prompt 9 integration tests passing; 209/209 total tests passing across 19 test suites; full monorepo build and Next.js 14 production build succeed with 0 errors.
 - **STATUS**: DONE

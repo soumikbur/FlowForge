@@ -35,6 +35,7 @@ export interface WorkflowRecord {
   description?: string;
   status: "DRAFT" | "ACTIVE" | "ARCHIVED";
   draftDefinition: WorkflowDefinition;
+  draftRevision?: number;
   publishedVersionId?: string;
   createdById?: string;
   deletedAt?: Date;
@@ -59,6 +60,8 @@ export interface WorkflowVersionRecord {
   workflowId: string;
   versionNumber: number;
   definition: WorkflowDefinition;
+  contentHash?: string;
+  releaseNotes?: string;
   publishedAt: Date;
   publishedById?: string;
 }
@@ -68,6 +71,7 @@ export interface WorkflowExecutionRecord {
   organizationId: string;
   workflowId: string;
   workflowVersionId: string;
+  environment?: "development" | "staging" | "production";
   triggerType: "MANUAL" | "WEBHOOK" | "SCHEDULE";
   triggerPayload: Record<string, unknown>;
   idempotencyKey?: string;
@@ -88,6 +92,21 @@ export interface WorkflowExecutionRecord {
   errorDetails?: unknown;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface WorkflowDeploymentRecord {
+  id: string;
+  organizationId: string;
+  workflowId: string;
+  workflowVersionId: string;
+  environment: "development" | "staging" | "production";
+  status: "ACTIVE" | "SUPERSEDED" | "ROLLED_BACK";
+  deployedById?: string;
+  deployedAt: Date;
+  previousVersionId?: string;
+  releaseNotes?: string;
+  rollbackReason?: string;
+  idempotencyKey?: string;
 }
 
 export interface ExecutionStepRecord {
@@ -199,6 +218,7 @@ export class InMemoryDatabase {
   public schedules = new Map<string, ScheduleRecord>();
   public credentials = new Map<string, CredentialRecord>();
   public delays = new Map<string, DelayRecord>();
+  public deployments = new Map<string, WorkflowDeploymentRecord>();
   public auditLogs: Array<AuditLogRecord> = [];
 
   public recordAudit(record: Omit<AuditLogRecord, "id" | "createdAt">): AuditLogRecord {
@@ -226,6 +246,7 @@ export class InMemoryDatabase {
     this.schedules.clear();
     this.credentials.clear();
     this.delays.clear();
+    this.deployments.clear();
     this.auditLogs = [];
   }
 }

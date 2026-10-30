@@ -74,6 +74,7 @@ model Organization {
   webhooks       WebhookEvent[]
   webhookConfigs WebhookConfig[]
   schedules      WorkflowSchedule[]
+  deployments    WorkflowDeployment[]
   auditLogs      AuditLog[]
 
   @@map("organizations")
@@ -94,6 +95,7 @@ model User {
   publishedVersions WorkflowVersion[]       @relation("VersionPublisher")
   decidedApprovals  Approval[]              @relation("ApprovalDecider")
   assignedApprovals Approval[]              @relation("ApprovalAssignee")
+  deployments       WorkflowDeployment[]    @relation("DeploymentDeployer")
   auditLogs         AuditLog[]
 
   @@map("users")
@@ -138,6 +140,7 @@ model Workflow {
   description        String?
   status             WorkflowStatus @default(DRAFT)
   draftDefinition    Json           @default("{\"nodes\":[],\"edges\":[]}")
+  draftRevision      Int            @default(1)
   publishedVersionId String?
   createdById        String?
   deletedAt          DateTime?
@@ -151,6 +154,7 @@ model Workflow {
   webhooks           WebhookEvent[]
   webhookConfigs     WebhookConfig[]
   schedules          WorkflowSchedule[]
+  deployments        WorkflowDeployment[]
 
   @@index([organizationId])
   @@index([status])
@@ -163,12 +167,15 @@ model WorkflowVersion {
   workflowId    String
   versionNumber Int
   definition    Json
+  contentHash   String?
+  releaseNotes  String?
   publishedAt   DateTime @default(now())
   publishedById String?
 
   workflow      Workflow @relation(fields: [workflowId], references: [id], onDelete: Restrict)
   publishedBy   User?    @relation("VersionPublisher", fields: [publishedById], references: [id], onDelete: SetNull)
   executions    WorkflowExecution[]
+  deployments   WorkflowDeployment[]
 
   @@unique([workflowId, versionNumber])
   @@index([workflowId])
@@ -180,6 +187,7 @@ model WorkflowExecution {
   organizationId    String
   workflowId        String
   workflowVersionId String
+  environment       String          @default("development")
   triggerType       TriggerType
   triggerPayload    Json            @default("{}")
   status            ExecutionStatus @default(QUEUED)
@@ -203,6 +211,31 @@ model WorkflowExecution {
   @@index([status])
   @@index([createdAt])
   @@map("workflow_executions")
+}
+
+model WorkflowDeployment {
+  id                 String   @id @default(uuid())
+  organizationId     String
+  workflowId         String
+  workflowVersionId  String
+  environment        String   @default("development")
+  status             String   @default("ACTIVE")
+  deployedById       String?
+  deployedAt         DateTime @default(now())
+  previousVersionId  String?
+  releaseNotes       String?
+  rollbackReason     String?
+  idempotencyKey     String?
+
+  organization       Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workflow           Workflow         @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  workflowVersion    WorkflowVersion  @relation(fields: [workflowVersionId], references: [id], onDelete: Restrict)
+  deployedBy         User?            @relation("DeploymentDeployer", fields: [deployedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([workflowId, environment])
+  @@index([status])
+  @@map("workflow_deployments")
 }
 
 model ExecutionStep {

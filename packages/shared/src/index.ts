@@ -27,7 +27,9 @@ export type Permission =
   | "webhook:read"
   | "webhook:write"
   | "schedule:read"
-  | "schedule:write";
+  | "schedule:write"
+  | "workflow:deploy"
+  | "workflow:deploy:prod";
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   OWNER: [
@@ -52,6 +54,8 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "webhook:write",
     "schedule:read",
     "schedule:write",
+    "workflow:deploy",
+    "workflow:deploy:prod",
   ],
   ADMIN: [
     "org:read",
@@ -73,6 +77,8 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "webhook:write",
     "schedule:read",
     "schedule:write",
+    "workflow:deploy",
+    "workflow:deploy:prod",
   ],
   MEMBER: [
     "org:read",
@@ -259,8 +265,35 @@ export const UpdateWorkflowSchema = z.object({
   description: z.string().optional(),
   nodes: z.array(WorkflowNodeSchema).optional(),
   edges: z.array(WorkflowEdgeSchema).optional(),
+  expectedRevision: z.number().int().min(0).optional(),
 });
 export type UpdateWorkflowRequest = z.infer<typeof UpdateWorkflowSchema>;
+
+export const PublishWorkflowSchema = z.object({
+  releaseNotes: z.string().optional(),
+  force: z.boolean().default(false),
+});
+export type PublishWorkflowRequest = z.infer<typeof PublishWorkflowSchema>;
+
+export const WorkflowEnvironmentEnum = z.enum([
+  "development",
+  "staging",
+  "production",
+]);
+export type WorkflowEnvironment = z.infer<typeof WorkflowEnvironmentEnum>;
+
+export const PromoteWorkflowSchema = z.object({
+  versionId: z.string().min(1, "Workflow version ID is required"),
+  targetEnvironment: WorkflowEnvironmentEnum,
+  releaseNotes: z.string().optional(),
+});
+export type PromoteWorkflowRequest = z.infer<typeof PromoteWorkflowSchema>;
+
+export const RollbackWorkflowSchema = z.object({
+  targetVersionId: z.string().optional(),
+  reason: z.string().optional(),
+});
+export type RollbackWorkflowRequest = z.infer<typeof RollbackWorkflowSchema>;
 
 export const TriggerWorkflowSchema = z.object({
   payload: z.record(z.unknown()).default({}),

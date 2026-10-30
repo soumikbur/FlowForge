@@ -5,3 +5,5 @@ export * from "./expression.js";
 export * from "./state-machine.js";
 export * from "./registry.js";
 export * from "./planner.js";
+export * from "./hasher.js";
+export * from "./comparator.js";
