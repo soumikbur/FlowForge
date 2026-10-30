@@ -15,6 +15,7 @@ import { credentialRouter } from "./routes/credential.routes.js";
 import { dashboardRouter } from "./routes/dashboard.routes.js";
 import { analyticsRouter } from "./routes/analytics.routes.js";
 import { connectorRouter } from "./routes/connection.routes.js";
+import { templateRouter } from "./routes/template.routes.js";
 import { apiStore } from "./store.js";
 
 export const app = express();
@@ -102,6 +103,7 @@ app.use("/api/v1/webhooks", webhookRouter);
 app.use("/api/v1/schedules", scheduleRouter);
 app.use("/api/v1/credentials", credentialRouter);
 app.use("/api/v1/connectors", connectorRouter);
+app.use("/api/v1/templates", templateRouter);
 app.use("/api/v1/dashboard", dashboardRouter);
 app.use("/api/v1/analytics", analyticsRouter);
 

@@ -358,3 +358,64 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
   - **Permissions**: Requires `connections:write`.
   - **Action**: Revokes and removes connection. Subsequent accesses return 404.
 
+---
+
+## 13. Workflow Templates & Marketplace API
+
+### 13.1 Template Catalog Discovery
+- `GET /api/v1/templates`:
+  - **Query Parameters**: `category?: string`, `tag?: string`, `search?: string`, `visibility?: TemplateVisibility`, `status?: TemplateStatus`, `page?: number`, `pageSize?: number`.
+  - **Multi-Tenant Isolation**: Enforces tenant boundary. Users see only verified `PLATFORM` templates, templates published within their active `ORGANIZATION`, and their own `PRIVATE` drafts. Never returns other tenants' organization or private templates.
+  - **Response**: Paginated array of templates with required connections, category, usage count, and latest published version metadata.
+
+### 13.2 Template Retrieval & Lifecycle
+- `GET /api/v1/templates/:templateId`:
+  - **Permissions**: Requires authenticated session. Enforces tenant visibility (404/restricted if unauthorized).
+  - **Response**: Template record with draft/published definition, required connections, and version info.
+- `POST /api/v1/templates`:
+  - **Permissions**: `templates:write` or `workflow:write`. Organization context required for `visibility: "ORGANIZATION"`.
+  - **Body**: `{ name: string, shortDescription: string, description?: string, category?: string, tags?: string[], visibility?: TemplateVisibility, workflowId?: string, definition?: WorkflowDefinition }`.
+  - **Sanitization Invariant**: Deep-scrubs sensitive credentials (`password`, `secret`, `token`, `apiKey`, `authorization`, `webhookUrl`) to `"[REDACTED]"`, strips tenant-specific `connectionId` references, removes runtime state (`executionId`, `lastOutput`), deactivates triggers (`enabled: false`), and extracts required connector list (`requiredConnections`).
+  - **Response**: 201 Created with initial `DRAFT` status and `usageCount: 0`. Emits `template:create` audit event.
+- `PATCH /api/v1/templates/:templateId`:
+  - **Permissions**: Template creator or Organization Owner/Admin.
+  - **Body**: `{ name?: string, shortDescription?: string, description?: string, category?: string, tags?: string[], visibility?: TemplateVisibility, status?: TemplateStatus, definition?: WorkflowDefinition }`.
+  - **Response**: Updated template record. Emits `template:update` audit event.
+- `DELETE /api/v1/templates/:templateId`:
+  - **Permissions**: Template creator or Organization Owner/Admin.
+  - **Action**: Marks status as `ARCHIVED`. Archived templates are excluded from default catalog search. Emits `template:archive` audit event.
+
+### 13.3 Immutable Versioning & Comparison
+- `POST /api/v1/templates/:templateId/publish`:
+  - **Permissions**: `templates:publish` (`OWNER`, `ADMIN`) or template creator.
+  - **Body**: `{ releaseNotes?: string }`.
+  - **Invariants**: Computes deterministic SHA-256 `contentHash`, generates monotonically incremented `versionNumber`, stores immutable snapshot in `workflow_template_versions`, and updates template `status: "PUBLISHED"` and `publishedVersionId`. Emits `template:publish` audit event.
+- `GET /api/v1/templates/:templateId/versions`:
+  - **Response**: Array of published immutable versions sorted in descending order.
+- `GET /api/v1/templates/:templateId/versions/:versionId`:
+  - **Response**: Specific version definition and metadata.
+- `GET /api/v1/templates/:templateId/compare`:
+  - **Query Parameters**: `sourceVersionId?: string`, `targetVersionId?: string`.
+  - **Response**: Semantic diff comparing node additions, deletions, configuration changes, and edge modifications.
+
+### 13.4 Workflow Instantiation
+- `POST /api/v1/templates/:templateId/instantiate`:
+  - **Permissions**: Requires `workflow:write` in target active organization.
+  - **Body**: `{ name?: string, description?: string, versionId?: string, connectionMappings?: Record<string, string>, inputValues?: Record<string, unknown> }`.
+  - **Security & Cross-Tenant Defense**:
+    - Rejects cross-tenant template access with 404.
+    - If `connectionMappings` contains a `connectionId`, verifies that it belongs to caller's target organization. Rejects cross-tenant connection IDs with 403 `CROSS_TENANT_CONNECTION_FORBIDDEN`.
+  - **Graph Instantiation**:
+    - Regenerates completely new unique UUIDs for all nodes (`node_<type>_<uuid>`) and edges (`edge_<uuid>`).
+    - Remaps edge `source` and `target` handles to preserve graph topology with zero ID collisions.
+    - Binds user-provided connection IDs.
+    - Sets triggers to inactive (`enabled: false`).
+    - Validates instantiated definition against all structural rules.
+  - **Persistence & Provenance**:
+    - Creates `Workflow` record in caller's active organization with `status: "DRAFT"` and `publishedVersionId: undefined`.
+    - Permanently records provenance: `sourceTemplateId: template.id` and `sourceTemplateVersionId: version.id`.
+    - Atomically increments template `usageCount`.
+    - Emits `workflow:instantiate_from_template` audit event.
+  - **Response**: 201 Created with newly instantiated workflow record.
+
+

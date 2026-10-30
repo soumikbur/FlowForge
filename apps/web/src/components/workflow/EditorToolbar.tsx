@@ -12,6 +12,8 @@ import {
   Lock,
   Edit2,
   Eye,
+  BookOpen,
+  X,
 } from "lucide-react";
 
 export type SaveStatus = "saved" | "unsaved" | "saving" | "error";
@@ -55,6 +57,41 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
 }) => {
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState(name);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [templateShortDesc, setTemplateShortDesc] = useState("");
+  const [templateCategory, setTemplateCategory] = useState("General");
+  const [templateVisibility, setTemplateVisibility] = useState<"PRIVATE" | "ORGANIZATION">("PRIVATE");
+  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+  const [templateSuccess, setTemplateSuccess] = useState(false);
+
+  const handleSaveAsTemplate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setIsSavingTemplate(true);
+      const res = await fetch("/api/v1/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          shortDescription: templateShortDesc.trim() || `Template created from workflow ${name}`,
+          category: templateCategory,
+          visibility: templateVisibility,
+          workflowId,
+        }),
+      });
+      if (res.ok) {
+        setTemplateSuccess(true);
+        setTimeout(() => {
+          setShowTemplateModal(false);
+          setTemplateSuccess(false);
+        }, 1500);
+      }
+    } catch {
+      // Ignore network errors in demo/mock mode
+    } finally {
+      setIsSavingTemplate(false);
+    }
+  };
 
   const handleNameBlur = () => {
     setIsEditingName(false);
@@ -234,6 +271,15 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             </button>
 
             <button
+              onClick={() => setShowTemplateModal(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 rounded-md text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 transition"
+              title="Save this workflow as a reusable template"
+            >
+              <BookOpen className="w-3.5 h-3.5 text-slate-600" />
+              <span>Save as Template</span>
+            </button>
+
+            <button
               onClick={onPublish}
               disabled={saveStatus === "saving" || hasErrors}
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white rounded-md text-xs font-semibold shadow-xs transition"
@@ -244,6 +290,120 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           </>
         )}
       </div>
+
+      {/* Save As Template Modal */}
+      {showTemplateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <form
+            onSubmit={handleSaveAsTemplate}
+            className="bg-white border border-slate-200 rounded-xl max-w-md w-full p-5 shadow-2xl"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-teal-600" />
+                <h3 className="text-sm font-bold text-slate-900">Save Workflow as Template</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTemplateModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {templateSuccess ? (
+              <div className="py-8 text-center text-emerald-600 text-xs font-semibold">
+                ✓ Template saved successfully! Credentials have been safely scrubbed.
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Template Name
+                  </label>
+                  <input
+                    type="text"
+                    disabled
+                    value={name}
+                    className="w-full bg-slate-50 border border-slate-200 rounded px-2.5 py-1.5 text-xs text-slate-600 cursor-not-allowed"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Short Description <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    required
+                    rows={2}
+                    value={templateShortDesc}
+                    onChange={(e) => setTemplateShortDesc(e.target.value)}
+                    placeholder="Briefly describe what this workflow accomplishes..."
+                    className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-teal-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Category
+                    </label>
+                    <select
+                      value={templateCategory}
+                      onChange={(e) => setTemplateCategory(e.target.value)}
+                      className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-teal-500"
+                    >
+                      <option value="DevOps">DevOps</option>
+                      <option value="Finance">Finance</option>
+                      <option value="Operations">Operations</option>
+                      <option value="Customer Support">Customer Support</option>
+                      <option value="Security">Security</option>
+                      <option value="Marketing">Marketing</option>
+                      <option value="General">General</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Visibility
+                    </label>
+                    <select
+                      value={templateVisibility}
+                      onChange={(e) => setTemplateVisibility(e.target.value as any)}
+                      className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs text-slate-900 focus:outline-none focus:border-teal-500"
+                    >
+                      <option value="PRIVATE">Private to Me</option>
+                      <option value="ORGANIZATION">Organization Shared</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 rounded p-2 text-[10px] text-slate-500">
+                  Note: All passwords, API keys, tokens, and active execution state will be automatically redacted before template persistence.
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowTemplateModal(false)}
+                    className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-800 rounded"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingTemplate}
+                    className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-xs font-semibold rounded shadow-xs"
+                  >
+                    {isSavingTemplate ? "Saving..." : "Save Template"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </form>
+        </div>
+      )}
     </div>
   );
 };

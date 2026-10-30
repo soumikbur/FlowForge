@@ -266,3 +266,76 @@ flowchart TD
 4. **Server-Side SSRF Defenses**: Outbound connector requests are validated by `resolveAndValidateDestination` against loopback addresses (`127.0.0.1`), RFC 1918 private subnets (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), and cloud link-local metadata endpoints (`169.254.169.254`). Non-HTTP protocols and private redirect destinations are blocked.
 5. **Non-Idempotent Retry Guards**: Workflow execution runner classifies connector failures; operations that are non-idempotent (`idempotentRetry: false`) fail permanently without retrying, preventing duplicate external charges or messaging.
 
+---
+
+## 10. Workflow Templates, Reusable Components, and Template Marketplace
+
+```mermaid
+flowchart TD
+    subgraph Authoring ["Workflow Authoring & Extraction"]
+        SourceWf["Active / Draft Workflow (Tenant A)"]
+        BuilderAction["Save as Template (EditorToolbar.tsx)"]
+        Sanitizer["Sanitization Service (packages/workflow-engine)"]
+    end
+
+    subgraph SanitizationPipeline ["Graph Sanitization & Decoupling"]
+        StripSecrets["Deep Scrub Secrets (API keys, passwords -> [REDACTED])"]
+        StripConns["Wipe Tenant connectionId (replace with requiredConnections)"]
+        StripRuntime["Strip Runtime State (execution IDs, last run data)"]
+        DeactivateTrig["Deactivate Triggers (enabled: false)"]
+    end
+
+    subgraph TemplateStorage ["Template Repository & Immutability"]
+        Tmpl["WorkflowTemplate (DRAFT / PUBLISHED / ARCHIVED)"]
+        Hasher["Deterministic SHA-256 Content Hasher"]
+        TmplVer["WorkflowTemplateVersion (Immutable Snapshots)"]
+    end
+
+    subgraph Discovery ["Marketplace & Catalog (/templates)"]
+        Catalog["Catalog Discovery & Category Filtering"]
+        TenantFilter["Tenant Isolation Guard (Platform / Org / Private)"]
+        PreviewModal["Structure Preview & Setup Requirements"]
+    end
+
+    subgraph Instantiation ["Instantiation Pipeline (Tenant B)"]
+        InstantiateReq["POST /api/v1/templates/:id/instantiate"]
+        ConnCheck["Cross-Tenant Connection Validation Guard"]
+        IdRegen["Node & Edge UUID Regeneration"]
+        EdgeRemap["Connectivity Preservation & Edge Remapping"]
+        NewDraftWf["New Workflow (DRAFT, unpublished, inactive triggers)"]
+        Provenance["Provenance (sourceTemplateId & sourceTemplateVersionId)"]
+    end
+
+    SourceWf --> BuilderAction
+    BuilderAction --> Sanitizer
+    Sanitizer --> StripSecrets --> StripConns --> StripRuntime --> DeactivateTrig
+    DeactivateTrig --> Tmpl
+
+    Tmpl --> Hasher --> TmplVer
+    Tmpl --> Catalog
+    Catalog --> TenantFilter
+    TenantFilter --> PreviewModal
+
+    PreviewModal --> InstantiateReq
+    InstantiateReq --> ConnCheck
+    ConnCheck --> IdRegen
+    IdRegen --> EdgeRemap
+    EdgeRemap --> NewDraftWf
+    NewDraftWf --> Provenance
+```
+
+### 10.1 Template Lifecycle & Separation of Concerns
+1. **Templates as Reusable Blueprints**: A template defines the topological structure, node configurations, and integration contracts of a business process without binding to specific organizational credentials or live runtime executions.
+2. **Deep Graph Sanitization**: When saving a workflow as a template (`sanitizeWorkflowForTemplate`), all raw credentials, API tokens, webhook URLs, and authorization headers are scrubbed to `"[REDACTED]"`. Specific `connectionId` values are cleared and transformed into abstract `requiredConnections` requirements (`slack-webhook`, `smtp-email`, `http-api`). Runtime execution artifacts (`executionId`, `lastOutput`) are stripped, and trigger nodes are set to `enabled: false`.
+3. **Immutable Content-Hashed Versions**: Published template versions (`WorkflowTemplateVersion`) store exact graph snapshots with monotonic version numbers and deterministic SHA-256 digests (`computeWorkflowContentHash`). Versions are immutable; subsequent edits modify the template's editable draft definition until published.
+4. **Deterministic Node & Edge UUID Regeneration**: Instantiation (`instantiateGraphFromTemplate`) never copies raw node IDs. It generates fresh UUIDs for every node and edge (`node_<type>_<uuid>`, `edge_<uuid>`) and updates all edge `source` and `target` handles. This guarantees zero ID collisions with the template or existing organization workflows while preserving graph connectivity.
+5. **Safe Defaults on Instantiation**: Instantiated workflows are created with `status: "DRAFT"` and `publishedVersionId: undefined`. Triggers remain disabled (`enabled: false`) to ensure workflows never execute automatically until explicitly published and verified by an authorized user in the target organization.
+6. **Multi-Tenant Isolation & Anti-Hijacking Invariants**:
+   - `PLATFORM` templates are discoverable and instantiable across all tenants.
+   - `ORGANIZATION` templates are restricted strictly to authenticated members of the owning organization.
+   - `PRIVATE` templates are visible only to their creator.
+   - Cross-tenant template requests return 404/403.
+   - Callers cannot bind connection IDs belonging to other organizations; cross-tenant connection references during instantiation are strictly rejected with 403 `CROSS_TENANT_CONNECTION_FORBIDDEN`.
+7. **Provenance Tracking**: Instantiated workflows retain permanent references to their origin (`sourceTemplateId` and `sourceTemplateVersionId`), enabling organization-wide auditability, lineage tracking, and template usage metrics.
+
+

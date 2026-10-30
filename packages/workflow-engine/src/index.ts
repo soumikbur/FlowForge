@@ -8,3 +8,4 @@ export * from "./planner.js";
 export * from "./hasher.js";
 export * from "./comparator.js";
 export * from "./analytics-calculator.js";
+export * from "./template-service.js";

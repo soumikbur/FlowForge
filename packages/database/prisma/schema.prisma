@@ -73,6 +73,18 @@ enum ConnectionStatus {
   REVOKED
 }
 
+enum TemplateVisibility {
+  PRIVATE
+  ORGANIZATION
+  PLATFORM
+}
+
+enum TemplateStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
 model Organization {
   id                     String   @id @default(uuid())
   name                   String
@@ -100,6 +112,7 @@ model Organization {
   invitations    OrganizationInvitation[]
   apiKeys        ApiKey[]
   connections    IntegrationConnection[]
+  templates      WorkflowTemplate[]
 
   @@map("organizations")
 }
@@ -125,6 +138,8 @@ model User {
   sentInvitations   OrganizationInvitation[] @relation("InvitationInviter")
   createdApiKeys    ApiKey[]                 @relation("ApiKeyCreator")
   createdConnections IntegrationConnection[] @relation("ConnectionCreator")
+  createdTemplates  WorkflowTemplate[]       @relation("TemplateCreator")
+  publishedTemplateVersions WorkflowTemplateVersion[] @relation("TemplateVersionPublisher")
 
   @@map("users")
 }
@@ -171,12 +186,15 @@ model Workflow {
   draftRevision      Int            @default(1)
   publishedVersionId String?
   createdById        String?
+  sourceTemplateId   String?
+  sourceTemplateVersionId String?
   deletedAt          DateTime?
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 
   organization       Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdBy          User?          @relation("WorkflowCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  sourceTemplate     WorkflowTemplate? @relation("TemplateWorkflows", fields: [sourceTemplateId], references: [id], onDelete: SetNull)
   versions           WorkflowVersion[]
   executions         WorkflowExecution[]
   webhooks           WebhookEvent[]
@@ -187,6 +205,7 @@ model Workflow {
 
   @@index([organizationId])
   @@index([status])
+  @@index([sourceTemplateId])
   @@index([deletedAt])
   @@map("workflows")
 }
@@ -513,3 +532,57 @@ model ApiKey {
   @@index([keyPrefix])
   @@map("api_keys")
 }
+
+model WorkflowTemplate {
+  id                  String             @id @default(uuid())
+  organizationId      String?
+  name                String
+  shortDescription    String
+  description         String?
+  category            String             @default("General")
+  tags                Json               @default("[]")
+  visibility          TemplateVisibility @default(PRIVATE)
+  status              TemplateStatus     @default(DRAFT)
+  draftDefinition     Json               @default("{\"nodes\":[],\"edges\":[]}")
+  requiredConnections Json               @default("[]")
+  requiredInputs      Json               @default("{}")
+  usageCount          Int                @default(0)
+  isFeatured          Boolean            @default(false)
+  isVerified          Boolean            @default(false)
+  createdById         String?
+  publishedVersionId  String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  organization        Organization?      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy           User?              @relation("TemplateCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  versions            WorkflowTemplateVersion[]
+  instantiatedWorkflows Workflow[]       @relation("TemplateWorkflows")
+
+  @@index([organizationId])
+  @@index([visibility])
+  @@index([status])
+  @@index([category])
+  @@map("workflow_templates")
+}
+
+model WorkflowTemplateVersion {
+  id                  String           @id @default(uuid())
+  templateId          String
+  versionNumber       Int
+  definition          Json
+  requiredConnections Json             @default("[]")
+  requiredInputs      Json             @default("{}")
+  contentHash         String
+  releaseNotes        String?
+  publishedById       String?
+  publishedAt         DateTime         @default(now())
+
+  template            WorkflowTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  publishedBy         User?            @relation("TemplateVersionPublisher", fields: [publishedById], references: [id], onDelete: SetNull)
+
+  @@unique([templateId, versionNumber])
+  @@index([templateId])
+  @@map("workflow_template_versions")
+}
+

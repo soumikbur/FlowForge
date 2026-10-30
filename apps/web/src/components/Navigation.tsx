@@ -11,6 +11,7 @@ import {
   LogOut,
   Workflow,
   Shield,
+  BookOpen,
 } from "lucide-react";
 
 export function Navigation() {
@@ -22,6 +23,7 @@ export function Navigation() {
   const navItems = [
     { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { label: "Workflows", href: "/workflows", icon: Workflow },
+    { label: "Templates", href: "/templates", icon: BookOpen },
     { label: "Executions", href: "/executions", icon: PlayCircle },
     { label: "Approval Inbox", href: "/approvals", icon: CheckSquare },
     { label: "Settings", href: "/settings", icon: Shield },

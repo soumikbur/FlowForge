@@ -46,6 +46,8 @@ export interface WorkflowRecord {
   draftRevision?: number;
   publishedVersionId?: string;
   createdById?: string;
+  sourceTemplateId?: string;
+  sourceTemplateVersionId?: string;
   deletedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -272,6 +274,41 @@ export interface IntegrationConnectionRecord {
   updatedAt: Date;
 }
 
+export interface WorkflowTemplateRecord {
+  id: string;
+  organizationId?: string | null;
+  name: string;
+  shortDescription: string;
+  description?: string | null;
+  category: string;
+  tags: string[];
+  visibility: "PRIVATE" | "ORGANIZATION" | "PLATFORM";
+  status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  draftDefinition: WorkflowDefinition;
+  requiredConnections: string[];
+  requiredInputs: Record<string, unknown>;
+  usageCount: number;
+  isFeatured: boolean;
+  isVerified: boolean;
+  createdById?: string | null;
+  publishedVersionId?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface WorkflowTemplateVersionRecord {
+  id: string;
+  templateId: string;
+  versionNumber: number;
+  definition: WorkflowDefinition;
+  requiredConnections: string[];
+  requiredInputs: Record<string, unknown>;
+  contentHash: string;
+  releaseNotes?: string | null;
+  publishedById?: string | null;
+  publishedAt: Date;
+}
+
 export class InMemoryDatabase {
   public users = new Map<string, UserRecord>();
   public organizations = new Map<string, OrganizationRecord>();
@@ -292,6 +329,8 @@ export class InMemoryDatabase {
   public invitations = new Map<string, OrganizationInvitationRecord>();
   public apiKeys = new Map<string, ApiKeyRecord>();
   public connections = new Map<string, IntegrationConnectionRecord>();
+  public templates = new Map<string, WorkflowTemplateRecord>();
+  public templateVersions = new Map<string, WorkflowTemplateVersionRecord>();
   public auditLogs: Array<AuditLogRecord> = [];
 
   public recordAudit(record: Omit<AuditLogRecord, "id" | "createdAt">): AuditLogRecord {
@@ -324,6 +363,8 @@ export class InMemoryDatabase {
     this.invitations.clear();
     this.apiKeys.clear();
     this.connections.clear();
+    this.templates.clear();
+    this.templateVersions.clear();
     this.auditLogs = [];
   }
 }

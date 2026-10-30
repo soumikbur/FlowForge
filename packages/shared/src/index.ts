@@ -38,7 +38,10 @@ export type Permission =
   | "invitation:write"
   | "retention:write"
   | "connections:read"
-  | "connections:write";
+  | "connections:write"
+  | "templates:read"
+  | "templates:write"
+  | "templates:publish";
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   OWNER: [
@@ -74,6 +77,9 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "retention:write",
     "connections:read",
     "connections:write",
+    "templates:read",
+    "templates:write",
+    "templates:publish",
   ],
   ADMIN: [
     "org:read",
@@ -105,6 +111,9 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "invitation:write",
     "connections:read",
     "connections:write",
+    "templates:read",
+    "templates:write",
+    "templates:publish",
   ],
   MEMBER: [
     "org:read",
@@ -117,6 +126,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "credentials:read",
     "analytics:read",
     "connections:read",
+    "templates:read",
   ],
   VIEWER: [
     "org:read",
@@ -126,6 +136,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "analytics:read",
     "audit:read",
     "connections:read",
+    "templates:read",
   ],
 };
 
@@ -184,7 +195,7 @@ export const EmailNodeConfigSchema = z.object({
 export const ConnectorActionNodeConfigSchema = z.object({
   connectorId: z.string().min(1, "Connector ID is required"),
   operationId: z.string().min(1, "Operation ID is required"),
-  connectionId: z.string().min(1, "Connection ID is required"),
+  connectionId: z.string().default(""),
   parameters: z.record(z.unknown()).default({}),
   timeoutMs: z.number().int().positive().max(60000).default(10000),
   maxRetries: z.number().int().min(0).max(5).default(2),
@@ -696,5 +707,125 @@ export const IntegrationConnectionResponseSchema = z.object({
   createdById: z.string().optional(),
 });
 export type IntegrationConnectionResponse = z.infer<typeof IntegrationConnectionResponseSchema>;
+
+// ==========================================
+// WORKFLOW TEMPLATES & MARKETPLACE
+// ==========================================
+export const TemplateVisibilityEnum = z.enum([
+  "PRIVATE",
+  "ORGANIZATION",
+  "PLATFORM",
+]);
+export type TemplateVisibility = z.infer<typeof TemplateVisibilityEnum>;
+
+export const TemplateStatusEnum = z.enum([
+  "DRAFT",
+  "PUBLISHED",
+  "ARCHIVED",
+]);
+export type TemplateStatus = z.infer<typeof TemplateStatusEnum>;
+
+export const TemplateCategoryEnum = z.enum([
+  "DevOps",
+  "Finance",
+  "Operations",
+  "Customer Support",
+  "Security",
+  "Marketing",
+  "General",
+]);
+export type TemplateCategory = z.infer<typeof TemplateCategoryEnum>;
+
+export const CreateTemplateSchema = z.object({
+  name: z.string().min(1, "Template name is required").max(100),
+  shortDescription: z.string().min(1, "Short description is required").max(255),
+  description: z.string().optional(),
+  category: z.string().min(1).default("General"),
+  tags: z.array(z.string()).default([]),
+  visibility: TemplateVisibilityEnum.default("PRIVATE"),
+  workflowId: z.string().optional(),
+  definition: WorkflowDefinitionSchema.optional(),
+  requiredConnections: z.array(z.string()).optional(),
+  requiredInputs: z.record(z.unknown()).optional(),
+});
+export type CreateTemplateRequest = z.infer<typeof CreateTemplateSchema>;
+
+export const UpdateTemplateSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  shortDescription: z.string().min(1).max(255).optional(),
+  description: z.string().optional(),
+  category: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  visibility: TemplateVisibilityEnum.optional(),
+  status: TemplateStatusEnum.optional(),
+  definition: WorkflowDefinitionSchema.optional(),
+  requiredConnections: z.array(z.string()).optional(),
+  requiredInputs: z.record(z.unknown()).optional(),
+});
+export type UpdateTemplateRequest = z.infer<typeof UpdateTemplateSchema>;
+
+export const PublishTemplateVersionSchema = z.object({
+  releaseNotes: z.string().max(1000).optional(),
+});
+export type PublishTemplateVersionRequest = z.infer<typeof PublishTemplateVersionSchema>;
+
+export const InstantiateTemplateSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().optional(),
+  versionId: z.string().optional(),
+  connectionMappings: z.record(z.string()).optional(),
+  inputValues: z.record(z.unknown()).optional(),
+});
+export type InstantiateTemplateRequest = z.infer<typeof InstantiateTemplateSchema>;
+
+export const TemplateFilterQuerySchema = z.object({
+  category: z.string().optional(),
+  tag: z.string().optional(),
+  search: z.string().optional(),
+  visibility: TemplateVisibilityEnum.optional(),
+  status: TemplateStatusEnum.optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+});
+export type TemplateFilterQuery = z.infer<typeof TemplateFilterQuerySchema>;
+
+export const TemplateVersionResponseSchema = z.object({
+  id: z.string(),
+  templateId: z.string(),
+  versionNumber: z.number().int().positive(),
+  definition: WorkflowDefinitionSchema,
+  requiredConnections: z.array(z.string()).default([]),
+  requiredInputs: z.record(z.unknown()).default({}),
+  contentHash: z.string(),
+  releaseNotes: z.string().nullable().optional(),
+  publishedById: z.string().nullable().optional(),
+  publishedAt: z.string().datetime(),
+});
+export type TemplateVersionResponse = z.infer<typeof TemplateVersionResponseSchema>;
+
+export const WorkflowTemplateResponseSchema = z.object({
+  id: z.string(),
+  organizationId: z.string().nullable().optional(),
+  name: z.string(),
+  shortDescription: z.string(),
+  description: z.string().nullable().optional(),
+  category: z.string(),
+  tags: z.array(z.string()).default([]),
+  visibility: TemplateVisibilityEnum,
+  status: TemplateStatusEnum,
+  draftDefinition: WorkflowDefinitionSchema.optional(),
+  requiredConnections: z.array(z.string()).default([]),
+  requiredInputs: z.record(z.unknown()).default({}),
+  usageCount: z.number().int().nonnegative().default(0),
+  isFeatured: z.boolean().default(false),
+  isVerified: z.boolean().default(false),
+  createdById: z.string().nullable().optional(),
+  publishedVersionId: z.string().nullable().optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  publishedVersion: TemplateVersionResponseSchema.optional(),
+});
+export type WorkflowTemplateResponse = z.infer<typeof WorkflowTemplateResponseSchema>;
+
 
 

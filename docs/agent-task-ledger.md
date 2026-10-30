@@ -438,3 +438,46 @@
 - **VERIFICATION COMMANDS**: `pnpm test; pnpm typecheck; pnpm build`
 - **ACTUAL RESULTS**: All 27/27 Prompt 12 integration tests passing; 281/281 total tests passing across 22 test suites; full monorepo build and Next.js 14 production build succeed with 0 errors.
 - **STATUS**: DONE
+
+---
+
+## TASK-030: Enterprise Workflow Templates, Reusable Components, and Template Marketplace (Prompt 13)
+
+- **OBJECTIVE**: Design, implement, test, and document a production-ready Workflow Template and Reusable Component ecosystem within `C:\Users\soumi\OneDrive\Documents\Antigravity\FlowForge` across `@flowforge/shared`, `@flowforge/database`, `@flowforge/workflow-engine`, `@flowforge/api`, `@flowforge/web`, and `@flowforge/test-utils`.
+- **DEPENDENCIES**: TASK-005, TASK-006, TASK-008, TASK-024, TASK-025, TASK-028, TASK-029
+- **ALLOWED FILES**: `packages/shared/src/*`, `packages/database/prisma/*`, `packages/workflow-engine/src/*`, `packages/test-utils/src/*`, `apps/api/src/*`, `apps/web/src/*`, `tests/integration/workflow-templates-marketplace.test.ts`, `docs/*`
+- **REQUIREMENTS**:
+  1. Shared Contracts & Schemas (`packages/shared/src/index.ts`):
+     - Added permissions: `templates:read`, `templates:write`, `templates:publish` with explicit assignments in `ROLE_PERMISSIONS` (OWNER/ADMIN have write/publish, MEMBER has read, VIEWER has read).
+     - Enums: `TemplateVisibilityEnum` (`PRIVATE`, `ORGANIZATION`, `PLATFORM`), `TemplateStatusEnum` (`DRAFT`, `PUBLISHED`, `ARCHIVED`), `TemplateCategoryEnum` (`DevOps`, `Finance`, `Operations`, `Customer Support`, `Security`, `Marketing`, `General`).
+     - Schemas: `CreateTemplateSchema`, `UpdateTemplateSchema`, `PublishTemplateVersionSchema`, `InstantiateTemplateSchema`, `TemplateFilterQuerySchema`, `TemplateVersionResponseSchema`, `WorkflowTemplateResponseSchema`.
+  2. Database Models & Migrations (`packages/database/prisma/schema.prisma`):
+     - Added `TemplateVisibility` and `TemplateStatus` enums.
+     - Added `WorkflowTemplate` model with fields for visibility, category, tags, sanitization requirements, usage count, author, and published version reference.
+     - Added `WorkflowTemplateVersion` model for immutable versioning with monotonic version numbers, release notes, and SHA-256 content hashes.
+     - Extended `Workflow` model with provenance tracking: `sourceTemplateId` and `sourceTemplateVersionId`.
+     - Migration: `20261031080000_workflow_templates`.
+  3. In-Memory Store Integration (`packages/test-utils/src/index.ts`):
+     - Added `WorkflowTemplateRecord` and `WorkflowTemplateVersionRecord` interfaces.
+     - Added `sourceTemplateId` and `sourceTemplateVersionId` to `WorkflowRecord`.
+     - Added `templates` and `templateVersions` Maps to `InMemoryDatabase` with reset support.
+  4. Workflow Engine Template Services (`packages/workflow-engine/src/template-service.ts`):
+     - `sanitizeWorkflowForTemplate(definition)`: Deeply sanitizes workflow graphs by scrubbing sensitive credentials (passwords, tokens, API keys, webhook URLs) to `"[REDACTED]"`, wiping specific tenant `connectionId` references, stripping execution/runtime artifacts, deactivating triggers, and extracting `requiredConnections`.
+     - `instantiateGraphFromTemplate(templateDef, options)`: Regenerates completely new unique UUIDs for all nodes and edges (guaranteeing zero ID collisions), maps edge source/target references to preserve connectivity, binds tenant connection mappings, ensures triggers start inactive, and runs structural graph validation.
+  5. REST APIs (`apps/api/src/routes/template.routes.ts`):
+     - Catalog Discovery: `GET /api/v1/templates` with search, category, tag, and visibility filters. Enforces multi-tenant isolation: tenants only see platform templates, their own organization templates, or their private templates.
+     - Template CRUD: `GET /:id`, `POST /` (creates template from existing workflow or definition with deep sanitization), `PATCH /:id` (updates metadata/definition), `DELETE /:id` (archives template).
+     - Versioning: `POST /:id/publish` (creates immutable version with SHA-256 hash), `GET /:id/versions`, `GET /:id/versions/:verId`, `GET /:id/compare` (diffs between versions or draft).
+     - Instantiation: `POST /:id/instantiate` (creates fresh workflow in caller's active organization, validates connections, binds mappings, verifies graph, increments usage counter, and records audit event).
+  6. Frontend Marketplace & Visual Builder Integration (`apps/web`):
+     - Template Marketplace (`/templates`): Hero header, search, category filter tabs, visibility selector, template cards with required connection pills, usage counter, Preview modal, and Create from Template setup modal.
+     - Visual Builder (`EditorToolbar.tsx`): Added "Save as Template" action button and modal for one-click publishing from canvas with automatic secret sanitization.
+     - Navigation (`Navigation.tsx`): Added "Templates" item with `BookOpen` icon.
+  7. Automated Integration Tests (`tests/integration/workflow-templates-marketplace.test.ts`):
+     - 18 tests verifying template creation, deep secret redaction, immutable version publishing, SHA-256 hashing, version comparison diffs, node/edge UUID regeneration, graph connectivity preservation, connection mapping injection, inactive trigger defaults, strict cross-tenant isolation, cross-tenant connection blocking, catalog query protection, and template archival.
+- **ACCEPTANCE CRITERIA**: 100% test pass rate across all 23 test suites (299/299 tests passing); zero TypeScript errors; Next.js 14 production build succeeds with 0 errors.
+- **REQUIRED TESTS**: `tests/integration/workflow-templates-marketplace.test.ts`
+- **VERIFICATION COMMANDS**: `pnpm test; pnpm typecheck; pnpm build`
+- **ACTUAL RESULTS**: All 18/18 Prompt 13 integration tests passing; 299/299 total tests passing across 23 test suites; full monorepo build and Next.js 14 production build succeed with 0 errors.
+- **STATUS**: DONE
+
