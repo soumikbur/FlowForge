@@ -79,3 +79,11 @@ stateDiagram-v2
 - `FAILED`: Encountered error, stack trace captured
 - `SKIPPED`: Branch was not chosen (e.g., negative branch of condition)
 - `WAITING`: Paused for human approval or delay timer
+
+
+## 4. Graph Validation & Execution Planning Interaction
+
+1. **Pre-Execution Invariant**: An execution row can only be created from a published `WorkflowVersion` whose graph has passed `validateWorkflowDefinition`.
+2. **Static Planning Phase**: Prior to step dispatch, `buildExecutionPlan` compiles the topological dependencies and execution paths.
+3. **Dynamic Step Resolution**: When a step succeeds, `resolveNextNodes` inspects the node handler's `selectedHandle` (e.g. `true` or `false` for conditions) to select the exact downstream nodes.
+4. **Suspension States**: Encountering `APPROVAL` returns `WAITING` with reason `APPROVAL`, cleanly transitioning the state machine from `RUNNING` to `WAITING_APPROVAL` without holding worker threads. Resuming with a recorded decision allows the step planner to advance toward subsequent nodes.

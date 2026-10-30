@@ -117,3 +117,21 @@ A workflow definition is represented as a directed acyclic graph (with controlle
 4. Cycles are prohibited unless specifically tagged with bounded iteration counters.
 5. All edge `source` and `target` references must correspond to existing node IDs.
 6. Conditional nodes must have edges emanating from both `true` and `false` handles (or explicitly handled default fallbacks).
+
+
+## 4. Execution Planning & Branch Semantics
+
+The standalone workflow engine builds a deterministic `WorkflowExecutionPlan` prior to execution runtime:
+- **Topological Ordering**: Deterministic sequence derived via in-degree analysis with alphabetical node ID tie-breaking.
+- **Branch Independence**: Mutually exclusive conditional branches (e.g., `true` vs `false`) are preserved as separate `ExecutionPath`s. Topological analysis never causes parallel or mutually exclusive branches to execute sequentially.
+- **Handle Routing**: At runtime, step handlers select the active outgoing handle (e.g., `selectedHandle: 'true'` or `'false'`). Only edges matching the selected handle advance execution.
+
+## 5. Engine Safety & Resource Limits
+
+| Limit | Maximum Bound | Purpose |
+| :--- | :--- | :--- |
+| `MAX_NODES` | 500 nodes | Prevents memory exhaustion on graph traversal |
+| `MAX_EDGES` | 1,000 edges | Bounds adjacency matrix and cycle analysis |
+| `MAX_EXPRESSION_LENGTH` | 1,000 characters | Prevents regex and parser denial of service |
+| `MAX_PATH_DEPTH` | 10 levels | Prevents prototype traversal and stack exhaustion |
+| `MAX_DIAGNOSTICS` | 100 diagnostics | Caps error payload sizes emitted across APIs |

@@ -169,3 +169,24 @@
 - **REQUIRED TESTS**: `tests/unit/graph-serializer.test.ts`, `tests/unit/node-registry.test.ts`, `tests/integration/workflow-builder-api.test.ts`
 - **ACTUAL RESULTS**: All 15 tests passing across 3 test suites; Next.js 14 production build succeeds with 0 errors.
 - **STATUS**: DONE
+
+
+---
+
+### TASK-022: Workflow Graph Validation, Execution Planning & Node Handler Contracts
+
+- **OBJECTIVE**: Build standalone workflow-engine package features: structural validation (`validateWorkflowDefinition`), resource safety limits, cycle detection, reachability analysis, terminal path validation, safe deterministic condition evaluation, deterministic execution planning (`buildExecutionPlan`), and typed node handler contracts (`NodeHandler`, `ExecutionContext`, `StepExecutionResult`).
+- **DEPENDENCIES**: TASK-007, TASK-008, TASK-021
+- **ALLOWED FILES**: `packages/workflow-engine/src/*`, `packages/workflow-engine/test/*`, `docs/*`
+- **REQUIREMENTS**:
+  1. Pure functional engine independent of React, Next.js, Express, PostgreSQL, and BullMQ.
+  2. Safety limits (`MAX_NODES = 500`, `MAX_EDGES = 1000`, `MAX_EXPRESSION_LENGTH = 1000`, `MAX_PATH_DEPTH = 10`).
+  3. Stable error codes (`WorkflowErrorCode`).
+  4. Validation checks: missing triggers, duplicate IDs, self-connections, terminal outgoing edges, handle validation, condition branch completeness, cycle detection, and terminal path reachability.
+  5. Deterministic condition evaluator without `eval` supporting `===`, `==`, `!==`, `!=`, `>`, `<`, `>=`, `<=`, `CONTAINS`, `NOT_CONTAINS`, `EXISTS`, `IS_EMPTY` with prototype protection.
+  6. Deterministic execution planner (`buildExecutionPlan`) with topological sort and branch-preserving execution paths.
+  7. Typed node handler contracts and metadata registry for all 7 node types.
+- **ACCEPTANCE CRITERIA**: Zero compilation errors, 100% test pass rate across all engine test suites, zero unrelated files modified.
+- **REQUIRED TESTS**: `packages/workflow-engine/test/workflow-engine.test.ts`, `packages/workflow-engine/test/workflow-engine-phase4.test.ts`
+- **ACTUAL RESULTS**: All 27 engine tests passing; 118/118 tests passing across the entire repository.
+- **STATUS**: DONE

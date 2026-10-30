@@ -90,3 +90,4 @@ describe("Node Registry Specifications & Contract Verification", () => {
     expect(item.type).toBe("END");
   });
 });
+

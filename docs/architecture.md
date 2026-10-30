@@ -46,3 +46,11 @@ The codebase is structured as a pnpm monorepo with distinct separation of concer
 - Docker daemon is not running natively on this Windows workstation.
 - Containerized configurations (`Dockerfile`, `docker-compose.yml`) are fully provided for standard containerized deployment.
 - Local execution & test suites leverage Prisma with SQLite/PGlite or configurable PostgreSQL URL and simulated/in-memory queue fallbacks when external daemons are absent.
+
+
+## 5. Workflow Engine Package Boundaries
+
+`packages/workflow-engine` serves as the standalone core of FlowForge:
+- **Zero Framework Coupling**: Operates independently of Next.js, Express, PostgreSQL, and BullMQ.
+- **Pure Functional Core**: Graph validation (`validateWorkflowDefinition`), cycle detection (DFS with recursion stack), topological sorting (Kahn's algorithm with deterministic tie-breaking), and condition evaluation operate on pure in-memory data structures without network or database I/O.
+- **Node Registry & Handler Contracts**: Defines strongly-typed handler interfaces (`NodeHandler`, `ExecutionContext`, `StepExecutionResult`) and metadata registries used by the API for validation and by the worker for step execution.

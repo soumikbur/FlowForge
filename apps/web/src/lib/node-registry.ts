@@ -174,3 +174,4 @@ export const PALETTE_CATEGORIES: NodeCategory[] = [
 export function getNodeRegistryItem(type: NodeType): NodeRegistryItem {
   return NODE_REGISTRY[type] || NODE_REGISTRY.END;
 }
+

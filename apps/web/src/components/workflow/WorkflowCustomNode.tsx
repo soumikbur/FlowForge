@@ -145,3 +145,4 @@ export const WorkflowCustomNode = memo(({ data, selected }: NodeProps) => {
 });
 
 WorkflowCustomNode.displayName = "WorkflowCustomNode";
+

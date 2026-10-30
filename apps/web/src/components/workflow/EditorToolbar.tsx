@@ -247,3 +247,4 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
     </div>
   );
 };
+

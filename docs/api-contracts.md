@@ -89,3 +89,29 @@ In case of errors:
 
 - `GET /api/v1/dashboard/stats`: Returns aggregated stats (total workflows, active, success rate, failed count, pending approvals).
 - `GET /api/v1/dashboard/activity`: Recent execution events and alerts.
+
+
+## 8. Workflow Graph Validation Error Codes
+
+When validating a workflow draft via `POST /api/v1/workflows/:id/validate`, the endpoint returns `{ success: true, data: { isValid: boolean, errors: ValidationError[], warnings: ValidationWarning[] } }`.
+
+| Error Code | Meaning |
+| :--- | :--- |
+| `EMPTY_GRAPH` | Graph contains zero nodes |
+| `RESOURCE_LIMIT_EXCEEDED` | Definition exceeds max nodes (500) or edges (1000) |
+| `MISSING_TRIGGER_NODE` | No `TRIGGER` node present in definition |
+| `MULTIPLE_TRIGGER_NODES` | More than 1 `TRIGGER` node found |
+| `DUPLICATE_NODE_ID` | Multiple nodes share the same identifier |
+| `DUPLICATE_EDGE_ID` | Multiple edges share the same identifier |
+| `UNKNOWN_NODE_TYPE` | Node type is not recognized by engine registry |
+| `INVALID_NODE_CONFIG` | Node config violates Zod schema for its type |
+| `MISSING_SOURCE_NODE` | Edge references nonexistent source node |
+| `MISSING_TARGET_NODE` | Edge references nonexistent target node |
+| `SELF_CONNECTION_NOT_ALLOWED` | Edge has source identical to target |
+| `TERMINAL_HAS_OUTGOING_EDGES` | An `END` terminal node has outgoing edges |
+| `TRIGGER_HAS_INCOMING_EDGES` | A `TRIGGER` node has inward edges |
+| `INVALID_CONDITION_HANDLE` | Condition edge handle is not 'true' or 'false' |
+| `INCOMPLETE_CONDITION_BRANCHES` | Condition node missing either 'true' or 'false' edge |
+| `UNREACHABLE_NODE` | Node is disconnected/unreachable from trigger |
+| `CYCLE_DETECTED` | Directed cycle detected in workflow graph |
+| `MISSING_TERMINAL_PATH` | No path from trigger reaches an `END` node |

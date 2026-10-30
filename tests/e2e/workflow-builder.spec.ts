@@ -34,3 +34,4 @@ export const workflowBuilderJourney = {
     "Toolbar: Switch to Version 1 -> Verify read-only locked mode",
   ],
 };
+
