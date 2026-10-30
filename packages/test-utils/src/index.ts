@@ -121,6 +121,66 @@ export interface ApprovalRecord {
   createdAt: Date;
 }
 
+export interface WebhookConfigRecord {
+  id: string;
+  organizationId: string;
+  workflowId: string;
+  name: string;
+  enabled: boolean;
+  signingSecret: string;
+  eventFilter?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface WebhookEventRecord {
+  id: string;
+  organizationId: string;
+  workflowId: string;
+  webhookId?: string;
+  idempotencyKey?: string;
+  source?: string;
+  payload: Record<string, unknown>;
+  status: "PENDING" | "PROCESSED" | "FAILED";
+  executionId?: string;
+  createdAt: Date;
+}
+
+export interface ScheduleRecord {
+  id: string;
+  organizationId: string;
+  workflowId: string;
+  name: string;
+  cronExpression?: string;
+  scheduledAt?: Date;
+  timezone: string;
+  enabled: boolean;
+  misfirePolicy: "RUN_ONCE" | "SKIP";
+  lastRunAt?: Date;
+  nextRunAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CredentialRecord {
+  id: string;
+  organizationId: string;
+  name: string;
+  type: "API_KEY" | "BEARER_TOKEN" | "BASIC_AUTH" | "SMTP";
+  encryptedData: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface DelayRecord {
+  id: string;
+  executionId: string;
+  stepId: string;
+  resumeAt: Date;
+  status: "PENDING" | "COMPLETED" | "CANCELLED";
+  createdAt: Date;
+}
+
 export class InMemoryDatabase {
   public users = new Map<string, UserRecord>();
   public organizations = new Map<string, OrganizationRecord>();
@@ -131,6 +191,11 @@ export class InMemoryDatabase {
   public executions = new Map<string, WorkflowExecutionRecord>();
   public steps = new Map<string, ExecutionStepRecord>();
   public approvals = new Map<string, ApprovalRecord>();
+  public webhooks = new Map<string, WebhookConfigRecord>();
+  public webhookEvents = new Map<string, WebhookEventRecord>();
+  public schedules = new Map<string, ScheduleRecord>();
+  public credentials = new Map<string, CredentialRecord>();
+  public delays = new Map<string, DelayRecord>();
   public auditLogs: Array<AuditLogRecord> = [];
 
   public recordAudit(record: Omit<AuditLogRecord, "id" | "createdAt">): AuditLogRecord {
@@ -153,6 +218,11 @@ export class InMemoryDatabase {
     this.executions.clear();
     this.steps.clear();
     this.approvals.clear();
+    this.webhooks.clear();
+    this.webhookEvents.clear();
+    this.schedules.clear();
+    this.credentials.clear();
+    this.delays.clear();
     this.auditLogs = [];
   }
 }

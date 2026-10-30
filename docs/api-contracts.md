@@ -80,12 +80,31 @@ In case of errors:
 - `GET /api/v1/approvals/:id`: Retrieve single approval request and execution context.
 - `POST /api/v1/approvals/:id/decide`: Submit decision (`APPROVE` or `REJECT`) with optional comment. Resumes or terminates workflow execution.
 
-## 6. Webhooks & Integrations Endpoints
+## 6. Webhooks, Schedules & Integration Credentials Endpoints
 
-- `POST /api/v1/webhooks/:workflowId`: Ingest external webhook, verify signature/token, queue execution.
-- `GET /api/v1/integrations/credentials`: List credentials (names, types, no secrets revealed).
-- `POST /api/v1/integrations/credentials`: Register or update encrypted credential.
-- `DELETE /api/v1/integrations/credentials/:id`: Remove credential.
+### 6.1 Webhook Triggers & Configuration
+- `POST /api/v1/webhooks/incoming/:id`: Ingest external webhook targeting a registered webhook or workflow. Verifies constant-time HMAC signature (`X-Signature-256`), enforces replay window (`X-Webhook-Timestamp` max 300s), and deduplicates by event ID (`X-Idempotency-Key`).
+- `GET /api/v1/webhooks`: List webhook configurations for caller's organization (signing secrets redacted).
+- `POST /api/v1/webhooks`: Create webhook configuration for a published workflow (generates `whsec_...` signing secret, returned only upon creation).
+- `GET /api/v1/webhooks/config/:id`: Retrieve webhook configuration metadata (secret redacted).
+- `PATCH /api/v1/webhooks/config/:id`: Update webhook configuration (name, enabled status, event filters).
+- `POST /api/v1/webhooks/config/:id/rotate-secret`: Rotate webhook signing secret (returns new secret once).
+- `DELETE /api/v1/webhooks/config/:id`: Delete webhook configuration.
+- `GET /api/v1/webhooks/config/:id/deliveries`: Query historical delivery events for the webhook.
+
+### 6.2 Scheduled Triggers
+- `GET /api/v1/schedules`: List schedules for caller's organization.
+- `POST /api/v1/schedules`: Create schedule for published workflow (supports recurring 5-field cron, one-time execution, IANA timezones, misfire policies; calculates `nextRunAt` in UTC).
+- `GET /api/v1/schedules/:id`: Retrieve schedule details.
+- `PATCH /api/v1/schedules/:id`: Update schedule definition and recalculate next occurrence.
+- `DELETE /api/v1/schedules/:id`: Delete schedule.
+- `POST /api/v1/schedules/:id/run-now`: Immediately trigger manual execution of the scheduled workflow.
+
+### 6.3 Integration Credentials
+- `GET /api/v1/credentials`: List credentials for caller's organization (secrets and encrypted blobs never exposed).
+- `POST /api/v1/credentials`: Register credential (encrypted at rest using AES-256-GCM authenticated encryption).
+- `GET /api/v1/credentials/:id`: Retrieve credential metadata.
+- `DELETE /api/v1/credentials/:id`: Delete credential.
 
 ## 7. Dashboard & Metrics Endpoints
 

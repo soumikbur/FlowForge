@@ -23,7 +23,11 @@ export type Permission =
   | "approval:decide"
   | "credentials:read"
   | "credentials:write"
-  | "audit:read";
+  | "audit:read"
+  | "webhook:read"
+  | "webhook:write"
+  | "schedule:read"
+  | "schedule:write";
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   OWNER: [
@@ -44,6 +48,10 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "credentials:read",
     "credentials:write",
     "audit:read",
+    "webhook:read",
+    "webhook:write",
+    "schedule:read",
+    "schedule:write",
   ],
   ADMIN: [
     "org:read",
@@ -61,13 +69,20 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "credentials:read",
     "credentials:write",
     "audit:read",
+    "webhook:read",
+    "webhook:write",
+    "schedule:read",
+    "schedule:write",
   ],
   MEMBER: [
     "org:read",
     "org:members:read",
     "workflow:read",
     "workflow:execute",
-    "approval:read"
+    "approval:read",
+    "webhook:read",
+    "schedule:read",
+    "credentials:read",
   ],
 };
 
@@ -108,7 +123,10 @@ export const HttpRequestNodeConfigSchema = z.object({
   method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]).default("GET"),
   headers: z.record(z.string()).optional(),
   body: z.string().optional(),
-  timeoutMs: z.number().int().positive().max(30000).default(10000),
+  timeoutMs: z.number().int().positive().max(60000).default(10000),
+  credentialId: z.string().optional(),
+  maxRetries: z.number().int().min(0).max(5).default(2),
+  idempotentRetry: z.boolean().default(false),
 });
 
 export const EmailNodeConfigSchema = z.object({
@@ -125,7 +143,7 @@ export const ApprovalNodeConfigSchema = z.object({
 });
 
 export const DelayNodeConfigSchema = z.object({
-  durationSeconds: z.number().int().positive().max(86400).default(60), // max 24 hours
+  durationSeconds: z.number().int().min(0).max(2592000).default(60), // max 30 days
 });
 
 export const EndNodeConfigSchema = z.object({
@@ -280,3 +298,67 @@ export const PaginationQuerySchema = z.object({
   status: z.string().optional(),
 });
 export type PaginationQuery = z.infer<typeof PaginationQuerySchema>;
+
+// ==========================================
+// WEBHOOK CONFIG SCHEMAS
+// ==========================================
+export const CreateWebhookConfigSchema = z.object({
+  workflowId: z.string().min(1, "Workflow ID is required"),
+  name: z.string().min(1, "Webhook name is required"),
+  eventFilter: z.string().optional(),
+  enabled: z.boolean().default(true),
+});
+export type CreateWebhookConfigRequest = z.infer<typeof CreateWebhookConfigSchema>;
+
+export const UpdateWebhookConfigSchema = z.object({
+  name: z.string().min(1).optional(),
+  eventFilter: z.string().optional(),
+  enabled: z.boolean().optional(),
+});
+export type UpdateWebhookConfigRequest = z.infer<typeof UpdateWebhookConfigSchema>;
+
+// ==========================================
+// SCHEDULE SCHEMAS
+// ==========================================
+export const CreateScheduleSchema = z
+  .object({
+    workflowId: z.string().min(1, "Workflow ID is required"),
+    name: z.string().min(1, "Schedule name is required"),
+    cronExpression: z.string().optional(),
+    scheduledAt: z.string().datetime().optional(),
+    timezone: z.string().default("UTC"),
+    misfirePolicy: z.enum(["RUN_ONCE", "SKIP"]).default("RUN_ONCE"),
+    enabled: z.boolean().default(true),
+  })
+  .refine((data) => data.cronExpression || data.scheduledAt, {
+    message: "Either cronExpression or scheduledAt must be provided",
+  });
+export type CreateScheduleRequest = z.infer<typeof CreateScheduleSchema>;
+
+export const UpdateScheduleSchema = z.object({
+  name: z.string().min(1).optional(),
+  cronExpression: z.string().optional(),
+  scheduledAt: z.string().datetime().optional(),
+  timezone: z.string().optional(),
+  misfirePolicy: z.enum(["RUN_ONCE", "SKIP"]).optional(),
+  enabled: z.boolean().optional(),
+});
+export type UpdateScheduleRequest = z.infer<typeof UpdateScheduleSchema>;
+
+// ==========================================
+// CREDENTIAL SCHEMAS
+// ==========================================
+export const CredentialTypeEnum = z.enum([
+  "API_KEY",
+  "BEARER_TOKEN",
+  "BASIC_AUTH",
+  "SMTP",
+]);
+export type CredentialType = z.infer<typeof CredentialTypeEnum>;
+
+export const CreateCredentialSchema = z.object({
+  name: z.string().min(1, "Credential name is required"),
+  type: CredentialTypeEnum,
+  data: z.record(z.unknown()),
+});
+export type CreateCredentialRequest = z.infer<typeof CreateCredentialSchema>;

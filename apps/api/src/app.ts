@@ -10,6 +10,8 @@ import { workflowRouter } from "./routes/workflow.routes.js";
 import { executionRouter } from "./routes/execution.routes.js";
 import { approvalRouter } from "./routes/approval.routes.js";
 import { webhookRouter } from "./routes/webhook.routes.js";
+import { scheduleRouter } from "./routes/schedule.routes.js";
+import { credentialRouter } from "./routes/credential.routes.js";
 import { dashboardRouter } from "./routes/dashboard.routes.js";
 import { apiStore } from "./store.js";
 
@@ -95,6 +97,8 @@ app.use("/api/v1/workflows", workflowRouter);
 app.use("/api/v1/executions", executionRouter);
 app.use("/api/v1/approvals", approvalRouter);
 app.use("/api/v1/webhooks", webhookRouter);
+app.use("/api/v1/schedules", scheduleRouter);
+app.use("/api/v1/credentials", credentialRouter);
 app.use("/api/v1/dashboard", dashboardRouter);
 
 // 404 Fallback

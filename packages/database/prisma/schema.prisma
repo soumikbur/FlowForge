@@ -66,13 +66,15 @@ model Organization {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  memberships OrganizationMembership[]
-  workflows   Workflow[]
-  executions  WorkflowExecution[]
-  approvals   Approval[]
-  credentials IntegrationCredential[]
-  webhooks    WebhookEvent[]
-  auditLogs   AuditLog[]
+  memberships    OrganizationMembership[]
+  workflows      Workflow[]
+  executions     WorkflowExecution[]
+  approvals      Approval[]
+  credentials    IntegrationCredential[]
+  webhooks       WebhookEvent[]
+  webhookConfigs WebhookConfig[]
+  schedules      WorkflowSchedule[]
+  auditLogs      AuditLog[]
 
   @@map("organizations")
 }
@@ -146,6 +148,8 @@ model Workflow {
   versions           WorkflowVersion[]
   executions         WorkflowExecution[]
   webhooks           WebhookEvent[]
+  webhookConfigs     WebhookConfig[]
+  schedules          WorkflowSchedule[]
 
   @@index([organizationId])
   @@index([status])
@@ -278,6 +282,49 @@ model WebhookEvent {
   @@unique([organizationId, idempotencyKey])
   @@index([workflowId])
   @@map("webhook_events")
+}
+
+model WebhookConfig {
+  id             String   @id @default(uuid())
+  organizationId String
+  workflowId     String
+  name           String
+  enabled        Boolean  @default(true)
+  signingSecret  String
+  eventFilter    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workflow       Workflow     @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([workflowId])
+  @@map("webhook_configs")
+}
+
+model WorkflowSchedule {
+  id             String    @id @default(uuid())
+  organizationId String
+  workflowId     String
+  name           String
+  cronExpression String?
+  scheduledAt    DateTime?
+  timezone       String    @default("UTC")
+  enabled        Boolean   @default(true)
+  misfirePolicy  String    @default("RUN_ONCE")
+  lastRunAt      DateTime?
+  nextRunAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workflow       Workflow     @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([workflowId])
+  @@index([enabled, nextRunAt])
+  @@map("workflow_schedules")
 }
 
 model AuditLog {

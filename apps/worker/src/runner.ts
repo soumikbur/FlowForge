@@ -13,12 +13,14 @@ import {
 import {
   executeSafeHttpRequest,
   defaultEmailService,
+  decryptCredentialData,
 } from "@flowforge/integrations";
 import {
   InMemoryDatabase,
   WorkflowExecutionRecord,
   ExecutionStepRecord,
   ApprovalRecord,
+  DelayRecord,
 } from "@flowforge/test-utils";
 
 export class WorkflowExecutionRunner {
@@ -39,17 +41,58 @@ export class WorkflowExecutionRunner {
       const url = node.config.url as string;
       const method = (node.config.method as string) || "GET";
       const timeoutMs = (node.config.timeoutMs as number) || 10000;
+      const credentialId = node.config.credentialId as string | undefined;
+      const maxRetries = (node.config.maxRetries as number) ?? 2;
+      const idempotentRetry = (node.config.idempotentRetry as boolean) ?? false;
+      const headers = { ...((node.config.headers as Record<string, string>) || {}) };
+
+      // Resolve credential if configured
+      if (credentialId) {
+        const cred = this.db.credentials.get(credentialId);
+        if (!cred || cred.organizationId !== context.organizationId) {
+          const err = new Error(
+            `Integration credential '${credentialId}' not found or unauthorized for organization.`,
+          );
+          (err as any).isNonRetryable = true;
+          throw err;
+        }
+
+        try {
+          const decrypted = decryptCredentialData(
+            cred.encryptedData,
+          ) as Record<string, unknown>;
+          if (cred.type === "BEARER_TOKEN" && decrypted.token) {
+            headers["Authorization"] = `Bearer ${decrypted.token}`;
+          } else if (cred.type === "API_KEY" && decrypted.apiKey) {
+            const headerName = (decrypted.headerName as string) || "X-API-Key";
+            headers[headerName] = decrypted.apiKey as string;
+          } else if (cred.type === "BASIC_AUTH" && decrypted.username) {
+            const basic = Buffer.from(
+              `${decrypted.username}:${decrypted.password || ""}`,
+            ).toString("base64");
+            headers["Authorization"] = `Basic ${basic}`;
+          }
+        } catch (decErr: any) {
+          const err = new Error(`Failed to decrypt credential: ${decErr.message}`);
+          (err as any).isNonRetryable = true;
+          throw err;
+        }
+      }
 
       const res = await executeSafeHttpRequest({
         url,
         method,
+        headers,
         timeoutMs,
+        maxRetries,
+        idempotentRetry,
       });
 
       return {
         status: "COMPLETED",
         output: {
           statusCode: res.status,
+          headers: res.headers,
           data: res.data,
           durationMs: res.durationMs,
         },
@@ -117,7 +160,10 @@ export class WorkflowExecutionRunner {
     this.db.executions.set(execution.id, execution);
 
     for (const step of this.db.steps.values()) {
-      if (step.executionId === execution.id && step.status === "RUNNING") {
+      if (
+        step.executionId === execution.id &&
+        (step.status === "RUNNING" || step.status === "WAITING")
+      ) {
         step.status = "SKIPPED";
         step.errorMessage = "Execution was cancelled";
         step.completedAt = now;
@@ -125,7 +171,111 @@ export class WorkflowExecutionRunner {
       }
     }
 
+    // Cancel pending delays
+    for (const delay of this.db.delays.values()) {
+      if (delay.executionId === execution.id && delay.status === "PENDING") {
+        delay.status = "CANCELLED";
+        this.db.delays.set(delay.id, delay);
+      }
+    }
+
     return execution;
+  }
+
+  /**
+   * Resumes a delayed execution once its wait duration has elapsed or upon forced administrative resume.
+   */
+  public async resumeDelayedExecution(
+    executionId: string,
+    options?: { force?: boolean },
+  ): Promise<WorkflowExecutionRecord> {
+    const execution = this.db.executions.get(executionId);
+    if (!execution) {
+      throw new Error(`Execution ${executionId} not found.`);
+    }
+
+    if (execution.status !== "WAITING_DELAY") {
+      throw new Error(
+        `Cannot resume execution in state '${execution.status}'. Expected 'WAITING_DELAY'.`,
+      );
+    }
+
+    const pendingDelay = Array.from(this.db.delays.values()).find(
+      (d) => d.executionId === executionId && d.status === "PENDING",
+    );
+
+    if (!pendingDelay) {
+      throw new Error(
+        `No pending delay record found for execution ${executionId}.`,
+      );
+    }
+
+    const now = new Date();
+    if (!options?.force && pendingDelay.resumeAt.getTime() > now.getTime()) {
+      throw new Error(
+        `Delay duration has not elapsed yet. Scheduled resume: ${pendingDelay.resumeAt.toISOString()}`,
+      );
+    }
+
+    pendingDelay.status = "COMPLETED";
+    this.db.delays.set(pendingDelay.id, pendingDelay);
+
+    const step = this.db.steps.get(pendingDelay.stepId);
+    if (step && step.status === "WAITING") {
+      step.status = "COMPLETED";
+      step.completedAt = now;
+      this.db.steps.set(step.id, step);
+    }
+
+    const version = this.db.versions.get(execution.workflowVersionId);
+    if (!version) {
+      throw new Error("Workflow version snapshot not found.");
+    }
+
+    const currentNodeId = execution.currentNodeId!;
+    const plan = resolveNextNodes(version.definition, currentNodeId, {
+      status: "COMPLETED",
+      output: { resumedAt: now.toISOString() },
+    });
+
+    if (plan.isComplete || plan.nextNodes.length === 0) {
+      execution.status = "SUCCEEDED";
+      execution.completedAt = now;
+      execution.updatedAt = now;
+      this.db.executions.set(execution.id, execution);
+      return execution;
+    }
+
+    execution.currentNodeId = plan.nextNodes[0].id;
+    execution.status = "QUEUED";
+    execution.updatedAt = now;
+    this.db.executions.set(execution.id, execution);
+
+    return this.processExecution(executionId);
+  }
+
+  /**
+   * Recovers and resumes all overdue delayed executions (e.g. after worker restart).
+   */
+  public async recoverOverdueDelays(now: Date = new Date()): Promise<number> {
+    let resumedCount = 0;
+    for (const delay of this.db.delays.values()) {
+      if (
+        delay.status === "PENDING" &&
+        delay.resumeAt.getTime() <= now.getTime()
+      ) {
+        const execution = this.db.executions.get(delay.executionId);
+        if (execution && execution.status === "WAITING_DELAY") {
+          try {
+            await this.resumeDelayedExecution(delay.executionId, { force: true });
+            resumedCount++;
+          } catch {
+            // Continue on individual recovery error
+          }
+        }
+      }
+    }
+    return resumedCount;
   }
 
   /**
@@ -430,10 +580,38 @@ export class WorkflowExecutionRunner {
           }
 
           if (stepResult.waitReason === "DELAY") {
+            const durationSeconds =
+              (stepResult.waitPayload?.durationSeconds as number) ?? 60;
+            const resumeAt = new Date(Date.now() + durationSeconds * 1000);
+
             stepRecord.status = "WAITING";
+            stepRecord.outputPayload = {
+              durationSeconds,
+              resumeAt: resumeAt.toISOString(),
+            };
             this.db.steps.set(stepId, stepRecord);
 
+            const delayId = `del_${crypto.randomUUID()}`;
+            const delayRecord: DelayRecord = {
+              id: delayId,
+              executionId: execution.id,
+              stepId: stepRecord.id,
+              resumeAt,
+              status: "PENDING",
+              createdAt: new Date(),
+            };
+            this.db.delays.set(delayId, delayRecord);
+
             execution.status = "WAITING_DELAY";
+            execution.contextData = {
+              ...execution.contextData,
+              delayInfo: {
+                delayId,
+                stepId: stepRecord.id,
+                durationSeconds,
+                resumeAt: resumeAt.toISOString(),
+              },
+            };
             execution.updatedAt = new Date();
             this.db.executions.set(execution.id, execution);
             this.activeExecutions.delete(executionId);

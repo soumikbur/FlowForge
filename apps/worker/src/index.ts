@@ -30,3 +30,4 @@ server.listen(port, () => {
 });
 
 export { WorkflowExecutionRunner };
+export { WorkflowSchedulerService } from "./scheduler.js";

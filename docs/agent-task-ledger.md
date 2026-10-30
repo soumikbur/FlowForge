@@ -214,3 +214,26 @@
 - **VERIFICATION COMMANDS**: `pnpm test; pnpm typecheck; pnpm lint; pnpm build`
 - **ACTUAL RESULTS**: All 20/20 Phase 5 integration tests passing; 138/138 total tests passing across 16 test suites.
 - **STATUS**: DONE
+
+
+---
+
+### TASK-024: Durable Triggers, Scheduling, Webhooks, and Integrations (Prompt 7)
+
+- **OBJECTIVE**: Implement production-grade durable external trigger and integration subsystem: secure inbound webhooks with HMAC signatures and replay window defense, timezone-aware recurring and one-time scheduler service with occurrence deduplication, durable delay wait/resume with overdue crash recovery, and secure outbound HTTP requests with connection-level DNS SSRF validation, size limits, and AES-256-GCM credential encryption.
+- **DEPENDENCIES**: TASK-008, TASK-009, TASK-011, TASK-023
+- **ALLOWED FILES**: `packages/integrations/src/*`, `packages/shared/src/*`, `packages/database/prisma/*`, `packages/test-utils/src/*`, `apps/worker/src/*`, `apps/api/src/*`, `tests/integration/triggers-scheduling-integrations.test.ts`, `docs/*`
+- **REQUIREMENTS**:
+  1. Organization-scoped webhook configuration, cryptographically secure secret generation, constant-time HMAC validation (`sha256`), replay window timestamp checking, and deduplication by provider event ID.
+  2. Webhook management CRUD endpoints (`/api/v1/webhooks`) with secret redaction and rotation.
+  3. Timezone-aware scheduler supporting 5-field cron, one-time timestamps, IANA timezones, and occurrence locking preventing duplicate runs across restarts or multi-instance polling.
+  4. Schedule management CRUD endpoints (`/api/v1/schedules`) with `/run-now` manual triggers.
+  5. Durable delay wait-resume in `WorkflowExecutionRunner`, persisting `DelayRecord`, recovering overdue delays upon restart, and cancelling cleanly.
+  6. Secure outbound HTTP requests enforcing connection-level DNS resolution checks against private/link-local/multicast IPs, timeouts, response size limits (5MB), non-idempotent retry guards, and header redaction.
+  7. AES-256-GCM authenticated encryption for integration credentials (`/api/v1/credentials`), resolving credentials at execution time and redacting from logs and outputs.
+  8. 100% test coverage across all trigger, scheduling, delay, HTTP, and credential capabilities with zero regression.
+- **ACCEPTANCE CRITERIA**: All new and existing unit, integration, and security tests pass; zero TypeScript, lint, or build errors.
+- **REQUIRED TESTS**: `tests/integration/triggers-scheduling-integrations.test.ts`, `packages/integrations/test/integrations.test.ts`
+- **VERIFICATION COMMANDS**: `pnpm test; pnpm typecheck; pnpm lint; pnpm build`
+- **ACTUAL RESULTS**: All 32/32 Prompt 7 integration tests passing; 170/170 total tests passing across 17 test suites; Next.js 14 and all packages build with 0 errors.
+- **STATUS**: DONE
