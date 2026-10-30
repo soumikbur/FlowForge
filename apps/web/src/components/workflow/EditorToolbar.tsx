@@ -14,7 +14,13 @@ import {
   Eye,
   BookOpen,
   X,
+  Users,
+  MessageSquare,
+  History,
 } from "lucide-react";
+import { CollaborationModal } from "./CollaborationModal";
+import { CommentsDrawer } from "./CommentsDrawer";
+import { ActivityDrawer } from "./ActivityDrawer";
 
 export type SaveStatus = "saved" | "unsaved" | "saving" | "error";
 
@@ -35,6 +41,9 @@ interface EditorToolbarProps {
   onPublish: () => void;
   onReturnToDraft?: () => void;
   hasErrors?: boolean;
+  accessLevel?: "OWNER" | "MAINTAINER" | "EDITOR" | "VIEWER";
+  draftRevision?: number;
+  owner?: { id: string; email: string; firstName?: string | null; lastName?: string | null } | null;
 }
 
 export const EditorToolbar: React.FC<EditorToolbarProps> = ({
@@ -54,10 +63,16 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onPublish,
   onReturnToDraft,
   hasErrors = false,
+  accessLevel,
+  draftRevision,
+  owner,
 }) => {
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState(name);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showCollabModal, setShowCollabModal] = useState(false);
+  const [showCommentsDrawer, setShowCommentsDrawer] = useState(false);
+  const [showActivityDrawer, setShowActivityDrawer] = useState(false);
   const [templateShortDesc, setTemplateShortDesc] = useState("");
   const [templateCategory, setTemplateCategory] = useState("General");
   const [templateVisibility, setTemplateVisibility] = useState<"PRIVATE" | "ORGANIZATION">("PRIVATE");
@@ -289,7 +304,61 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             </button>
           </>
         )}
+
+        {/* Collaboration, Discussions & Activity Controls */}
+        <div className="h-4 w-px bg-slate-200 mx-1" />
+
+        <button
+          onClick={() => setShowCollabModal(true)}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 border border-slate-300 rounded-md text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 transition"
+          title="Manage Collaborators & Permissions"
+        >
+          <Users className="w-3.5 h-3.5 text-slate-600" />
+          <span>Team</span>
+        </button>
+
+        <button
+          onClick={() => setShowCommentsDrawer(true)}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 border border-slate-300 rounded-md text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 transition"
+          title="Workflow Discussions & Comments"
+        >
+          <MessageSquare className="w-3.5 h-3.5 text-slate-600" />
+          <span>Comments</span>
+        </button>
+
+        <button
+          onClick={() => setShowActivityDrawer(true)}
+          className="inline-flex items-center gap-1 px-2 py-1.5 border border-slate-300 rounded-md text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 transition"
+          title="Activity & Audit Feed"
+        >
+          <History className="w-3.5 h-3.5 text-slate-600" />
+        </button>
       </div>
+
+      {/* Collaboration Modal */}
+      <CollaborationModal
+        workflowId={workflowId}
+        isOpen={showCollabModal}
+        onClose={() => setShowCollabModal(false)}
+        canManageCollaborators={accessLevel === "OWNER" || accessLevel === "MAINTAINER" || !accessLevel}
+        isOwner={accessLevel === "OWNER" || !accessLevel}
+        currentOwner={owner}
+      />
+
+      {/* Comments Drawer */}
+      <CommentsDrawer
+        workflowId={workflowId}
+        draftRevision={draftRevision}
+        isOpen={showCommentsDrawer}
+        onClose={() => setShowCommentsDrawer(false)}
+      />
+
+      {/* Activity Drawer */}
+      <ActivityDrawer
+        workflowId={workflowId}
+        isOpen={showActivityDrawer}
+        onClose={() => setShowActivityDrawer(false)}
+      />
 
       {/* Save As Template Modal */}
       {showTemplateModal && (

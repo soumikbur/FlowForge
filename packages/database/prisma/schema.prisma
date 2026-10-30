@@ -85,6 +85,25 @@ enum TemplateStatus {
   ARCHIVED
 }
 
+enum CollaboratorRole {
+  MAINTAINER
+  EDITOR
+  VIEWER
+}
+
+enum WorkflowActivityType {
+  WORKFLOW_CREATED
+  DRAFT_UPDATED
+  WORKFLOW_PUBLISHED
+  OWNERSHIP_TRANSFERRED
+  COLLABORATOR_ADDED
+  COLLABORATOR_REMOVED
+  COLLABORATOR_ROLE_UPDATED
+  COMMENT_ADDED
+  COMMENT_RESOLVED
+  COMMENT_DELETED
+}
+
 model Organization {
   id                     String   @id @default(uuid())
   name                   String
@@ -113,6 +132,9 @@ model Organization {
   apiKeys        ApiKey[]
   connections    IntegrationConnection[]
   templates      WorkflowTemplate[]
+  collaborators  WorkflowCollaborator[]
+  comments       WorkflowComment[]
+  activities     WorkflowActivity[]
 
   @@map("organizations")
 }
@@ -140,6 +162,10 @@ model User {
   createdConnections IntegrationConnection[] @relation("ConnectionCreator")
   createdTemplates  WorkflowTemplate[]       @relation("TemplateCreator")
   publishedTemplateVersions WorkflowTemplateVersion[] @relation("TemplateVersionPublisher")
+  collaborations    WorkflowCollaborator[]
+  comments          WorkflowComment[]
+  resolvedComments  WorkflowComment[]        @relation("CommentResolver")
+  activities        WorkflowActivity[]
 
   @@map("users")
 }
@@ -186,6 +212,7 @@ model Workflow {
   draftRevision      Int            @default(1)
   publishedVersionId String?
   createdById        String?
+  lastUpdatedById    String?
   sourceTemplateId   String?
   sourceTemplateVersionId String?
   deletedAt          DateTime?
@@ -202,6 +229,9 @@ model Workflow {
   schedules          WorkflowSchedule[]
   deployments        WorkflowDeployment[]
   alerts             OperationalAlert[]
+  collaborators      WorkflowCollaborator[]
+  comments           WorkflowComment[]
+  activities         WorkflowActivity[]
 
   @@index([organizationId])
   @@index([status])
@@ -585,4 +615,75 @@ model WorkflowTemplateVersion {
   @@index([templateId])
   @@map("workflow_template_versions")
 }
+
+model WorkflowCollaborator {
+  id             String           @id @default(uuid())
+  organizationId String
+  workflowId     String
+  userId         String
+  role           CollaboratorRole @default(EDITOR)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workflow       Workflow         @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workflowId, userId])
+  @@index([organizationId])
+  @@index([workflowId])
+  @@index([userId])
+  @@map("workflow_collaborators")
+}
+
+model WorkflowComment {
+  id             String           @id @default(uuid())
+  organizationId String
+  workflowId     String
+  userId         String
+  content        String
+  nodeId         String?
+  parentId       String?
+  draftRevision  Int?
+  isResolved     Boolean          @default(false)
+  resolvedById   String?
+  resolvedAt     DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workflow       Workflow         @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent         WorkflowComment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies        WorkflowComment[] @relation("CommentReplies")
+  resolvedBy     User?            @relation("CommentResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([workflowId])
+  @@index([userId])
+  @@index([parentId])
+  @@index([isResolved])
+  @@map("workflow_comments")
+}
+
+model WorkflowActivity {
+  id             String               @id @default(uuid())
+  organizationId String
+  workflowId     String
+  userId         String?
+  type           WorkflowActivityType
+  metadata       Json                 @default("{}")
+  createdAt      DateTime             @default(now())
+
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workflow       Workflow             @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  user           User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([workflowId, createdAt])
+  @@index([userId])
+  @@index([type])
+  @@map("workflow_activities")
+}
+
 

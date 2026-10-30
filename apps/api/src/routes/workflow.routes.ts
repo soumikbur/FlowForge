@@ -24,6 +24,8 @@ import {
 } from "../store.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
+import { resolveWorkflowAccess } from "../middleware/workflow-access.js";
+import { collaborationRouter } from "./collaboration.routes.js";
 
 export const workflowRouter = Router();
 
@@ -82,12 +84,46 @@ workflowRouter.get("/", requirePermission("workflow:read"), (req, res) => {
     );
   }
 
+  // Team collaboration filter: "all" | "created_by_me" | "shared_with_me"
+  const teamFilter = req.query.filter as string | undefined;
+  if (teamFilter === "created_by_me") {
+    workflows = workflows.filter((w) => w.createdById === req.user?.id);
+  } else if (teamFilter === "shared_with_me") {
+    const collabWorkflowIds = new Set(
+      Array.from(apiStore.collaborators.values())
+        .filter((c) => c.userId === req.user?.id)
+        .map((c) => c.workflowId),
+    );
+    workflows = workflows.filter(
+      (w) => w.createdById !== req.user?.id && collabWorkflowIds.has(w.id),
+    );
+  }
+
   // Sort by updatedAt descending
   workflows.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
 
   const total = workflows.length;
   const startIndex = (page - 1) * pageSize;
-  const paginatedWorkflows = workflows.slice(startIndex, startIndex + pageSize);
+  const paginatedWorkflows = workflows.slice(startIndex, startIndex + pageSize).map((w) => {
+    const collabCount = Array.from(apiStore.collaborators.values()).filter(
+      (c) => c.workflowId === w.id,
+    ).length;
+    const ownerUser = w.createdById ? apiStore.users.get(w.createdById) : null;
+    const access = resolveWorkflowAccess(w, req);
+    return {
+      ...w,
+      collaboratorsCount: collabCount,
+      accessLevel: access?.level,
+      owner: ownerUser
+        ? {
+            id: ownerUser.id,
+            email: ownerUser.email,
+            firstName: ownerUser.firstName,
+            lastName: ownerUser.lastName,
+          }
+        : null,
+    };
+  });
 
   res.json({
     success: true,
@@ -160,6 +196,14 @@ workflowRouter.post("/", requirePermission("workflow:write"), (req, res) => {
     ipAddress: req.ip,
   });
 
+  apiStore.recordActivity({
+    organizationId: newWorkflow.organizationId,
+    workflowId: newWorkflow.id,
+    userId: req.user?.id,
+    type: "WORKFLOW_CREATED",
+    metadata: { name },
+  });
+
   res.status(201).json({
     success: true,
     data: newWorkflow,
@@ -181,6 +225,16 @@ workflowRouter.get("/:id", requirePermission("workflow:read"), (req, res) => {
     return;
   }
 
+  const access = resolveWorkflowAccess(workflow, req);
+  if (!access) {
+    res.status(404).json({
+      success: false,
+      data: null,
+      error: { code: "NOT_FOUND", message: "Workflow not found or access denied." },
+    });
+    return;
+  }
+
   const versions = Array.from(apiStore.versions.values())
     .filter((v) => v.workflowId === workflow.id)
     .sort((a, b) => b.versionNumber - a.versionNumber);
@@ -194,6 +248,25 @@ workflowRouter.get("/:id", requirePermission("workflow:read"), (req, res) => {
     production: deployments.find((d) => d.environment === "production") || null,
   };
 
+  const collabs = Array.from(apiStore.collaborators.values())
+    .filter((c) => c.workflowId === workflow.id)
+    .map((c) => {
+      const u = apiStore.users.get(c.userId);
+      return {
+        ...c,
+        user: u
+          ? {
+              id: u.id,
+              email: u.email,
+              firstName: u.firstName,
+              lastName: u.lastName,
+            }
+          : null,
+      };
+    });
+
+  const ownerUser = workflow.createdById ? apiStore.users.get(workflow.createdById) : null;
+
   res.json({
     success: true,
     data: {
@@ -201,6 +274,20 @@ workflowRouter.get("/:id", requirePermission("workflow:read"), (req, res) => {
       draftRevision: workflow.draftRevision || 1,
       versions,
       environments,
+      collaborators: collabs,
+      accessLevel: access.level,
+      isOwner: access.isOwner,
+      canEdit: access.canEdit,
+      canPublish: access.canPublish,
+      canManageCollaborators: access.canManageCollaborators,
+      owner: ownerUser
+        ? {
+            id: ownerUser.id,
+            email: ownerUser.email,
+            firstName: ownerUser.firstName,
+            lastName: ownerUser.lastName,
+          }
+        : null,
     },
     error: null,
   });
@@ -211,7 +298,6 @@ workflowRouter.get("/:id", requirePermission("workflow:read"), (req, res) => {
 // ==========================================
 workflowRouter.patch(
   "/:id",
-  requirePermission("workflow:write"),
   (req, res) => {
     const workflow = apiStore.workflows.get(req.params.id);
     if (!workflow || workflow.organizationId !== req.organizationId || workflow.deletedAt) {
@@ -219,6 +305,19 @@ workflowRouter.patch(
         success: false,
         data: null,
         error: { code: "NOT_FOUND", message: "Workflow not found." },
+      });
+      return;
+    }
+
+    const access = resolveWorkflowAccess(workflow, req);
+    if (!access || !access.canEdit) {
+      res.status(403).json({
+        success: false,
+        data: null,
+        error: {
+          code: "FORBIDDEN",
+          message: "You lack permission to edit this workflow draft.",
+        },
       });
       return;
     }
@@ -253,7 +352,11 @@ workflowRouter.patch(
         error: {
           code: "DRAFT_CONFLICT",
           message: `Draft was modified by another session (expected revision ${expectedRevision}, current is ${currentRevision}). Refresh to review latest changes.`,
-          details: { currentRevision, expectedRevision },
+          details: {
+            currentRevision,
+            expectedRevision,
+            lastUpdatedById: workflow.lastUpdatedById,
+          },
         },
       });
       return;
@@ -270,6 +373,7 @@ workflowRouter.patch(
       };
     }
     workflow.draftRevision = currentRevision + 1;
+    workflow.lastUpdatedById = req.user?.id;
     workflow.updatedAt = new Date();
 
     apiStore.workflows.set(workflow.id, workflow);
@@ -282,6 +386,17 @@ workflowRouter.patch(
       resourceId: workflow.id,
       metadata: { name: workflow.name, revision: workflow.draftRevision },
       ipAddress: req.ip,
+    });
+
+    apiStore.recordActivity({
+      organizationId: workflow.organizationId,
+      workflowId: workflow.id,
+      userId: req.user?.id,
+      type: "DRAFT_UPDATED",
+      metadata: {
+        revision: workflow.draftRevision,
+        updatedFields: Object.keys(parseResult.data),
+      },
     });
 
     res.json({
@@ -365,7 +480,6 @@ workflowRouter.post(
 // ==========================================
 workflowRouter.post(
   "/:id/publish",
-  requirePermission("workflow:publish"),
   (req, res) => {
     const workflow = apiStore.workflows.get(req.params.id);
     if (!workflow || workflow.organizationId !== req.organizationId || workflow.deletedAt) {
@@ -373,6 +487,19 @@ workflowRouter.post(
         success: false,
         data: null,
         error: { code: "NOT_FOUND", message: "Workflow not found." },
+      });
+      return;
+    }
+
+    const access = resolveWorkflowAccess(workflow, req);
+    if (!access || !access.canPublish) {
+      res.status(403).json({
+        success: false,
+        data: null,
+        error: {
+          code: "FORBIDDEN",
+          message: "You lack permission to publish this workflow.",
+        },
       });
       return;
     }
@@ -487,6 +614,18 @@ workflowRouter.post(
         releaseNotes,
       },
       ipAddress: req.ip,
+    });
+
+    apiStore.recordActivity({
+      organizationId: workflow.organizationId,
+      workflowId: workflow.id,
+      userId: req.user?.id,
+      type: "WORKFLOW_PUBLISHED",
+      metadata: {
+        versionNumber: nextVersionNumber,
+        versionId,
+        contentHash,
+      },
     });
 
     res.status(201).json({
@@ -1179,3 +1318,7 @@ workflowRouter.post(
   requirePermission("workflow:execute"),
   dispatchExecutionHandler,
 );
+
+// Mount workflow collaboration subrouter (collaborators, comments, activities)
+workflowRouter.use("/:id", collaborationRouter);
+

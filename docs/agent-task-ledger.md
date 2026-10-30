@@ -481,3 +481,48 @@
 - **ACTUAL RESULTS**: All 18/18 Prompt 13 integration tests passing; 299/299 total tests passing across 23 test suites; full monorepo build and Next.js 14 production build succeed with 0 errors.
 - **STATUS**: DONE
 
+## TASK-031: Workflow Collaboration, Team Productivity, Discussions, and Activity Feeds (Prompt 14)
+- **TASK ID**: TASK-031
+- **TITLE**: Workflow Collaboration and Team Productivity
+- **DESCRIPTION**: Implement a complete, multi-tenant team collaboration system for FlowForge, including workflow-level access roles (MAINTAINER, EDITOR, VIEWER), collaborator management, primary ownership transfer, contextual discussions and node-pinned comments with threading and resolution states, optimistic concurrency conflict detection with actor attribution, chronological activity feeds (workflow-level and organization-wide), and frontend productivity controls in the visual workflow builder and workflow dashboard.
+- **SUCCESS METRICS**:
+  1. Collaborator roles (MAINTAINER, EDITOR, VIEWER) enforced alongside organization-level RBAC (OWNER, ADMIN, MEMBER, VIEWER).
+  2. Workflow ownership transfer retains previous owner as MAINTAINER and logs OWNERSHIP_TRANSFERRED activity.
+  3. Contextual comments support draft revision pinning, optional node attachment, replies/threading, resolved state toggling, and author edit/delete permissions.
+  4. Optimistic concurrency conflict detection (`expectedRevision`) returns structured 409 `DRAFT_CONFLICT` with `lastUpdatedById`.
+  5. Chronological activity feeds support pagination and event filtering with actor profiles.
+  6. Frontend UI in `apps/web`: `CollaborationModal`, `CommentsDrawer`, `ActivityDrawer`, and workflow list filtering tabs (`All`, `Created by Me`, `Shared with Me`).
+  7. Automated integration test suite (`tests/integration/workflow-collaboration-productivity.test.ts`) covering all collaboration workflows with multi-tenant isolation.
+  8. Full monorepo build and test suite passing (324/324 tests).
+- **IMPLEMENTATION PLAN**:
+  1. Shared Contracts (`packages/shared/src/index.ts`):
+     - `CollaboratorRoleEnum` (`MAINTAINER`, `EDITOR`, `VIEWER`).
+     - `WorkflowActivityTypeEnum` (`WORKFLOW_CREATED`, `DRAFT_UPDATED`, `WORKFLOW_PUBLISHED`, `OWNERSHIP_TRANSFERRED`, `COLLABORATOR_ADDED`, `COLLABORATOR_REMOVED`, `COLLABORATOR_ROLE_UPDATED`, `COMMENT_ADDED`, `COMMENT_RESOLVED`, `COMMENT_DELETED`).
+     - Zod schemas: `AddCollaboratorSchema`, `UpdateCollaboratorSchema`, `TransferWorkflowOwnershipSchema`, `CreateCommentSchema`, `UpdateCommentSchema`, `ResolveCommentSchema`, `ActivityFilterQuerySchema`, `WorkflowCollaboratorResponseSchema`, `WorkflowCommentResponseSchema`, `WorkflowActivityResponseSchema`.
+  2. Database Layer (`packages/database`):
+     - Added Prisma models: `WorkflowCollaborator`, `WorkflowComment`, `WorkflowActivity`.
+     - Added `lastUpdatedById` to `Workflow` model and organization/user relations.
+     - Migration: `20261031090000_workflow_collaboration`.
+  3. In-Memory Store (`packages/test-utils/src/index.ts`):
+     - Added record interfaces: `WorkflowCollaboratorRecord`, `WorkflowCommentRecord`, `WorkflowActivityRecord`.
+     - Added `collaborators`, `comments`, and `activities` collections to `InMemoryDatabase` with `recordActivity()` helper.
+  4. Backend Middleware & Routes (`apps/api`):
+     - `apps/api/src/middleware/workflow-access.ts`: `resolveWorkflowAccess()` and `requireWorkflowAccess()` enforcing role hierarchy, creator ownership, and organization boundaries.
+     - `apps/api/src/routes/collaboration.routes.ts`: Collaborator management, ownership transfer, threaded comments, comment resolution, and workflow activity feed.
+     - `apps/api/src/routes/organization.routes.ts`: Organization-wide activity feed (`GET /:organizationId/activities`).
+     - `apps/api/src/routes/workflow.routes.ts`: Integrated collaboration router, `filter=created_by_me|shared_with_me|all`, `lastUpdatedById` tracking, 409 conflict reporting, and activity logging.
+  5. Frontend Components (`apps/web`):
+     - `CollaborationModal.tsx`: Manage collaborators, change roles, invite organization members, transfer workflow ownership.
+     - `CommentsDrawer.tsx`: Threaded comments, revision badges, node IDs, reply threading, resolution toggle, and filter tabs.
+     - `ActivityDrawer.tsx`: Chronological timeline with event-specific icons, actor attribution, and timestamps.
+     - `EditorToolbar.tsx`: Integrated Team, Comments, and Activity actions.
+     - `/workflows` page: Added filter tabs (`All Workflows`, `Created by Me`, `Shared with Me`), owner metadata, and collaborator badges.
+  6. Automated Integration Tests (`tests/integration/workflow-collaboration-productivity.test.ts`):
+     - 25 tests covering role matrix, ownership transfer, comment threading, resolution, conflict detection, activity feeds, and tenant isolation.
+- **ACCEPTANCE CRITERIA**: 100% test pass rate across all 24 test suites (324/324 tests passing); zero TypeScript errors; Next.js 14 production build succeeds with 0 errors.
+- **REQUIRED TESTS**: `tests/integration/workflow-collaboration-productivity.test.ts`
+- **VERIFICATION COMMANDS**: `pnpm test; pnpm typecheck; pnpm build`
+- **ACTUAL RESULTS**: All 25/25 Prompt 14 integration tests passing; 324/324 total tests passing across 24 test suites; full monorepo build and Next.js 14 production build succeed with 0 errors.
+- **STATUS**: DONE
+
+

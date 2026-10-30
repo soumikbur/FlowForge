@@ -338,4 +338,68 @@ flowchart TD
    - Callers cannot bind connection IDs belonging to other organizations; cross-tenant connection references during instantiation are strictly rejected with 403 `CROSS_TENANT_CONNECTION_FORBIDDEN`.
 7. **Provenance Tracking**: Instantiated workflows retain permanent references to their origin (`sourceTemplateId` and `sourceTemplateVersionId`), enabling organization-wide auditability, lineage tracking, and template usage metrics.
 
+## 11. Workflow Collaboration, Access Roles, and Productivity Architecture
+
+```mermaid
+flowchart TD
+    subgraph AuthLayer ["Access Resolution & Permission Boundary"]
+        Req["Incoming Workflow Request"]
+        OrgRoleCheck{"Org Role: OWNER / ADMIN?"}
+        OwnerCheck{"Workflow Creator / Owner?"}
+        CollabLookup{"Workflow Collaborator Role"}
+        AccessGranted["Access Granted (AccessLevel: OWNER | MAINTAINER | EDITOR | VIEWER)"]
+        AccessDenied["Access Denied (403 Forbidden / 404 Not Found)"]
+    end
+
+    subgraph CollabRoles ["Workflow Role Capabilities"]
+        RoleOwner["OWNER: Full Control, Transfer Ownership, Delete"]
+        RoleMaint["MAINTAINER: Edit Draft, Publish Versions, Manage Collaborators"]
+        RoleEdit["EDITOR: Edit Draft, Comment"]
+        RoleView["VIEWER: Read-Only, Comment"]
+    end
+
+    subgraph ProductivityFeatures ["Productivity Subsystems"]
+        Discussions["Threaded Discussions & Node Notes"]
+        Concurrency["Optimistic Concurrency (expectedRevision + lastUpdatedById)"]
+        Timeline["Chronological Activity Stream (Workflow & Org Feeds)"]
+    end
+
+    Req --> OrgRoleCheck
+    OrgRoleCheck -- Yes --> AccessGranted
+    OrgRoleCheck -- No --> OwnerCheck
+    OwnerCheck -- Yes --> AccessGranted
+    OwnerCheck -- No --> CollabLookup
+    CollabLookup -- Found --> AccessGranted
+    CollabLookup -- Not Found --> AccessDenied
+
+    AccessGranted --> RoleOwner
+    AccessGranted --> RoleMaint
+    AccessGranted --> RoleEdit
+    AccessGranted --> RoleView
+
+    RoleOwner --> Discussions & Concurrency & Timeline
+    RoleMaint --> Discussions & Concurrency & Timeline
+    RoleEdit --> Discussions & Concurrency
+    RoleView --> Discussions
+```
+
+### 11.1 Access Resolution Layer
+1. **Hierarchical Authority**: Organization `OWNER` and `ADMIN` retain superuser authority across all workflows within their organization, allowing enterprise governance without individual collaborator assignments.
+2. **Workflow Primary Ownership**: The workflow creator (`createdById`) possesses full operational rights. When primary ownership is transferred (`POST /api/v1/workflows/:id/transfer-ownership`), the previous owner is automatically added to the collaborator registry as a `MAINTAINER` to prevent accidental lockout.
+3. **Collaborator Scopes**:
+   - `MAINTAINER`: Can modify drafts, publish workflow versions, and add/remove collaborators.
+   - `EDITOR`: Can update drafts and participate in discussions; cannot publish or manage collaborators.
+   - `VIEWER`: Can inspect graph structure and post feedback comments; blocked from updating drafts.
+4. **Tenant Enclosure**: Collaborators must be active members of the same organization. Cross-tenant user additions are rejected with 400 `INVALID_COLLABORATOR`, and cross-tenant resource queries return 404/403.
+
+### 11.2 Contextual Discussions and Node Pinning
+1. **Threaded Discussions**: Comments support optional parent references (`parentId`), creating hierarchical reply trees returned with author profiles.
+2. **Graph Pinning**: Comments can attach to specific node IDs (`nodeId`) and pin to the draft revision (`draftRevision`) at the time of authoring, ensuring reviewers can trace comments back to the exact graph configuration.
+3. **State Tracking**: Comments feature resolution toggles (`isResolved: boolean`) with resolver attribution (`resolvedById`) and filtering (`status: open | resolved | all`).
+4. **Author Protection**: Only the comment author or an Organization Admin/Owner can edit or delete a comment thread.
+
+### 11.3 Concurrency & Change Attribution
+1. **Optimistic Concurrency Control**: Draft saves accept `expectedRevision`. If another collaborator saves an update concurrently, the conflicting save is rejected with a 409 `DRAFT_CONFLICT` containing `currentRevision`, `expectedRevision`, and `lastUpdatedById`.
+2. **Chronological Activity Feeds**: All lifecycle and collaboration events (`WORKFLOW_CREATED`, `DRAFT_UPDATED`, `WORKFLOW_PUBLISHED`, `OWNERSHIP_TRANSFERRED`, `COLLABORATOR_ADDED`, `COLLABORATOR_REMOVED`, `COLLABORATOR_ROLE_UPDATED`, `COMMENT_ADDED`, `COMMENT_RESOLVED`, `COMMENT_DELETED`) are durably recorded in `WorkflowActivity` and surfaced at both workflow and organization levels.
+
 

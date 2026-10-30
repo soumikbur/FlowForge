@@ -827,5 +827,157 @@ export const WorkflowTemplateResponseSchema = z.object({
 });
 export type WorkflowTemplateResponse = z.infer<typeof WorkflowTemplateResponseSchema>;
 
+// ==========================================
+// WORKFLOW COLLABORATION & TEAM PRODUCTIVITY
+// ==========================================
+export const CollaboratorRoleEnum = z.enum([
+  "MAINTAINER",
+  "EDITOR",
+  "VIEWER",
+]);
+export type CollaboratorRole = z.infer<typeof CollaboratorRoleEnum>;
+
+export const WorkflowActivityTypeEnum = z.enum([
+  "WORKFLOW_CREATED",
+  "DRAFT_UPDATED",
+  "WORKFLOW_PUBLISHED",
+  "OWNERSHIP_TRANSFERRED",
+  "COLLABORATOR_ADDED",
+  "COLLABORATOR_REMOVED",
+  "COLLABORATOR_ROLE_UPDATED",
+  "COMMENT_ADDED",
+  "COMMENT_RESOLVED",
+  "COMMENT_DELETED",
+]);
+export type WorkflowActivityType = z.infer<typeof WorkflowActivityTypeEnum>;
+
+export const AddCollaboratorSchema = z.object({
+  userId: z.string().min(1, "User ID is required"),
+  role: CollaboratorRoleEnum.default("EDITOR"),
+});
+export type AddCollaboratorRequest = z.infer<typeof AddCollaboratorSchema>;
+
+export const UpdateCollaboratorSchema = z.object({
+  role: CollaboratorRoleEnum,
+});
+export type UpdateCollaboratorRequest = z.infer<typeof UpdateCollaboratorSchema>;
+
+export const TransferWorkflowOwnershipSchema = z.object({
+  newOwnerId: z.string().min(1, "New owner user ID is required"),
+});
+export type TransferWorkflowOwnershipRequest = z.infer<typeof TransferWorkflowOwnershipSchema>;
+
+export const CreateCommentSchema = z.object({
+  content: z.string().min(1, "Comment content cannot be empty").max(5000),
+  nodeId: z.string().optional(),
+  parentId: z.string().optional(),
+  draftRevision: z.number().int().positive().optional(),
+});
+export type CreateCommentRequest = z.infer<typeof CreateCommentSchema>;
+
+export const UpdateCommentSchema = z.object({
+  content: z.string().min(1, "Comment content cannot be empty").max(5000),
+});
+export type UpdateCommentRequest = z.infer<typeof UpdateCommentSchema>;
+
+export const ResolveCommentSchema = z.object({
+  isResolved: z.boolean().default(true),
+});
+export type ResolveCommentRequest = z.infer<typeof ResolveCommentSchema>;
+
+export const ActivityFilterQuerySchema = z.object({
+  type: WorkflowActivityTypeEnum.optional(),
+  userId: z.string().optional(),
+  workflowId: z.string().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+});
+export type ActivityFilterQuery = z.infer<typeof ActivityFilterQuerySchema>;
+
+export const WorkflowCollaboratorResponseSchema = z.object({
+  id: z.string(),
+  organizationId: z.string(),
+  workflowId: z.string(),
+  userId: z.string(),
+  role: CollaboratorRoleEnum,
+  user: z
+    .object({
+      id: z.string(),
+      email: z.string(),
+      firstName: z.string().nullable().optional(),
+      lastName: z.string().nullable().optional(),
+    })
+    .optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type WorkflowCollaboratorResponse = z.infer<typeof WorkflowCollaboratorResponseSchema>;
+
+export const WorkflowCommentResponseSchema: z.ZodType<any> = z.lazy(() =>
+  z.object({
+    id: z.string(),
+    organizationId: z.string(),
+    workflowId: z.string(),
+    userId: z.string(),
+    content: z.string(),
+    nodeId: z.string().nullable().optional(),
+    parentId: z.string().nullable().optional(),
+    draftRevision: z.number().int().nullable().optional(),
+    isResolved: z.boolean(),
+    resolvedById: z.string().nullable().optional(),
+    resolvedAt: z.string().datetime().nullable().optional(),
+    user: z
+      .object({
+        id: z.string(),
+        email: z.string(),
+        firstName: z.string().nullable().optional(),
+        lastName: z.string().nullable().optional(),
+      })
+      .optional(),
+    author: z
+      .object({
+        id: z.string(),
+        email: z.string(),
+        firstName: z.string().nullable().optional(),
+        lastName: z.string().nullable().optional(),
+      })
+      .optional(),
+    replies: z.array(WorkflowCommentResponseSchema).default([]),
+    createdAt: z.string().datetime(),
+    updatedAt: z.string().datetime(),
+  }),
+);
+export type WorkflowCommentResponse = z.infer<typeof WorkflowCommentResponseSchema>;
+
+export const WorkflowActivityResponseSchema = z.object({
+  id: z.string(),
+  organizationId: z.string(),
+  workflowId: z.string(),
+  userId: z.string().nullable().optional(),
+  type: WorkflowActivityTypeEnum,
+  metadata: z.record(z.unknown()).default({}),
+  user: z
+    .object({
+      id: z.string(),
+      email: z.string(),
+      firstName: z.string().nullable().optional(),
+      lastName: z.string().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
+  actor: z
+    .object({
+      id: z.string(),
+      email: z.string(),
+      firstName: z.string().nullable().optional(),
+      lastName: z.string().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
+  createdAt: z.string().datetime(),
+});
+export type WorkflowActivityResponse = z.infer<typeof WorkflowActivityResponseSchema>;
+
+
 
 

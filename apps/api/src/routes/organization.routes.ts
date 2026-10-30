@@ -1730,3 +1730,63 @@ organizationRouter.get("/:organizationId/audit-logs", (req, res) => {
     },
   });
 });
+
+/**
+ * GET /api/v1/organizations/:organizationId/activities
+ * Organization-wide team activity feed.
+ */
+organizationRouter.get("/:organizationId/activities", (req: Request, res: Response) => {
+  const orgId = req.params.organizationId;
+  if (req.organizationId !== orgId) {
+    res.status(403).json({
+      success: false,
+      data: null,
+      error: { code: "FORBIDDEN", message: "Cross-organization activity access is forbidden." },
+    });
+    return;
+  }
+
+  const queryParse = PaginationQuerySchema.safeParse(req.query);
+  const { page, pageSize } = queryParse.success ? queryParse.data : { page: 1, pageSize: 20 };
+
+  const typeFilter = req.query.type as string;
+  const workflowIdFilter = req.query.workflowId as string;
+  const userIdFilter = req.query.userId as string;
+
+  let activities = apiStore.activities.filter((a) => a.organizationId === orgId);
+  if (typeFilter) {
+    activities = activities.filter((a) => a.type === typeFilter);
+  }
+  if (workflowIdFilter) {
+    activities = activities.filter((a) => a.workflowId === workflowIdFilter);
+  }
+  if (userIdFilter) {
+    activities = activities.filter((a) => a.userId === userIdFilter);
+  }
+
+  activities.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const total = activities.length;
+  const startIndex = (page - 1) * pageSize;
+  const paginated = activities.slice(startIndex, startIndex + pageSize).map((a) => {
+    const u = a.userId ? apiStore.users.get(a.userId) : null;
+    const profile = u ? { id: u.id, email: u.email, firstName: u.firstName, lastName: u.lastName } : null;
+    return {
+      ...a,
+      user: profile,
+      actor: profile,
+    };
+  });
+
+  res.json({
+    success: true,
+    data: paginated,
+    meta: {
+      page,
+      pageSize,
+      total,
+      totalPages: Math.ceil(total / pageSize) || 1,
+    },
+    error: null,
+  });
+});

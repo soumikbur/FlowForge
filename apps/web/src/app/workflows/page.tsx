@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Workflow, ExternalLink, Play, CheckCircle, History } from "lucide-react";
+import { Plus, Workflow, ExternalLink, History, Users, User, Share2 } from "lucide-react";
 
 interface WorkflowItem {
   id: string;
@@ -11,6 +11,18 @@ interface WorkflowItem {
   status: "DRAFT" | "ACTIVE" | "ARCHIVED";
   publishedVersionId?: string;
   updatedAt: string;
+  createdById?: string;
+  owner?: {
+    id: string;
+    email: string;
+    firstName?: string | null;
+    lastName?: string | null;
+  } | null;
+  collaborators?: Array<{
+    userId: string;
+    role: string;
+  }>;
+  accessLevel?: "OWNER" | "MAINTAINER" | "EDITOR" | "VIEWER";
 }
 
 export default function WorkflowsPage() {
@@ -23,6 +35,7 @@ export default function WorkflowsPage() {
       status: "ACTIVE",
       publishedVersionId: "ver_1",
       updatedAt: new Date().toISOString(),
+      accessLevel: "OWNER",
     },
     {
       id: "wf_demo_2",
@@ -31,23 +44,25 @@ export default function WorkflowsPage() {
         "Trigger -> Send Welcome Email -> Delay 24h -> Followup HTTP webhook.",
       status: "DRAFT",
       updatedAt: new Date().toISOString(),
+      accessLevel: "EDITOR",
     },
   ]);
+  const [filter, setFilter] = useState<"all" | "created_by_me" | "shared_with_me">("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newDesc, setNewDesc] = useState("");
 
   useEffect(() => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-    fetch(`${apiUrl}/api/v1/workflows`, { credentials: "include" })
+    fetch(`${apiUrl}/api/v1/workflows?filter=${filter}`, { credentials: "include" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data && data.success && data.data && data.data.length > 0) {
+        if (data && data.success && Array.isArray(data.data)) {
           setWorkflows(data.data);
         }
       })
       .catch(() => {});
-  }, []);
+  }, [filter]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,6 +114,42 @@ export default function WorkflowsPage() {
         </button>
       </div>
 
+      {/* Collaboration & Team Filters */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-3 text-sm">
+        <button
+          onClick={() => setFilter("all")}
+          className={`px-3 py-1.5 rounded-md font-semibold text-xs transition ${
+            filter === "all"
+              ? "bg-teal-600 text-white shadow-xs"
+              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+          }`}
+        >
+          All Workflows
+        </button>
+        <button
+          onClick={() => setFilter("created_by_me")}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md font-semibold text-xs transition ${
+            filter === "created_by_me"
+              ? "bg-teal-600 text-white shadow-xs"
+              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+          }`}
+        >
+          <User className="w-3.5 h-3.5" />
+          <span>Created by Me</span>
+        </button>
+        <button
+          onClick={() => setFilter("shared_with_me")}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md font-semibold text-xs transition ${
+            filter === "shared_with_me"
+              ? "bg-teal-600 text-white shadow-xs"
+              : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+          }`}
+        >
+          <Share2 className="w-3.5 h-3.5" />
+          <span>Shared with Me</span>
+        </button>
+      </div>
+
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="divide-y divide-slate-200">
           {workflows.map((wf) => (
@@ -121,10 +172,26 @@ export default function WorkflowsPage() {
                   >
                     {wf.status}
                   </span>
+                  {wf.accessLevel && (
+                    <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                      {wf.accessLevel}
+                    </span>
+                  )}
+                  {wf.collaborators && wf.collaborators.length > 0 && (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-slate-500 font-medium">
+                      <Users className="w-3 h-3 text-slate-400" />
+                      {wf.collaborators.length} {wf.collaborators.length === 1 ? "collaborator" : "collaborators"}
+                    </span>
+                  )}
                 </div>
                 <p className="text-sm text-slate-500 pl-8">
                   {wf.description || "No description provided."}
                 </p>
+                {wf.owner && (
+                  <p className="text-xs text-slate-400 pl-8">
+                    Owner: {wf.owner.firstName ? `${wf.owner.firstName} ${wf.owner.lastName || ""}` : wf.owner.email}
+                  </p>
+                )}
               </div>
 
               <div className="flex items-center gap-3">

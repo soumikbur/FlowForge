@@ -547,6 +547,9 @@ function WorkflowBuilderContent({ params }: { params: { id: string } }) {
           router.push(`/workflows/${params.id}/builder`);
         }}
         hasErrors={validationErrors.length > 0}
+        accessLevel={(workflow as any)?.accessLevel}
+        draftRevision={(workflow as any)?.draftRevision}
+        owner={(workflow as any)?.owner}
       />
 
       {/* Validation Banner */}

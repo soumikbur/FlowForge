@@ -418,4 +418,68 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
     - Emits `workflow:instantiate_from_template` audit event.
   - **Response**: 201 Created with newly instantiated workflow record.
 
+## 14. Workflow Collaboration and Team Productivity API
+
+### 14.1 Access Levels & Permission Model
+- **Access Hierarchy**:
+  - `OWNER`: Primary workflow owner (`createdById`) or Organization `OWNER` / `ADMIN`. Full rights to edit drafts, publish versions, manage collaborators, transfer ownership, resolve/delete any comments, and view activities.
+  - `MAINTAINER`: Can edit drafts, publish immutable versions, add/remove `EDITOR` and `VIEWER` collaborators, resolve comments, and view activities. Cannot transfer primary ownership.
+  - `EDITOR`: Can edit draft definition and post comments. Cannot publish workflow versions or manage collaborators (returns 403 `FORBIDDEN`).
+  - `VIEWER`: Can view drafts, inspect versions, and post comments. Cannot modify drafts (returns 403 `FORBIDDEN`).
+
+### 14.2 Collaborators Management
+- `GET /api/v1/workflows/:id/collaborators`:
+  - **Permissions**: Requires workflow access (`VIEWER` or higher).
+  - **Response**: Array of collaborators with user profile and caller's `meta` permissions (`callerLevel`, `canManageCollaborators`).
+- `POST /api/v1/workflows/:id/collaborators`:
+  - **Permissions**: Requires `canManageCollaborators` (`OWNER` or `MAINTAINER`).
+  - **Body**: `{ userId: string, role: "MAINTAINER" | "EDITOR" | "VIEWER" }`.
+  - **Validation**: Rejects target users from other organizations with 400 `INVALID_COLLABORATOR`. Rejects existing collaborators with 409 `COLLABORATOR_EXISTS`.
+  - **Response**: 201 Created with collaborator record. Emits `COLLABORATOR_ADDED` activity and audit event.
+- `PATCH /api/v1/workflows/:id/collaborators/:userId`:
+  - **Permissions**: Requires `canManageCollaborators`.
+  - **Body**: `{ role: "MAINTAINER" | "EDITOR" | "VIEWER" }`.
+  - **Response**: Updated collaborator record. Emits `COLLABORATOR_ROLE_UPDATED` activity.
+- `DELETE /api/v1/workflows/:id/collaborators/:userId`:
+  - **Permissions**: Requires `canManageCollaborators` OR caller is removing themselves.
+  - **Response**: 200 OK. Emits `COLLABORATOR_REMOVED` activity.
+
+### 14.3 Ownership Transfer
+- `POST /api/v1/workflows/:id/transfer-ownership`:
+  - **Permissions**: Only primary workflow owner (`createdById`) or Organization `OWNER` / `ADMIN`.
+  - **Body**: `{ newOwnerId: string }`.
+  - **Behavior**: Sets workflow `createdById = newOwnerId`. Automatically demotes previous owner to `MAINTAINER` in collaborator list. Emits `OWNERSHIP_TRANSFERRED` activity and audit event.
+  - **Response**: 200 OK with updated workflow record.
+
+### 14.4 Contextual Discussions & Threaded Comments
+- `GET /api/v1/workflows/:id/comments`:
+  - **Query Parameters**: `status?: "all" | "open" | "resolved"`, `draftRevision?: number`.
+  - **Response**: Nested array of top-level comments with `replies: []`, author profiles, node attachment badges, and resolution metadata.
+- `POST /api/v1/workflows/:id/comments`:
+  - **Body**: `{ content: string, nodeId?: string, parentId?: string, draftRevision?: number }`.
+  - **Response**: 201 Created with comment and author details. Emits `COMMENT_ADDED` activity.
+- `PATCH /api/v1/workflows/:id/comments/:commentId`:
+  - **Permissions**: Only comment author or Organization `OWNER` / `ADMIN`. Other users rejected with 403 `FORBIDDEN`.
+  - **Body**: `{ content: string }`.
+  - **Response**: Updated comment record.
+- `POST /api/v1/workflows/:id/comments/:commentId/resolve`:
+  - **Permissions**: Workflow `EDITOR`, `MAINTAINER`, or `OWNER`.
+  - **Body**: `{ isResolved: boolean }`.
+  - **Response**: 200 OK with resolution timestamp and `resolvedById`. Emits `COMMENT_RESOLVED` activity.
+- `DELETE /api/v1/workflows/:id/comments/:commentId`:
+  - **Permissions**: Comment author or Organization `OWNER` / `ADMIN`.
+  - **Response**: 200 OK. Emits `COMMENT_DELETED` activity.
+
+### 14.5 Concurrency Conflict Detection & Activity Feeds
+- **Optimistic Concurrency**:
+  - `PATCH /api/v1/workflows/:id` tracks `lastUpdatedById`.
+  - When `expectedRevision` is provided and mismatches current revision: returns 409 `DRAFT_CONFLICT` with `{ currentRevision, expectedRevision, lastUpdatedById }`.
+- `GET /api/v1/workflows/:id/activities`:
+  - **Query Parameters**: `page?: number`, `pageSize?: number`, `type?: WorkflowActivityType`, `userId?: string`.
+  - **Response**: Paginated chronological workflow audit stream with actor profiles.
+- `GET /api/v1/organizations/:organizationId/activities`:
+  - **Permissions**: Organization member. Cross-org access rejected with 403 `FORBIDDEN`.
+  - **Response**: Organization-wide activity feed across all workflows with event type filtering.
+
+
 

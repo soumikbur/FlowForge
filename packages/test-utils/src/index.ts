@@ -46,6 +46,7 @@ export interface WorkflowRecord {
   draftRevision?: number;
   publishedVersionId?: string;
   createdById?: string;
+  lastUpdatedById?: string;
   sourceTemplateId?: string;
   sourceTemplateVersionId?: string;
   deletedAt?: Date;
@@ -309,6 +310,52 @@ export interface WorkflowTemplateVersionRecord {
   publishedAt: Date;
 }
 
+export interface WorkflowCollaboratorRecord {
+  id: string;
+  organizationId: string;
+  workflowId: string;
+  userId: string;
+  role: "MAINTAINER" | "EDITOR" | "VIEWER";
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface WorkflowCommentRecord {
+  id: string;
+  organizationId: string;
+  workflowId: string;
+  userId: string;
+  content: string;
+  nodeId?: string | null;
+  parentId?: string | null;
+  draftRevision?: number | null;
+  isResolved: boolean;
+  resolvedById?: string | null;
+  resolvedAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface WorkflowActivityRecord {
+  id: string;
+  organizationId: string;
+  workflowId: string;
+  userId?: string | null;
+  type:
+    | "WORKFLOW_CREATED"
+    | "DRAFT_UPDATED"
+    | "WORKFLOW_PUBLISHED"
+    | "OWNERSHIP_TRANSFERRED"
+    | "COLLABORATOR_ADDED"
+    | "COLLABORATOR_REMOVED"
+    | "COLLABORATOR_ROLE_UPDATED"
+    | "COMMENT_ADDED"
+    | "COMMENT_RESOLVED"
+    | "COMMENT_DELETED";
+  metadata: Record<string, unknown>;
+  createdAt: Date;
+}
+
 export class InMemoryDatabase {
   public users = new Map<string, UserRecord>();
   public organizations = new Map<string, OrganizationRecord>();
@@ -331,6 +378,9 @@ export class InMemoryDatabase {
   public connections = new Map<string, IntegrationConnectionRecord>();
   public templates = new Map<string, WorkflowTemplateRecord>();
   public templateVersions = new Map<string, WorkflowTemplateVersionRecord>();
+  public collaborators = new Map<string, WorkflowCollaboratorRecord>();
+  public comments = new Map<string, WorkflowCommentRecord>();
+  public activities: Array<WorkflowActivityRecord> = [];
   public auditLogs: Array<AuditLogRecord> = [];
 
   public recordAudit(record: Omit<AuditLogRecord, "id" | "createdAt">): AuditLogRecord {
@@ -341,6 +391,16 @@ export class InMemoryDatabase {
     };
     this.auditLogs.push(auditRecord);
     return auditRecord;
+  }
+
+  public recordActivity(record: Omit<WorkflowActivityRecord, "id" | "createdAt">): WorkflowActivityRecord {
+    const activityRecord: WorkflowActivityRecord = {
+      id: `act_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      createdAt: new Date(),
+      ...record,
+    };
+    this.activities.push(activityRecord);
+    return activityRecord;
   }
 
   public clear(): void {
@@ -365,6 +425,9 @@ export class InMemoryDatabase {
     this.connections.clear();
     this.templates.clear();
     this.templateVersions.clear();
+    this.collaborators.clear();
+    this.comments.clear();
+    this.activities = [];
     this.auditLogs = [];
   }
 }
