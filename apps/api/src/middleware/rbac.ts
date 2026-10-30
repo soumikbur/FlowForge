@@ -1,5 +1,5 @@
-import { Request, Response, NextFunction } from 'express';
-import { Permission, hasPermission } from '@flowforge/shared';
+import { Request, Response, NextFunction } from "express";
+import { Permission, hasPermission } from "@flowforge/shared";
 
 export function requirePermission(permission: Permission) {
   return (req: Request, res: Response, next: NextFunction): void => {
@@ -8,9 +8,9 @@ export function requirePermission(permission: Permission) {
         success: false,
         data: null,
         error: {
-          code: 'FORBIDDEN',
-          message: 'No organization membership role found.'
-        }
+          code: "FORBIDDEN",
+          message: "No organization membership role found.",
+        },
       });
       return;
     }
@@ -20,9 +20,9 @@ export function requirePermission(permission: Permission) {
         success: false,
         data: null,
         error: {
-          code: 'FORBIDDEN',
-          message: `Permission denied: Requires permission '${permission}'.`
-        }
+          code: "FORBIDDEN",
+          message: `Permission denied: Requires permission '${permission}'.`,
+        },
       });
       return;
     }

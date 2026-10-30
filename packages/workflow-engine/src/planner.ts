@@ -1,5 +1,5 @@
-import { WorkflowDefinition, WorkflowNode } from '@flowforge/shared';
-import { StepExecutionResult } from './registry.js';
+import { WorkflowDefinition, WorkflowNode } from "@flowforge/shared";
+import { StepExecutionResult } from "./registry.js";
 
 export interface NextStepPlan {
   isComplete: boolean;
@@ -9,14 +9,16 @@ export interface NextStepPlan {
 export function resolveNextNodes(
   definition: WorkflowDefinition,
   currentNodeId: string,
-  result: StepExecutionResult
+  result: StepExecutionResult,
 ): NextStepPlan {
-  const outgoingEdges = definition.edges.filter((e) => e.source === currentNodeId);
+  const outgoingEdges = definition.edges.filter(
+    (e) => e.source === currentNodeId,
+  );
 
   if (outgoingEdges.length === 0) {
     return {
       isComplete: true,
-      nextNodes: []
+      nextNodes: [],
     };
   }
 
@@ -29,7 +31,9 @@ export function resolveNextNodes(
 
   // If a specific handle was selected (e.g. CONDITION true/false branch)
   if (result.selectedHandle) {
-    matchingEdges = outgoingEdges.filter((e) => e.sourceHandle === result.selectedHandle);
+    matchingEdges = outgoingEdges.filter(
+      (e) => e.sourceHandle === result.selectedHandle,
+    );
   }
 
   const nextNodes: WorkflowNode[] = [];
@@ -42,10 +46,12 @@ export function resolveNextNodes(
 
   return {
     isComplete: nextNodes.length === 0,
-    nextNodes
+    nextNodes,
   };
 }
 
-export function getTriggerNode(definition: WorkflowDefinition): WorkflowNode | undefined {
-  return definition.nodes.find((n) => n.type === 'TRIGGER');
+export function getTriggerNode(
+  definition: WorkflowDefinition,
+): WorkflowNode | undefined {
+  return definition.nodes.find((n) => n.type === "TRIGGER");
 }

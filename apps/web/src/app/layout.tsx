@@ -1,13 +1,14 @@
-import './globals.css';
-import { Navigation } from '../components/Navigation';
+import "./globals.css";
+import { Navigation } from "../components/Navigation";
 
 export const metadata = {
-  title: 'FlowForge — Resilient Business Workflow Automation',
-  description: 'Visual workflow editor, distributed execution engine, and approval inbox.'
+  title: "FlowForge — Resilient Business Workflow Automation",
+  description:
+    "Visual workflow editor, distributed execution engine, and approval inbox.",
 };
 
 export default function RootLayout({
-  children
+  children,
 }: {
   children: React.ReactNode;
 }) {

@@ -22,3 +22,4 @@ COPY --from=builder /app/node_modules ./node_modules
 
 EXPOSE 4001
 CMD ["node", "apps/worker/dist/index.js"]
+

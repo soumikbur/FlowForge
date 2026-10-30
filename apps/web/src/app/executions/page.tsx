@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { PlayCircle, Clock, ExternalLink } from 'lucide-react';
+import React, { useEffect, useState } from "react";
+import Link from "next/link";
+import { PlayCircle, Clock, ExternalLink } from "lucide-react";
 
 interface ExecutionRow {
   id: string;
@@ -18,39 +18,39 @@ interface ExecutionRow {
 export default function ExecutionsPage() {
   const [executions, setExecutions] = useState<ExecutionRow[]>([
     {
-      id: 'exec_1001',
-      workflowId: 'wf_demo_1',
-      workflowName: 'Order Processing & Manager Approval',
-      triggerType: 'WEBHOOK',
-      status: 'SUCCEEDED',
+      id: "exec_1001",
+      workflowId: "wf_demo_1",
+      workflowName: "Order Processing & Manager Approval",
+      triggerType: "WEBHOOK",
+      status: "SUCCEEDED",
       retryCount: 0,
       createdAt: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
-      completedAt: new Date(Date.now() - 1000 * 60 * 14).toISOString()
+      completedAt: new Date(Date.now() - 1000 * 60 * 14).toISOString(),
     },
     {
-      id: 'exec_1002',
-      workflowId: 'wf_demo_1',
-      workflowName: 'Order Processing & Manager Approval',
-      triggerType: 'WEBHOOK',
-      status: 'WAITING_APPROVAL',
+      id: "exec_1002",
+      workflowId: "wf_demo_1",
+      workflowName: "Order Processing & Manager Approval",
+      triggerType: "WEBHOOK",
+      status: "WAITING_APPROVAL",
       retryCount: 0,
-      createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString()
+      createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
     },
     {
-      id: 'exec_1003',
-      workflowId: 'wf_demo_2',
-      workflowName: 'Customer Welcome Sequence',
-      triggerType: 'MANUAL',
-      status: 'SUCCEEDED',
+      id: "exec_1003",
+      workflowId: "wf_demo_2",
+      workflowName: "Customer Welcome Sequence",
+      triggerType: "MANUAL",
+      status: "SUCCEEDED",
       retryCount: 0,
       createdAt: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
-      completedAt: new Date(Date.now() - 1000 * 60 * 59).toISOString()
-    }
+      completedAt: new Date(Date.now() - 1000 * 60 * 59).toISOString(),
+    },
   ]);
 
   useEffect(() => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-    fetch(`${apiUrl}/api/v1/executions`, { credentials: 'include' })
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+    fetch(`${apiUrl}/api/v1/executions`, { credentials: "include" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data && data.success && data.data && data.data.length > 0) {
@@ -62,16 +62,16 @@ export default function ExecutionsPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'SUCCEEDED':
-        return 'bg-emerald-100 text-emerald-800';
-      case 'FAILED':
-        return 'bg-red-100 text-red-800';
-      case 'WAITING_APPROVAL':
-        return 'bg-amber-100 text-amber-800';
-      case 'RUNNING':
-        return 'bg-blue-100 text-blue-800';
+      case "SUCCEEDED":
+        return "bg-emerald-100 text-emerald-800";
+      case "FAILED":
+        return "bg-red-100 text-red-800";
+      case "WAITING_APPROVAL":
+        return "bg-amber-100 text-amber-800";
+      case "RUNNING":
+        return "bg-blue-100 text-blue-800";
       default:
-        return 'bg-slate-100 text-slate-700';
+        return "bg-slate-100 text-slate-700";
     }
   };
 
@@ -79,7 +79,10 @@ export default function ExecutionsPage() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Execution History</h1>
-        <p className="text-sm text-slate-500">Inspect real-time execution logs, step transitions, and failure diagnostics.</p>
+        <p className="text-sm text-slate-500">
+          Inspect real-time execution logs, step transitions, and failure
+          diagnostics.
+        </p>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -97,11 +100,17 @@ export default function ExecutionsPage() {
           <tbody className="divide-y divide-slate-100">
             {executions.map((e) => (
               <tr key={e.id} className="hover:bg-slate-50 transition">
-                <td className="px-6 py-4 font-mono text-xs text-slate-700">{e.id}</td>
-                <td className="px-6 py-4 font-medium text-slate-900">{e.workflowName || e.workflowId}</td>
+                <td className="px-6 py-4 font-mono text-xs text-slate-700">
+                  {e.id}
+                </td>
+                <td className="px-6 py-4 font-medium text-slate-900">
+                  {e.workflowName || e.workflowId}
+                </td>
                 <td className="px-6 py-4 text-slate-500">{e.triggerType}</td>
                 <td className="px-6 py-4">
-                  <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${getStatusBadge(e.status)}`}>
+                  <span
+                    className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${getStatusBadge(e.status)}`}
+                  >
                     {e.status}
                   </span>
                 </td>

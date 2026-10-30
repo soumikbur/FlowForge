@@ -23,15 +23,18 @@ export class EmailService {
    */
   public async sendEmail(message: EmailMessage): Promise<EmailDeliveryResult> {
     if (!message.to || !message.subject) {
-      throw new Error('Email recipient and subject are required.');
+      throw new Error("Email recipient and subject are required.");
     }
 
     // Check duplicate delivery
-    if (message.idempotencyKey && this.sentMessages.has(message.idempotencyKey)) {
+    if (
+      message.idempotencyKey &&
+      this.sentMessages.has(message.idempotencyKey)
+    ) {
       const existing = this.sentMessages.get(message.idempotencyKey)!;
       return {
         ...existing,
-        isDuplicate: true
+        isDuplicate: true,
       };
     }
 
@@ -40,7 +43,7 @@ export class EmailService {
       messageId,
       delivered: true,
       timestamp: new Date().toISOString(),
-      recipient: message.to
+      recipient: message.to,
     };
 
     if (message.idempotencyKey) {

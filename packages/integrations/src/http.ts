@@ -1,4 +1,4 @@
-import { isPrivateOrBlockedDestination } from './ssrf.js';
+import { isPrivateOrBlockedDestination } from "./ssrf.js";
 
 export interface HttpRequestOptions {
   url: string;
@@ -18,19 +18,21 @@ export interface HttpResponse {
 }
 
 export async function executeSafeHttpRequest(
-  options: HttpRequestOptions
+  options: HttpRequestOptions,
 ): Promise<HttpResponse> {
   const {
     url,
-    method = 'GET',
+    method = "GET",
     headers = {},
     body,
     timeoutMs = 10000,
-    maxRetries = 2
+    maxRetries = 2,
   } = options;
 
   if (isPrivateOrBlockedDestination(url)) {
-    throw new Error(`SSRF Prevention: Prohibited or private destination blocked: ${url}`);
+    throw new Error(
+      `SSRF Prevention: Prohibited or private destination blocked: ${url}`,
+    );
   }
 
   let attempt = 0;
@@ -45,20 +47,20 @@ export async function executeSafeHttpRequest(
       const response = await fetch(url, {
         method,
         headers: {
-          'User-Agent': 'FlowForge-Workflow-Engine/1.0',
-          ...headers
+          "User-Agent": "FlowForge-Workflow-Engine/1.0",
+          ...headers,
         },
-        body: ['GET', 'HEAD'].includes(method.toUpperCase()) ? undefined : body,
+        body: ["GET", "HEAD"].includes(method.toUpperCase()) ? undefined : body,
         signal: controller.signal,
-        redirect: 'error' // Reject automated redirects to prevent redirect-based SSRF
+        redirect: "error", // Reject automated redirects to prevent redirect-based SSRF
       });
 
       clearTimeout(timer);
       const durationMs = Date.now() - startTime;
 
       let parsedData: unknown;
-      const contentType = response.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
         try {
           parsedData = await response.json();
         } catch {
@@ -78,7 +80,7 @@ export async function executeSafeHttpRequest(
         statusText: response.statusText,
         headers: responseHeaders,
         data: parsedData,
-        durationMs
+        durationMs,
       };
     } catch (err: any) {
       clearTimeout(timer);
@@ -93,5 +95,7 @@ export async function executeSafeHttpRequest(
     }
   }
 
-  throw new Error(`HTTP request failed after ${maxRetries + 1} attempts: ${lastError?.message}`);
+  throw new Error(
+    `HTTP request failed after ${maxRetries + 1} attempts: ${lastError?.message}`,
+  );
 }

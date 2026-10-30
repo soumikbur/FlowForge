@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback } from "react";
 import ReactFlow, {
   Controls,
   Background,
@@ -11,8 +11,8 @@ import ReactFlow, {
   Edge,
   Connection,
   NodeChange,
-  EdgeChange
-} from 'reactflow';
+  EdgeChange,
+} from "reactflow";
 import {
   Save,
   CheckCircle,
@@ -20,58 +20,115 @@ import {
   Play,
   ArrowLeft,
   Plus,
-  Settings
-} from 'lucide-react';
-import Link from 'next/link';
-import { validateWorkflowGraph } from '@flowforge/workflow-engine';
+  Settings,
+} from "lucide-react";
+import Link from "next/link";
+import { validateWorkflowGraph } from "@flowforge/workflow-engine";
 
 const initialNodes: Node[] = [
   {
-    id: 'node_trigger',
-    type: 'default',
-    data: { label: '⚡ Order Webhook Trigger', nodeType: 'TRIGGER', config: { triggerType: 'WEBHOOK' } },
+    id: "node_trigger",
+    type: "default",
+    data: {
+      label: "⚡ Order Webhook Trigger",
+      nodeType: "TRIGGER",
+      config: { triggerType: "WEBHOOK" },
+    },
     position: { x: 250, y: 50 },
-    style: { background: '#f0fdf4', borderColor: '#22c55e', borderRadius: '8px', fontWeight: 600 }
+    style: {
+      background: "#f0fdf4",
+      borderColor: "#22c55e",
+      borderRadius: "8px",
+      fontWeight: 600,
+    },
   },
   {
-    id: 'node_condition',
-    type: 'default',
-    data: { label: '❓ Check Order > $10,000', nodeType: 'CONDITION', config: { expression: 'trigger.payload.orderValue > 10000' } },
+    id: "node_condition",
+    type: "default",
+    data: {
+      label: "❓ Check Order > $10,000",
+      nodeType: "CONDITION",
+      config: { expression: "trigger.payload.orderValue > 10000" },
+    },
     position: { x: 250, y: 160 },
-    style: { background: '#fefce8', borderColor: '#eab308', borderRadius: '8px', fontWeight: 600 }
+    style: {
+      background: "#fefce8",
+      borderColor: "#eab308",
+      borderRadius: "8px",
+      fontWeight: 600,
+    },
   },
   {
-    id: 'node_approval',
-    type: 'default',
-    data: { label: '👤 Manager Approval', nodeType: 'APPROVAL', config: { title: 'Approve High Value Order' } },
+    id: "node_approval",
+    type: "default",
+    data: {
+      label: "👤 Manager Approval",
+      nodeType: "APPROVAL",
+      config: { title: "Approve High Value Order" },
+    },
     position: { x: 420, y: 280 },
-    style: { background: '#eff6ff', borderColor: '#3b82f6', borderRadius: '8px', fontWeight: 600 }
+    style: {
+      background: "#eff6ff",
+      borderColor: "#3b82f6",
+      borderRadius: "8px",
+      fontWeight: 600,
+    },
   },
   {
-    id: 'node_email',
-    type: 'default',
-    data: { label: '✉️ Send Confirmation Email', nodeType: 'EMAIL', config: { to: 'customer@example.com', subject: 'Order Received' } },
+    id: "node_email",
+    type: "default",
+    data: {
+      label: "✉️ Send Confirmation Email",
+      nodeType: "EMAIL",
+      config: { to: "customer@example.com", subject: "Order Received" },
+    },
     position: { x: 80, y: 280 },
-    style: { background: '#faf5ff', borderColor: '#a855f7', borderRadius: '8px', fontWeight: 600 }
+    style: {
+      background: "#faf5ff",
+      borderColor: "#a855f7",
+      borderRadius: "8px",
+      fontWeight: 600,
+    },
   },
   {
-    id: 'node_end',
-    type: 'default',
-    data: { label: '🏁 Workflow Complete', nodeType: 'END', config: {} },
+    id: "node_end",
+    type: "default",
+    data: { label: "🏁 Workflow Complete", nodeType: "END", config: {} },
     position: { x: 250, y: 420 },
-    style: { background: '#f1f5f9', borderColor: '#64748b', borderRadius: '8px', fontWeight: 600 }
-  }
+    style: {
+      background: "#f1f5f9",
+      borderColor: "#64748b",
+      borderRadius: "8px",
+      fontWeight: 600,
+    },
+  },
 ];
 
 const initialEdges: Edge[] = [
-  { id: 'e1', source: 'node_trigger', target: 'node_condition' },
-  { id: 'e2_true', source: 'node_condition', sourceHandle: 'true', target: 'node_approval', label: 'True (> $10k)' },
-  { id: 'e2_false', source: 'node_condition', sourceHandle: 'false', target: 'node_email', label: 'False (<= $10k)' },
-  { id: 'e3', source: 'node_approval', target: 'node_end' },
-  { id: 'e4', source: 'node_email', target: 'node_end' }
+  { id: "e1", source: "node_trigger", target: "node_condition" },
+  {
+    id: "e2_true",
+    source: "node_condition",
+    sourceHandle: "true",
+    target: "node_approval",
+    label: "True (> $10k)",
+  },
+  {
+    id: "e2_false",
+    source: "node_condition",
+    sourceHandle: "false",
+    target: "node_email",
+    label: "False (<= $10k)",
+  },
+  { id: "e3", source: "node_approval", target: "node_end" },
+  { id: "e4", source: "node_email", target: "node_end" },
 ];
 
-export default function WorkflowBuilderPage({ params }: { params: { id: string } }) {
+export default function WorkflowBuilderPage({
+  params,
+}: {
+  params: { id: string };
+}) {
   const [nodes, setNodes] = useState<Node[]>(initialNodes);
   const [edges, setEdges] = useState<Edge[]>(initialEdges);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
@@ -79,16 +136,18 @@ export default function WorkflowBuilderPage({ params }: { params: { id: string }
   const [publishMessage, setPublishMessage] = useState<string | null>(null);
 
   const onNodesChange = useCallback(
-    (changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds)),
-    []
+    (changes: NodeChange[]) =>
+      setNodes((nds) => applyNodeChanges(changes, nds)),
+    [],
   );
   const onEdgesChange = useCallback(
-    (changes: EdgeChange[]) => setEdges((eds) => applyEdgeChanges(changes, eds)),
-    []
+    (changes: EdgeChange[]) =>
+      setEdges((eds) => applyEdgeChanges(changes, eds)),
+    [],
   );
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
-    []
+    [],
   );
 
   const handleValidate = () => {
@@ -96,16 +155,22 @@ export default function WorkflowBuilderPage({ params }: { params: { id: string }
       nodes: nodes.map((n) => ({
         id: n.id,
         name: n.data.label,
-        type: n.data.nodeType || 'END',
+        type: n.data.nodeType || "END",
         config: n.data.config || {},
-        position: n.position
+        position: n.position,
       })),
       edges: edges.map((e) => ({
         id: e.id,
         source: e.source,
         target: e.target,
-        sourceHandle: e.sourceHandle || (e.id.includes('true') ? 'true' : e.id.includes('false') ? 'false' : undefined)
-      }))
+        sourceHandle:
+          e.sourceHandle ||
+          (e.id.includes("true")
+            ? "true"
+            : e.id.includes("false")
+              ? "false"
+              : undefined),
+      })),
     };
 
     const res = validateWorkflowGraph(formattedDef as any);
@@ -114,23 +179,30 @@ export default function WorkflowBuilderPage({ params }: { params: { id: string }
       setPublishMessage(null);
     } else {
       setValidationErrors([]);
-      setPublishMessage('Workflow graph is valid and ready for execution!');
+      setPublishMessage("Workflow graph is valid and ready for execution!");
     }
   };
 
   const handlePublish = async () => {
     handleValidate();
-    setPublishMessage('Successfully published version 2! Workflow is now active.');
+    setPublishMessage(
+      "Successfully published version 2! Workflow is now active.",
+    );
   };
 
   const addNode = (type: string, label: string) => {
     const id = `node_${Date.now()}`;
     const newNode: Node = {
       id,
-      type: 'default',
+      type: "default",
       data: { label, nodeType: type, config: {} },
       position: { x: 250, y: 150 + nodes.length * 40 },
-      style: { background: '#ffffff', borderColor: '#0d9488', borderRadius: '8px', fontWeight: 600 }
+      style: {
+        background: "#ffffff",
+        borderColor: "#0d9488",
+        borderRadius: "8px",
+        fontWeight: 600,
+      },
     };
     setNodes((nds) => [...nds, newNode]);
   };
@@ -140,11 +212,16 @@ export default function WorkflowBuilderPage({ params }: { params: { id: string }
       {/* Top action bar */}
       <div className="h-14 bg-white border-b border-slate-200 px-6 flex items-center justify-between z-10">
         <div className="flex items-center gap-4">
-          <Link href="/workflows" className="text-slate-500 hover:text-slate-800 p-1">
+          <Link
+            href="/workflows"
+            className="text-slate-500 hover:text-slate-800 p-1"
+          >
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div>
-            <h1 className="text-sm font-bold text-slate-900">Order Processing & Manager Approval</h1>
+            <h1 className="text-sm font-bold text-slate-900">
+              Order Processing & Manager Approval
+            </h1>
             <p className="text-xs text-slate-400">Draft • ID: {params.id}</p>
           </div>
         </div>
@@ -171,15 +248,17 @@ export default function WorkflowBuilderPage({ params }: { params: { id: string }
       <div className="flex-1 flex overflow-hidden">
         {/* Node Palette */}
         <div className="w-64 bg-slate-900 border-r border-slate-800 p-4 space-y-4 text-white overflow-y-auto">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Node Palette</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+            Node Palette
+          </p>
           <div className="space-y-2">
             {[
-              { type: 'CONDITION', label: '❓ Condition Branch' },
-              { type: 'HTTP_REQUEST', label: '🌐 HTTP API Request' },
-              { type: 'EMAIL', label: '✉️ Email Notification' },
-              { type: 'APPROVAL', label: '👤 Human Approval' },
-              { type: 'DELAY', label: '⏳ Delay Timer' },
-              { type: 'END', label: '🏁 End Leaf' }
+              { type: "CONDITION", label: "❓ Condition Branch" },
+              { type: "HTTP_REQUEST", label: "🌐 HTTP API Request" },
+              { type: "EMAIL", label: "✉️ Email Notification" },
+              { type: "APPROVAL", label: "👤 Human Approval" },
+              { type: "DELAY", label: "⏳ Delay Timer" },
+              { type: "END", label: "🏁 End Leaf" },
             ].map((item) => (
               <button
                 key={item.type}
@@ -245,7 +324,9 @@ export default function WorkflowBuilderPage({ params }: { params: { id: string }
 
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-slate-500">Node ID</label>
+                <label className="block text-xs font-medium text-slate-500">
+                  Node ID
+                </label>
                 <input
                   type="text"
                   disabled
@@ -255,7 +336,9 @@ export default function WorkflowBuilderPage({ params }: { params: { id: string }
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700">Display Label</label>
+                <label className="block text-xs font-medium text-slate-700">
+                  Display Label
+                </label>
                 <input
                   type="text"
                   value={selectedNode.data.label}
@@ -265,32 +348,45 @@ export default function WorkflowBuilderPage({ params }: { params: { id: string }
                       nds.map((n) =>
                         n.id === selectedNode.id
                           ? { ...n, data: { ...n.data, label: newLabel } }
-                          : n
-                      )
+                          : n,
+                      ),
                     );
                     setSelectedNode((curr) =>
-                      curr ? { ...curr, data: { ...curr.data, label: newLabel } } : null
+                      curr
+                        ? { ...curr, data: { ...curr.data, label: newLabel } }
+                        : null,
                     );
                   }}
                   className="mt-1 w-full border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500"
                 />
               </div>
 
-              {selectedNode.data.nodeType === 'CONDITION' && (
+              {selectedNode.data.nodeType === "CONDITION" && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-700">Condition Expression</label>
+                  <label className="block text-xs font-medium text-slate-700">
+                    Condition Expression
+                  </label>
                   <input
                     type="text"
                     placeholder="trigger.payload.orderValue > 10000"
-                    value={selectedNode.data.config?.expression || ''}
+                    value={selectedNode.data.config?.expression || ""}
                     onChange={(e) => {
                       const expr = e.target.value;
                       setNodes((nds) =>
                         nds.map((n) =>
                           n.id === selectedNode.id
-                            ? { ...n, data: { ...n.data, config: { ...n.data.config, expression: expr } } }
-                            : n
-                        )
+                            ? {
+                                ...n,
+                                data: {
+                                  ...n.data,
+                                  config: {
+                                    ...n.data.config,
+                                    expression: expr,
+                                  },
+                                },
+                              }
+                            : n,
+                        ),
                       );
                     }}
                     className="mt-1 w-full border border-slate-300 rounded px-2.5 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500"

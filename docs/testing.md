@@ -1,15 +1,35 @@
 # FlowForge Testing & Quality Strategy
 
-## 1. Testing Pyramid & Tools
-- **Unit & Graph Engine Tests**: `vitest` for fast isolated execution of graph algorithms, condition evaluation, state transitions, and schema validations.
-- **API Integration Tests**: `supertest` / `vitest` executing HTTP requests against Express routes with real database transactions and mock queues.
-- **Worker & State Machine Tests**: Verification of step execution, retry exponential backoff, worker recovery, and approval resumption.
-- **Security Tests**: Automated attack suite checking SSRF vectors, cross-tenant data leaks, expression injection, and unauthenticated access.
-- **End-to-End (E2E) Tests**: `playwright` simulating browser actions for workflow visual editing, publish flows, approval decisions, and execution timelines.
+## 1. Testing Pyramid & Tooling
+
+- **Unit & Graph Engine Tests**: `vitest` for fast isolated execution of graph algorithms, condition evaluation, state transitions, schema validations, and database invariants.
+- **Shared Contracts Tests** (`tests/unit/shared-contracts.test.ts`): Asserts valid/invalid workflow graphs, node types, missing IDs, malformed edges, invalid execution states, and error envelopes.
+- **Database Invariant Tests** (`tests/unit/database-entities.test.ts`): Validates user creation, email uniqueness/normalization, organization slug uniqueness, membership compound uniqueness, workflow draft persistence, version uniqueness, immutable execution binding, tenant isolation, and non-cascade deletion invariants.
+- **Infrastructure Tests** (`tests/unit/infrastructure.test.ts`): Asserts environment-variable validation with Zod, process liveness (`/health`), dependency readiness (`/ready`), correlation ID injection (`X-Correlation-Id`), and 404 error envelope consistency.
+- **API Integration Tests** (`tests/integration/`): Tests session authentication, registration, login rejection, workflow draft updates, publishing immutable versions, manual and webhook execution triggers, and human approval suspension and resumption.
+- **Security Tests** (`tests/security/tenant-isolation.test.ts`): Automated attack suite verifying multi-tenant isolation, cross-tenant leak/mutation rejection, SSRF blocking of private subnets and cloud metadata IPs, and webhook signature verification.
 
 ## 2. Test Execution Commands
-- Unit tests: `pnpm test:unit`
-- Integration tests: `pnpm test:integration`
-- Security tests: `pnpm test:security`
-- E2E tests: `pnpm test:e2e`
-- All tests: `pnpm test`
+
+```bash
+# Run all tests
+pnpm test
+
+# Run unit and contract tests
+pnpm test:unit
+
+# Run API and workflow integration tests
+pnpm test:integration
+
+# Run security and tenant isolation tests
+pnpm test:security
+
+# Run code formatting check
+pnpm format
+
+# Run ESLint validation
+pnpm lint
+
+# Run strict TypeScript checks across all workspaces
+pnpm typecheck
+```

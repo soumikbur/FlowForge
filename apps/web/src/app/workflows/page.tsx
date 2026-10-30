@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { Plus, Workflow, ExternalLink, Play, CheckCircle } from 'lucide-react';
+import React, { useEffect, useState } from "react";
+import Link from "next/link";
+import { Plus, Workflow, ExternalLink, Play, CheckCircle } from "lucide-react";
 
 interface WorkflowItem {
   id: string;
   name: string;
   description?: string;
-  status: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
+  status: "DRAFT" | "ACTIVE" | "ARCHIVED";
   publishedVersionId?: string;
   updatedAt: string;
 }
@@ -16,28 +16,30 @@ interface WorkflowItem {
 export default function WorkflowsPage() {
   const [workflows, setWorkflows] = useState<WorkflowItem[]>([
     {
-      id: 'wf_demo_1',
-      name: 'Order Processing & Manager Approval',
-      description: 'Webhook trigger -> Check order value > $10,000 -> Manager approval -> Email notification.',
-      status: 'ACTIVE',
-      publishedVersionId: 'ver_1',
-      updatedAt: new Date().toISOString()
+      id: "wf_demo_1",
+      name: "Order Processing & Manager Approval",
+      description:
+        "Webhook trigger -> Check order value > $10,000 -> Manager approval -> Email notification.",
+      status: "ACTIVE",
+      publishedVersionId: "ver_1",
+      updatedAt: new Date().toISOString(),
     },
     {
-      id: 'wf_demo_2',
-      name: 'Customer Welcome Sequence',
-      description: 'Trigger -> Send Welcome Email -> Delay 24h -> Followup HTTP webhook.',
-      status: 'DRAFT',
-      updatedAt: new Date().toISOString()
-    }
+      id: "wf_demo_2",
+      name: "Customer Welcome Sequence",
+      description:
+        "Trigger -> Send Welcome Email -> Delay 24h -> Followup HTTP webhook.",
+      status: "DRAFT",
+      updatedAt: new Date().toISOString(),
+    },
   ]);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  const [newDesc, setNewDesc] = useState('');
+  const [newTitle, setNewTitle] = useState("");
+  const [newDesc, setNewDesc] = useState("");
 
   useEffect(() => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-    fetch(`${apiUrl}/api/v1/workflows`, { credentials: 'include' })
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+    fetch(`${apiUrl}/api/v1/workflows`, { credentials: "include" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data && data.success && data.data && data.data.length > 0) {
@@ -49,14 +51,14 @@ export default function WorkflowsPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
     try {
       const res = await fetch(`${apiUrl}/api/v1/workflows`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ name: newTitle, description: newDesc })
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ name: newTitle, description: newDesc }),
       });
       const data = await res.json();
       if (data.success && data.data) {
@@ -68,14 +70,14 @@ export default function WorkflowsPage() {
         id: `wf_${Date.now()}`,
         name: newTitle,
         description: newDesc,
-        status: 'DRAFT',
-        updatedAt: new Date().toISOString()
+        status: "DRAFT",
+        updatedAt: new Date().toISOString(),
       };
       setWorkflows([newItem, ...workflows]);
     }
 
-    setNewTitle('');
-    setNewDesc('');
+    setNewTitle("");
+    setNewDesc("");
     setShowCreateModal(false);
   };
 
@@ -84,7 +86,9 @@ export default function WorkflowsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Workflows</h1>
-          <p className="text-sm text-slate-500">Create, configure, and publish business automations.</p>
+          <p className="text-sm text-slate-500">
+            Create, configure, and publish business automations.
+          </p>
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
@@ -98,22 +102,29 @@ export default function WorkflowsPage() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="divide-y divide-slate-200">
           {workflows.map((wf) => (
-            <div key={wf.id} className="p-6 flex items-center justify-between hover:bg-slate-50 transition">
+            <div
+              key={wf.id}
+              className="p-6 flex items-center justify-between hover:bg-slate-50 transition"
+            >
               <div className="space-y-1">
                 <div className="flex items-center gap-3">
                   <Workflow className="w-5 h-5 text-teal-600" />
-                  <span className="font-semibold text-slate-900">{wf.name}</span>
+                  <span className="font-semibold text-slate-900">
+                    {wf.name}
+                  </span>
                   <span
                     className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
-                      wf.status === 'ACTIVE'
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-slate-100 text-slate-700'
+                      wf.status === "ACTIVE"
+                        ? "bg-emerald-100 text-emerald-800"
+                        : "bg-slate-100 text-slate-700"
                     }`}
                   >
                     {wf.status}
                   </span>
                 </div>
-                <p className="text-sm text-slate-500 pl-8">{wf.description || 'No description provided.'}</p>
+                <p className="text-sm text-slate-500 pl-8">
+                  {wf.description || "No description provided."}
+                </p>
               </div>
 
               <div className="flex items-center gap-3">
@@ -133,10 +144,14 @@ export default function WorkflowsPage() {
       {showCreateModal && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl">
-            <h3 className="text-lg font-bold text-slate-900">Create New Workflow</h3>
+            <h3 className="text-lg font-bold text-slate-900">
+              Create New Workflow
+            </h3>
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-700">Workflow Name</label>
+                <label className="block text-xs font-medium text-slate-700">
+                  Workflow Name
+                </label>
                 <input
                   type="text"
                   required
@@ -147,7 +162,9 @@ export default function WorkflowsPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-700">Description</label>
+                <label className="block text-xs font-medium text-slate-700">
+                  Description
+                </label>
                 <textarea
                   placeholder="Describe the operational process..."
                   value={newDesc}

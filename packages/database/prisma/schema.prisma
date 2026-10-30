@@ -86,11 +86,12 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  memberships      OrganizationMembership[]
-  sessions         Session[]
+  memberships       OrganizationMembership[]
+  sessions          Session[]
+  createdWorkflows  Workflow[]              @relation("WorkflowCreator")
   publishedVersions WorkflowVersion[]       @relation("VersionPublisher")
-  decidedApprovals Approval[]              @relation("ApprovalDecider")
-  auditLogs        AuditLog[]
+  decidedApprovals  Approval[]              @relation("ApprovalDecider")
+  auditLogs         AuditLog[]
 
   @@map("users")
 }
@@ -135,16 +136,20 @@ model Workflow {
   status             WorkflowStatus @default(DRAFT)
   draftDefinition    Json           @default("{\"nodes\":[],\"edges\":[]}")
   publishedVersionId String?
+  createdById        String?
+  deletedAt          DateTime?
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 
   organization       Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy          User?          @relation("WorkflowCreator", fields: [createdById], references: [id], onDelete: SetNull)
   versions           WorkflowVersion[]
   executions         WorkflowExecution[]
   webhooks           WebhookEvent[]
 
   @@index([organizationId])
   @@index([status])
+  @@index([deletedAt])
   @@map("workflows")
 }
 
@@ -156,7 +161,7 @@ model WorkflowVersion {
   publishedAt   DateTime @default(now())
   publishedById String?
 
-  workflow      Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  workflow      Workflow @relation(fields: [workflowId], references: [id], onDelete: Restrict)
   publishedBy   User?    @relation("VersionPublisher", fields: [publishedById], references: [id], onDelete: SetNull)
   executions    WorkflowExecution[]
 
@@ -183,8 +188,8 @@ model WorkflowExecution {
   updatedAt         DateTime        @updatedAt
 
   organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  workflow          Workflow        @relation(fields: [workflowId], references: [id], onDelete: Cascade)
-  workflowVersion   WorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Cascade)
+  workflow          Workflow        @relation(fields: [workflowId], references: [id], onDelete: Restrict)
+  workflowVersion   WorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Restrict)
   steps             ExecutionStep[]
   approvals         Approval[]
 
@@ -268,7 +273,7 @@ model WebhookEvent {
   createdAt      DateTime @default(now())
 
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  workflow       Workflow     @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  workflow       Workflow     @relation(fields: [workflowId], references: [id], onDelete: Restrict)
 
   @@unique([organizationId, idempotencyKey])
   @@index([workflowId])

@@ -1,17 +1,17 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Layers } from 'lucide-react';
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Layers } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
   const [isRegister, setIsRegister] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [orgName, setOrgName] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [orgName, setOrgName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -20,29 +20,31 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-    const endpoint = isRegister ? '/api/v1/auth/register' : '/api/v1/auth/login';
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+    const endpoint = isRegister
+      ? "/api/v1/auth/register"
+      : "/api/v1/auth/login";
     const payload = isRegister
       ? { email, password, firstName, lastName, organizationName: orgName }
       : { email, password };
 
     try {
       const res = await fetch(`${apiUrl}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error?.message || 'Authentication request failed.');
+        setError(data.error?.message || "Authentication request failed.");
         return;
       }
 
-      router.push('/dashboard');
+      router.push("/dashboard");
     } catch {
       // In offline / local prototype mode without running API daemon, navigate to dashboard
-      router.push('/dashboard');
+      router.push("/dashboard");
     } finally {
       setLoading(false);
     }
@@ -57,7 +59,9 @@ export default function LoginPage() {
           </div>
           <h2 className="mt-4 text-3xl font-extrabold text-white">FlowForge</h2>
           <p className="mt-2 text-sm text-slate-400">
-            {isRegister ? 'Create your business automation workspace' : 'Sign in to your organization'}
+            {isRegister
+              ? "Create your business automation workspace"
+              : "Sign in to your organization"}
           </p>
         </div>
 
@@ -72,7 +76,9 @@ export default function LoginPage() {
             <>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-slate-300">First Name</label>
+                  <label className="block text-xs font-medium text-slate-300">
+                    First Name
+                  </label>
                   <input
                     type="text"
                     required
@@ -82,7 +88,9 @@ export default function LoginPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-300">Last Name</label>
+                  <label className="block text-xs font-medium text-slate-300">
+                    Last Name
+                  </label>
                   <input
                     type="text"
                     required
@@ -93,7 +101,9 @@ export default function LoginPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-300">Organization Name</label>
+                <label className="block text-xs font-medium text-slate-300">
+                  Organization Name
+                </label>
                 <input
                   type="text"
                   required
@@ -107,7 +117,9 @@ export default function LoginPage() {
           )}
 
           <div>
-            <label className="block text-xs font-medium text-slate-300">Email Address</label>
+            <label className="block text-xs font-medium text-slate-300">
+              Email Address
+            </label>
             <input
               type="email"
               required
@@ -119,7 +131,9 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-300">Password</label>
+            <label className="block text-xs font-medium text-slate-300">
+              Password
+            </label>
             <input
               type="password"
               required
@@ -135,7 +149,11 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-slate-900 bg-teal-400 hover:bg-teal-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition"
           >
-            {loading ? 'Processing...' : isRegister ? 'Create Organization' : 'Sign In'}
+            {loading
+              ? "Processing..."
+              : isRegister
+                ? "Create Organization"
+                : "Sign In"}
           </button>
         </form>
 
@@ -146,7 +164,7 @@ export default function LoginPage() {
             className="text-xs text-teal-400 hover:text-teal-300 underline"
           >
             {isRegister
-              ? 'Already registered? Sign in instead'
+              ? "Already registered? Sign in instead"
               : "Don't have an account? Register new organization"}
           </button>
         </div>

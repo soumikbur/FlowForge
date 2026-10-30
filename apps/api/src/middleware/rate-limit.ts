@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from "express";
 
 interface RateLimitRecord {
   count: number;
@@ -9,7 +9,7 @@ const rateLimitMap = new Map<string, RateLimitRecord>();
 
 export function rateLimit(windowMs: number = 60000, maxRequests: number = 100) {
   return (req: Request, res: Response, next: NextFunction): void => {
-    const ip = req.ip || req.socket.remoteAddress || 'unknown-ip';
+    const ip = req.ip || req.socket.remoteAddress || "unknown-ip";
     const now = Date.now();
 
     const record = rateLimitMap.get(ip);
@@ -17,7 +17,7 @@ export function rateLimit(windowMs: number = 60000, maxRequests: number = 100) {
     if (!record || now > record.resetTime) {
       rateLimitMap.set(ip, {
         count: 1,
-        resetTime: now + windowMs
+        resetTime: now + windowMs,
       });
       return next();
     }
@@ -27,9 +27,9 @@ export function rateLimit(windowMs: number = 60000, maxRequests: number = 100) {
         success: false,
         data: null,
         error: {
-          code: 'RATE_LIMIT_EXCEEDED',
-          message: 'Too many requests, please try again later.'
-        }
+          code: "RATE_LIMIT_EXCEEDED",
+          message: "Too many requests, please try again later.",
+        },
       });
       return;
     }

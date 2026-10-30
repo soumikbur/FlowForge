@@ -1,14 +1,14 @@
-import { Router } from 'express';
-import crypto from 'crypto';
-import { verifyWebhookSignature } from '@flowforge/integrations';
-import { apiStore, WorkflowExecutionRecord } from '../store.js';
+import { Router } from "express";
+import crypto from "crypto";
+import { verifyWebhookSignature } from "@flowforge/integrations";
+import { apiStore, WorkflowExecutionRecord } from "../store.js";
 
 export const webhookRouter = Router();
 
 const processedEvents = new Set<string>();
 
 // Ingest external webhook
-webhookRouter.post('/:workflowId', async (req, res) => {
+webhookRouter.post("/:workflowId", async (req, res) => {
   const { workflowId } = req.params;
   const workflow = apiStore.workflows.get(workflowId);
 
@@ -16,23 +16,26 @@ webhookRouter.post('/:workflowId', async (req, res) => {
     res.status(404).json({
       success: false,
       data: null,
-      error: { code: 'NOT_FOUND', message: 'Target workflow not found.' }
+      error: { code: "NOT_FOUND", message: "Target workflow not found." },
     });
     return;
   }
 
-  if (workflow.status !== 'ACTIVE' || !workflow.publishedVersionId) {
+  if (workflow.status !== "ACTIVE" || !workflow.publishedVersionId) {
     res.status(400).json({
       success: false,
       data: null,
-      error: { code: 'WORKFLOW_INACTIVE', message: 'Workflow is not currently active.' }
+      error: {
+        code: "WORKFLOW_INACTIVE",
+        message: "Workflow is not currently active.",
+      },
     });
     return;
   }
 
   // Idempotency check
   const idempotencyKey =
-    (req.headers['x-idempotency-key'] as string) ||
+    (req.headers["x-idempotency-key"] as string) ||
     req.body?.id ||
     req.body?.eventId;
 
@@ -41,8 +44,8 @@ webhookRouter.post('/:workflowId', async (req, res) => {
     if (processedEvents.has(dedupeKey)) {
       res.status(200).json({
         success: true,
-        data: { message: 'Duplicate webhook event ignored (idempotent).' },
-        error: null
+        data: { message: "Duplicate webhook event ignored (idempotent)." },
+        error: null,
       });
       return;
     }
@@ -50,7 +53,7 @@ webhookRouter.post('/:workflowId', async (req, res) => {
   }
 
   // Optional signature verification if header provided
-  const signature = req.headers['x-signature-256'] as string;
+  const signature = req.headers["x-signature-256"] as string;
   const webhookSecret = process.env.WEBHOOK_SECRET;
 
   if (webhookSecret && signature) {
@@ -58,14 +61,17 @@ webhookRouter.post('/:workflowId', async (req, res) => {
     const isValid = verifyWebhookSignature({
       payload: rawBody,
       signature,
-      secret: webhookSecret
+      secret: webhookSecret,
     });
 
     if (!isValid) {
       res.status(401).json({
         success: false,
         data: null,
-        error: { code: 'INVALID_SIGNATURE', message: 'Webhook signature verification failed.' }
+        error: {
+          code: "INVALID_SIGNATURE",
+          message: "Webhook signature verification failed.",
+        },
       });
       return;
     }
@@ -79,13 +85,13 @@ webhookRouter.post('/:workflowId', async (req, res) => {
     organizationId: workflow.organizationId,
     workflowId: workflow.id,
     workflowVersionId: workflow.publishedVersionId,
-    triggerType: 'WEBHOOK',
+    triggerType: "WEBHOOK",
     triggerPayload: req.body,
-    status: 'QUEUED',
-    contextData: { trigger: { payload: req.body, type: 'WEBHOOK' } },
+    status: "QUEUED",
+    contextData: { trigger: { payload: req.body, type: "WEBHOOK" } },
     retryCount: 0,
     createdAt: now,
-    updatedAt: now
+    updatedAt: now,
   };
 
   apiStore.executions.set(executionId, execution);
@@ -94,9 +100,9 @@ webhookRouter.post('/:workflowId', async (req, res) => {
     success: true,
     data: {
       executionId,
-      status: 'QUEUED',
-      message: 'Webhook received and workflow queued successfully.'
+      status: "QUEUED",
+      message: "Webhook received and workflow queued successfully.",
     },
-    error: null
+    error: null,
   });
 });

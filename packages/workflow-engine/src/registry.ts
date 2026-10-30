@@ -1,18 +1,18 @@
-import { NodeType, WorkflowNode } from '@flowforge/shared';
-import { EvaluationContext, evaluateCondition } from './expression.js';
+import { NodeType, WorkflowNode } from "@flowforge/shared";
+import { EvaluationContext, evaluateCondition } from "./expression.js";
 
 export interface StepExecutionResult {
-  status: 'COMPLETED' | 'WAITING' | 'FAILED';
+  status: "COMPLETED" | "WAITING" | "FAILED";
   output?: Record<string, unknown>;
   selectedHandle?: string;
-  waitReason?: 'APPROVAL' | 'DELAY';
+  waitReason?: "APPROVAL" | "DELAY";
   waitPayload?: Record<string, unknown>;
   error?: string;
 }
 
 export type NodeHandler = (
   node: WorkflowNode,
-  context: EvaluationContext
+  context: EvaluationContext,
 ) => Promise<StepExecutionResult> | StepExecutionResult;
 
 export class NodeHandlerRegistry {
@@ -36,76 +36,76 @@ export class NodeHandlerRegistry {
 
   private registerDefaults(): void {
     // 1. TRIGGER
-    this.register('TRIGGER', (node, context) => {
+    this.register("TRIGGER", (node, context) => {
       return {
-        status: 'COMPLETED',
-        output: context.trigger?.payload || {}
+        status: "COMPLETED",
+        output: context.trigger?.payload || {},
       };
     });
 
     // 2. CONDITION
-    this.register('CONDITION', (node, context) => {
-      const expr = (node.config.expression as string) || '';
+    this.register("CONDITION", (node, context) => {
+      const expr = (node.config.expression as string) || "";
       const result = evaluateCondition(expr, context);
       return {
-        status: 'COMPLETED',
+        status: "COMPLETED",
         output: { result, evaluatedExpression: expr },
-        selectedHandle: result ? 'true' : 'false'
+        selectedHandle: result ? "true" : "false",
       };
     });
 
     // 3. APPROVAL (Human-in-the-loop: pauses execution unless decision already recorded)
-    this.register('APPROVAL', (node, context) => {
-      const decision = (context.approvalDecision as any);
+    this.register("APPROVAL", (node, context) => {
+      const decision = context.approvalDecision as any;
       if (decision && decision.approved !== undefined) {
         if (decision.approved) {
           return {
-            status: 'COMPLETED',
+            status: "COMPLETED",
             output: {
               approved: true,
               comment: decision.comment,
-              decidedBy: decision.decidedBy
-            }
+              decidedBy: decision.decidedBy,
+            },
           };
         } else {
           return {
-            status: 'FAILED',
-            error: decision.comment || 'Approval rejected'
+            status: "FAILED",
+            error: decision.comment || "Approval rejected",
           };
         }
       }
 
       return {
-        status: 'WAITING',
-        waitReason: 'APPROVAL',
+        status: "WAITING",
+        waitReason: "APPROVAL",
         waitPayload: {
           title: node.config.title || node.name,
           description: node.config.description,
-          requiredRole: node.config.requiredRole || 'ADMIN',
-          timeoutSeconds: node.config.timeoutSeconds || 86400
-        }
+          requiredRole: node.config.requiredRole || "ADMIN",
+          timeoutSeconds: node.config.timeoutSeconds || 86400,
+        },
       };
     });
 
     // 4. DELAY (Pauses execution for a configured duration)
-    this.register('DELAY', (node) => {
+    this.register("DELAY", (node) => {
       return {
-        status: 'WAITING',
-        waitReason: 'DELAY',
+        status: "WAITING",
+        waitReason: "DELAY",
         waitPayload: {
-          durationSeconds: node.config.durationSeconds || 60
-        }
+          durationSeconds: node.config.durationSeconds || 60,
+        },
       };
     });
 
     // 5. END
-    this.register('END', (node, context) => {
+    this.register("END", (node, context) => {
       return {
-        status: 'COMPLETED',
+        status: "COMPLETED",
         output: {
           completedAt: new Date().toISOString(),
-          summary: node.config.summaryExpression
-        }
+          summary: node.config.summaryExpression,
+        },
       };
     });
   }

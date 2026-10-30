@@ -1,6 +1,7 @@
 # FlowForge Workflow Graph JSON Specification
 
 ## 1. Specification Overview
+
 A workflow definition is represented as a directed acyclic graph (with controlled branch joins) adhering strictly to standard JSON schemas.
 
 ```json
@@ -98,17 +99,18 @@ A workflow definition is represented as a directed acyclic graph (with controlle
 
 ## 2. Supported Node Types & Semantics
 
-| Node Type | Category | Required Inputs | Outgoing Handles | Execution Behavior |
-|---|---|---|---|---|
-| `TRIGGER` | Trigger | Trigger configuration (webhook, manual, schedule) | `default` | Emits trigger payload into execution context |
-| `CONDITION` | Logic | JavaScript/JSON expression (e.g., `data.amount > 500`) | `true`, `false` | Evaluates condition and directs flow to corresponding handle |
-| `HTTP_REQUEST` | Action | URL, method (GET/POST/PUT/DELETE), headers, body, timeout | `default`, `error` | Dispatches outbound HTTP request with SSRF guard |
-| `EMAIL` | Action | To, subject, template body | `default`, `error` | Transmits templated email notification |
-| `APPROVAL` | Human-in-the-loop | Approver role/user, title, timeout | `approved`, `rejected`, `timeout` | Suspends execution in `WAITING_APPROVAL` until actor decides |
-| `DELAY` | Logic | Duration (seconds/minutes) | `default` | Suspends execution in `WAITING_DELAY` until timer expires |
-| `END` | Terminal | Optional summary / return payload | None | Concludes execution path successfully |
+| Node Type      | Category          | Required Inputs                                           | Outgoing Handles                  | Execution Behavior                                           |
+| -------------- | ----------------- | --------------------------------------------------------- | --------------------------------- | ------------------------------------------------------------ |
+| `TRIGGER`      | Trigger           | Trigger configuration (webhook, manual, schedule)         | `default`                         | Emits trigger payload into execution context                 |
+| `CONDITION`    | Logic             | JavaScript/JSON expression (e.g., `data.amount > 500`)    | `true`, `false`                   | Evaluates condition and directs flow to corresponding handle |
+| `HTTP_REQUEST` | Action            | URL, method (GET/POST/PUT/DELETE), headers, body, timeout | `default`, `error`                | Dispatches outbound HTTP request with SSRF guard             |
+| `EMAIL`        | Action            | To, subject, template body                                | `default`, `error`                | Transmits templated email notification                       |
+| `APPROVAL`     | Human-in-the-loop | Approver role/user, title, timeout                        | `approved`, `rejected`, `timeout` | Suspends execution in `WAITING_APPROVAL` until actor decides |
+| `DELAY`        | Logic             | Duration (seconds/minutes)                                | `default`                         | Suspends execution in `WAITING_DELAY` until timer expires    |
+| `END`          | Terminal          | Optional summary / return payload                         | None                              | Concludes execution path successfully                        |
 
 ## 3. Graph Validation Rules
+
 1. Must contain exactly one `TRIGGER` node with no incoming edges.
 2. Every node must be reachable from the `TRIGGER` node.
 3. Every directed path from `TRIGGER` must terminate at an `END` node or dead-end leaf explicitly permitted.

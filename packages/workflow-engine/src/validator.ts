@@ -7,8 +7,8 @@ import {
   EmailNodeConfigSchema,
   ApprovalNodeConfigSchema,
   DelayNodeConfigSchema,
-  EndNodeConfigSchema
-} from '@flowforge/shared';
+  EndNodeConfigSchema,
+} from "@flowforge/shared";
 
 export interface ValidationError {
   nodeId?: string;
@@ -22,7 +22,9 @@ export interface ValidationResult {
   errors: ValidationError[];
 }
 
-export function validateWorkflowGraph(definition: WorkflowDefinition): ValidationResult {
+export function validateWorkflowGraph(
+  definition: WorkflowDefinition,
+): ValidationResult {
   const errors: ValidationError[] = [];
 
   if (!definition.nodes || definition.nodes.length === 0) {
@@ -30,10 +32,10 @@ export function validateWorkflowGraph(definition: WorkflowDefinition): Validatio
       isValid: false,
       errors: [
         {
-          code: 'EMPTY_GRAPH',
-          message: 'Workflow graph must contain at least one node.'
-        }
-      ]
+          code: "EMPTY_GRAPH",
+          message: "Workflow graph must contain at least one node.",
+        },
+      ],
     };
   }
 
@@ -45,8 +47,8 @@ export function validateWorkflowGraph(definition: WorkflowDefinition): Validatio
     if (nodeIds.has(node.id)) {
       errors.push({
         nodeId: node.id,
-        code: 'DUPLICATE_NODE_ID',
-        message: `Duplicate node ID detected: ${node.id}`
+        code: "DUPLICATE_NODE_ID",
+        message: `Duplicate node ID detected: ${node.id}`,
       });
     }
     nodeIds.add(node.id);
@@ -54,16 +56,16 @@ export function validateWorkflowGraph(definition: WorkflowDefinition): Validatio
   }
 
   // 2. Validate Trigger Node existence and uniqueness
-  const triggerNodes = definition.nodes.filter((n) => n.type === 'TRIGGER');
+  const triggerNodes = definition.nodes.filter((n) => n.type === "TRIGGER");
   if (triggerNodes.length === 0) {
     errors.push({
-      code: 'MISSING_TRIGGER_NODE',
-      message: 'Workflow must have exactly one TRIGGER node.'
+      code: "MISSING_TRIGGER_NODE",
+      message: "Workflow must have exactly one TRIGGER node.",
     });
   } else if (triggerNodes.length > 1) {
     errors.push({
-      code: 'MULTIPLE_TRIGGER_NODES',
-      message: `Workflow has ${triggerNodes.length} TRIGGER nodes; exactly one is permitted.`
+      code: "MULTIPLE_TRIGGER_NODES",
+      message: `Workflow has ${triggerNodes.length} TRIGGER nodes; exactly one is permitted.`,
     });
   }
 
@@ -71,32 +73,32 @@ export function validateWorkflowGraph(definition: WorkflowDefinition): Validatio
   for (const node of definition.nodes) {
     let schemaResult;
     switch (node.type) {
-      case 'TRIGGER':
+      case "TRIGGER":
         schemaResult = TriggerNodeConfigSchema.safeParse(node.config);
         break;
-      case 'CONDITION':
+      case "CONDITION":
         schemaResult = ConditionNodeConfigSchema.safeParse(node.config);
         break;
-      case 'HTTP_REQUEST':
+      case "HTTP_REQUEST":
         schemaResult = HttpRequestNodeConfigSchema.safeParse(node.config);
         break;
-      case 'EMAIL':
+      case "EMAIL":
         schemaResult = EmailNodeConfigSchema.safeParse(node.config);
         break;
-      case 'APPROVAL':
+      case "APPROVAL":
         schemaResult = ApprovalNodeConfigSchema.safeParse(node.config);
         break;
-      case 'DELAY':
+      case "DELAY":
         schemaResult = DelayNodeConfigSchema.safeParse(node.config);
         break;
-      case 'END':
+      case "END":
         schemaResult = EndNodeConfigSchema.safeParse(node.config);
         break;
       default:
         errors.push({
           nodeId: node.id,
-          code: 'UNKNOWN_NODE_TYPE',
-          message: `Unknown node type: ${(node as any).type}`
+          code: "UNKNOWN_NODE_TYPE",
+          message: `Unknown node type: ${(node as any).type}`,
         });
         continue;
     }
@@ -105,8 +107,8 @@ export function validateWorkflowGraph(definition: WorkflowDefinition): Validatio
       for (const issue of schemaResult.error.issues) {
         errors.push({
           nodeId: node.id,
-          code: 'INVALID_NODE_CONFIG',
-          message: `Node '${node.name}' config error on '${issue.path.join('.')}': ${issue.message}`
+          code: "INVALID_NODE_CONFIG",
+          message: `Node '${node.name}' config error on '${issue.path.join(".")}': ${issue.message}`,
         });
       }
     }
@@ -127,8 +129,8 @@ export function validateWorkflowGraph(definition: WorkflowDefinition): Validatio
     if (edgeIds.has(edge.id)) {
       errors.push({
         edgeId: edge.id,
-        code: 'DUPLICATE_EDGE_ID',
-        message: `Duplicate edge ID: ${edge.id}`
+        code: "DUPLICATE_EDGE_ID",
+        message: `Duplicate edge ID: ${edge.id}`,
       });
     }
     edgeIds.add(edge.id);
@@ -139,31 +141,34 @@ export function validateWorkflowGraph(definition: WorkflowDefinition): Validatio
     if (!sourceNode) {
       errors.push({
         edgeId: edge.id,
-        code: 'MISSING_SOURCE_NODE',
-        message: `Edge '${edge.id}' references non-existent source node: ${edge.source}`
+        code: "MISSING_SOURCE_NODE",
+        message: `Edge '${edge.id}' references non-existent source node: ${edge.source}`,
       });
     }
 
     if (!targetNode) {
       errors.push({
         edgeId: edge.id,
-        code: 'MISSING_TARGET_NODE',
-        message: `Edge '${edge.id}' references non-existent target node: ${edge.target}`
+        code: "MISSING_TARGET_NODE",
+        message: `Edge '${edge.id}' references non-existent target node: ${edge.target}`,
       });
     }
 
     if (sourceNode && targetNode) {
-      incomingEdgeCounts.set(edge.target, (incomingEdgeCounts.get(edge.target) || 0) + 1);
+      incomingEdgeCounts.set(
+        edge.target,
+        (incomingEdgeCounts.get(edge.target) || 0) + 1,
+      );
       outgoingEdgesByNode.get(edge.source)!.push(edge);
 
       // Validate handle rules
-      if (sourceNode.type === 'CONDITION') {
-        if (edge.sourceHandle !== 'true' && edge.sourceHandle !== 'false') {
+      if (sourceNode.type === "CONDITION") {
+        if (edge.sourceHandle !== "true" && edge.sourceHandle !== "false") {
           errors.push({
             edgeId: edge.id,
             nodeId: sourceNode.id,
-            code: 'INVALID_CONDITION_HANDLE',
-            message: `Condition node '${sourceNode.name}' outgoing edge must specify sourceHandle as 'true' or 'false'. Received '${edge.sourceHandle}'.`
+            code: "INVALID_CONDITION_HANDLE",
+            message: `Condition node '${sourceNode.name}' outgoing edge must specify sourceHandle as 'true' or 'false'. Received '${edge.sourceHandle}'.`,
           });
         }
       }
@@ -176,30 +181,36 @@ export function validateWorkflowGraph(definition: WorkflowDefinition): Validatio
     if (triggerIncoming > 0) {
       errors.push({
         nodeId: triggerNodes[0].id,
-        code: 'TRIGGER_HAS_INCOMING_EDGES',
-        message: 'TRIGGER node cannot have incoming edges.'
+        code: "TRIGGER_HAS_INCOMING_EDGES",
+        message: "TRIGGER node cannot have incoming edges.",
       });
     }
   }
 
   // 6. Condition Node must have both 'true' and 'false' branches defined
   for (const node of definition.nodes) {
-    if (node.type === 'CONDITION') {
+    if (node.type === "CONDITION") {
       const outEdges = outgoingEdgesByNode.get(node.id) || [];
-      const hasTrue = outEdges.some((e) => e.sourceHandle === 'true');
-      const hasFalse = outEdges.some((e) => e.sourceHandle === 'false');
+      const hasTrue = outEdges.some((e) => e.sourceHandle === "true");
+      const hasFalse = outEdges.some((e) => e.sourceHandle === "false");
       if (!hasTrue || !hasFalse) {
         errors.push({
           nodeId: node.id,
-          code: 'INCOMPLETE_CONDITION_BRANCHES',
-          message: `Condition node '${node.name}' must have both 'true' and 'false' outgoing branches.`
+          code: "INCOMPLETE_CONDITION_BRANCHES",
+          message: `Condition node '${node.name}' must have both 'true' and 'false' outgoing branches.`,
         });
       }
     }
   }
 
   // 7. Reachability analysis (detect unreachable nodes from trigger)
-  if (triggerNodes.length === 1 && errors.filter(e => e.code === 'MISSING_SOURCE_NODE' || e.code === 'MISSING_TARGET_NODE').length === 0) {
+  if (
+    triggerNodes.length === 1 &&
+    errors.filter(
+      (e) =>
+        e.code === "MISSING_SOURCE_NODE" || e.code === "MISSING_TARGET_NODE",
+    ).length === 0
+  ) {
     const visited = new Set<string>();
     const queue: string[] = [triggerNodes[0].id];
     visited.add(triggerNodes[0].id);
@@ -219,8 +230,8 @@ export function validateWorkflowGraph(definition: WorkflowDefinition): Validatio
       if (!visited.has(node.id)) {
         errors.push({
           nodeId: node.id,
-          code: 'UNREACHABLE_NODE',
-          message: `Node '${node.name}' (${node.id}) is unreachable from TRIGGER node.`
+          code: "UNREACHABLE_NODE",
+          message: `Node '${node.name}' (${node.id}) is unreachable from TRIGGER node.`,
         });
       }
     }
@@ -235,8 +246,8 @@ export function validateWorkflowGraph(definition: WorkflowDefinition): Validatio
         cycleDetected = true;
         errors.push({
           nodeId,
-          code: 'CYCLE_DETECTED',
-          message: `Unsupported cycle detected in workflow graph: ${[...path, nodeId].join(' -> ')}`
+          code: "CYCLE_DETECTED",
+          message: `Unsupported cycle detected in workflow graph: ${[...path, nodeId].join(" -> ")}`,
         });
         return;
       }
@@ -258,6 +269,6 @@ export function validateWorkflowGraph(definition: WorkflowDefinition): Validatio
 
   return {
     isValid: errors.length === 0,
-    errors
+    errors,
   };
 }

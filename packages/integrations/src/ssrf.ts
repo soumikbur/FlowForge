@@ -1,4 +1,4 @@
-import net from 'net';
+import net from "net";
 
 /**
  * Validates whether a target URL or hostname points to a dangerous internal/private network.
@@ -9,21 +9,21 @@ export function isPrivateOrBlockedDestination(urlStr: string): boolean {
     const hostname = parsed.hostname.toLowerCase();
 
     // Check prohibited schemes
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
       return true;
     }
 
     // Strip square brackets if IPv6 URL format (e.g., [::1])
-    const cleanHost = hostname.replace(/^\[|\]$/g, '');
+    const cleanHost = hostname.replace(/^\[|\]$/g, "");
 
     // Check dangerous hostnames
     if (
-      cleanHost === 'localhost' ||
-      cleanHost === '::1' ||
-      cleanHost.endsWith('.local') ||
-      cleanHost.endsWith('.internal') ||
-      cleanHost === '169.254.169.254' || // AWS / GCP / Azure metadata
-      cleanHost === 'metadata.google.internal'
+      cleanHost === "localhost" ||
+      cleanHost === "::1" ||
+      cleanHost.endsWith(".local") ||
+      cleanHost.endsWith(".internal") ||
+      cleanHost === "169.254.169.254" || // AWS / GCP / Azure metadata
+      cleanHost === "metadata.google.internal"
     ) {
       return true;
     }
@@ -40,11 +40,11 @@ export function isPrivateOrBlockedDestination(urlStr: string): boolean {
 }
 
 export function isPrivateIp(ip: string): boolean {
-  if (ip === '::1' || ip === '127.0.0.1') return true;
+  if (ip === "::1" || ip === "127.0.0.1") return true;
 
   // IPv4 checks
   if (net.isIPv4(ip)) {
-    const parts = ip.split('.').map(Number);
+    const parts = ip.split(".").map(Number);
     // 127.0.0.0/8 (Loopback)
     if (parts[0] === 127) return true;
     // 10.0.0.0/8 (RFC 1918)
@@ -63,10 +63,10 @@ export function isPrivateIp(ip: string): boolean {
   if (net.isIPv6(ip)) {
     const normalized = ip.toLowerCase();
     if (
-      normalized === '::1' ||
-      normalized.startsWith('fe80:') ||
-      normalized.startsWith('fc') ||
-      normalized.startsWith('fd')
+      normalized === "::1" ||
+      normalized.startsWith("fe80:") ||
+      normalized.startsWith("fc") ||
+      normalized.startsWith("fd")
     ) {
       return true;
     }

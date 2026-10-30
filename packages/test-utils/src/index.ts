@@ -1,4 +1,4 @@
-import { WorkflowDefinition, Role } from '@flowforge/shared';
+import { WorkflowDefinition, Role } from "@flowforge/shared";
 
 export interface UserRecord {
   id: string;
@@ -33,7 +33,7 @@ export interface WorkflowRecord {
   organizationId: string;
   name: string;
   description?: string;
-  status: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
+  status: "DRAFT" | "ACTIVE" | "ARCHIVED";
   draftDefinition: WorkflowDefinition;
   publishedVersionId?: string;
   createdAt: Date;
@@ -54,9 +54,17 @@ export interface WorkflowExecutionRecord {
   organizationId: string;
   workflowId: string;
   workflowVersionId: string;
-  triggerType: 'MANUAL' | 'WEBHOOK' | 'SCHEDULE';
+  triggerType: "MANUAL" | "WEBHOOK" | "SCHEDULE";
   triggerPayload: Record<string, unknown>;
-  status: 'QUEUED' | 'RUNNING' | 'WAITING_APPROVAL' | 'WAITING_DELAY' | 'RETRYING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED';
+  status:
+    | "QUEUED"
+    | "RUNNING"
+    | "WAITING_APPROVAL"
+    | "WAITING_DELAY"
+    | "RETRYING"
+    | "SUCCEEDED"
+    | "FAILED"
+    | "CANCELLED";
   contextData: Record<string, unknown>;
   currentNodeId?: string;
   startedAt?: Date;
@@ -73,7 +81,8 @@ export interface ExecutionStepRecord {
   nodeId: string;
   nodeType: string;
   nodeName: string;
-  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'SKIPPED' | 'WAITING';
+  status:
+    "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "SKIPPED" | "WAITING";
   inputPayload?: Record<string, unknown>;
   outputPayload?: Record<string, unknown>;
   errorMessage?: string;
@@ -90,7 +99,7 @@ export interface ApprovalRecord {
   title: string;
   description?: string;
   requiredRole: Role;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'TIMEOUT';
+  status: "PENDING" | "APPROVED" | "REJECTED" | "TIMEOUT";
   decisionComment?: string;
   decidedById?: string;
   decidedAt?: Date;
@@ -126,54 +135,65 @@ export class InMemoryDatabase {
 export const sampleOrderWorkflow: WorkflowDefinition = {
   nodes: [
     {
-      id: 'node_trigger',
-      type: 'TRIGGER',
-      name: 'Order Webhook',
-      config: { triggerType: 'WEBHOOK', webhookPath: '/orders' },
-      position: { x: 100, y: 50 }
+      id: "node_trigger",
+      type: "TRIGGER",
+      name: "Order Webhook",
+      config: { triggerType: "WEBHOOK", webhookPath: "/orders" },
+      position: { x: 100, y: 50 },
     },
     {
-      id: 'node_condition',
-      type: 'CONDITION',
-      name: 'Check Order > $10,000',
-      config: { expression: 'trigger.payload.orderValue > 10000' },
-      position: { x: 100, y: 180 }
+      id: "node_condition",
+      type: "CONDITION",
+      name: "Check Order > $10,000",
+      config: { expression: "trigger.payload.orderValue > 10000" },
+      position: { x: 100, y: 180 },
     },
     {
-      id: 'node_approval',
-      type: 'APPROVAL',
-      name: 'Manager Approval Required',
+      id: "node_approval",
+      type: "APPROVAL",
+      name: "Manager Approval Required",
       config: {
-        title: 'High Value Order Approval',
-        requiredRole: 'ADMIN',
-        timeoutSeconds: 86400
+        title: "High Value Order Approval",
+        requiredRole: "ADMIN",
+        timeoutSeconds: 86400,
       },
-      position: { x: 260, y: 320 }
+      position: { x: 260, y: 320 },
     },
     {
-      id: 'node_email',
-      type: 'EMAIL',
-      name: 'Send Customer Confirmation',
+      id: "node_email",
+      type: "EMAIL",
+      name: "Send Customer Confirmation",
       config: {
-        to: 'customer@example.com',
-        subject: 'Order Processed',
-        template: 'Your order of ${{trigger.payload.orderValue}} has been approved!'
+        to: "customer@example.com",
+        subject: "Order Processed",
+        template:
+          "Your order of ${{trigger.payload.orderValue}} has been approved!",
       },
-      position: { x: -60, y: 320 }
+      position: { x: -60, y: 320 },
     },
     {
-      id: 'node_end',
-      type: 'END',
-      name: 'Workflow Complete',
+      id: "node_end",
+      type: "END",
+      name: "Workflow Complete",
       config: {},
-      position: { x: 100, y: 480 }
-    }
+      position: { x: 100, y: 480 },
+    },
   ],
   edges: [
-    { id: 'e1', source: 'node_trigger', target: 'node_condition' },
-    { id: 'e2_true', source: 'node_condition', sourceHandle: 'true', target: 'node_approval' },
-    { id: 'e2_false', source: 'node_condition', sourceHandle: 'false', target: 'node_email' },
-    { id: 'e3', source: 'node_approval', target: 'node_email' },
-    { id: 'e4', source: 'node_email', target: 'node_end' }
-  ]
+    { id: "e1", source: "node_trigger", target: "node_condition" },
+    {
+      id: "e2_true",
+      source: "node_condition",
+      sourceHandle: "true",
+      target: "node_approval",
+    },
+    {
+      id: "e2_false",
+      source: "node_condition",
+      sourceHandle: "false",
+      target: "node_email",
+    },
+    { id: "e3", source: "node_approval", target: "node_email" },
+    { id: "e4", source: "node_email", target: "node_end" },
+  ],
 };

@@ -1,36 +1,44 @@
 # FlowForge Development Roadmap
 
-- **Phase 0: Architecture & Tooling Audit (Done)**
-  - Establish directory isolation, verify development tools, author specifications.
-- **Phase 1: Monorepo Foundation & Tooling (Current)**
-  - Setup pnpm workspace, root configurations, shared scripts, Docker Compose, CI setup.
-- **Phase 2: Database Schema & Shared Contracts**
-  - Implement Prisma models, Zod validation schemas, TypeScript domain models.
-- **Phase 3: Authentication & Multi-Tenant Authorization**
-  - Session auth, password hashing, RBAC middleware, organization isolation.
-- **Phase 4: Workflow Management REST API**
-  - CRUD operations, version snapshotting, publish validations, execution trigger endpoints.
-- **Phase 5: Frontend Foundation**
-  - Next.js 14/15 App router, Tailwind CSS layout, auth state, UI components.
-- **Phase 6: Visual Workflow Builder**
-  - React Flow graph editor, custom nodes (Trigger, Condition, HTTP, Email, Approval, Delay, End), property panels, live serialization.
-- **Phase 7: Workflow Graph Validation Engine**
-  - Standalone pure validation package: DAG cycle checks, unreachable nodes, handle validation, condition syntax checks.
-- **Phase 8: Workflow Execution Engine & State Machine**
-  - Pure execution engine, step orchestrator, condition evaluator, retry calculator, terminal state resolution.
-- **Phase 9: Background Worker & Recovery**
-  - BullMQ job queue consumer, failure recovery, worker interruption safety, idempotency guarantees.
-- **Phase 10: Human Approval Inbox**
-  - Inbox API and UI, approval decisions, execution resumption.
-- **Phase 11: Integrations Subsystem**
-  - Webhook receiver, safe HTTP request sender (SSRF guarded), email notifier, scheduled triggers.
-- **Phase 12: Dashboard & Execution History**
-  - Metrics aggregations, real-time status indicators, step log timelines.
-- **Phase 13: Observability & Diagnostics**
-  - Structured logging, correlation IDs, health check endpoints.
-- **Phase 14: Security Hardening & Penetration Tests**
-  - Cross-tenant boundaries, SSRF prevention tests, rate limiting, sanitization.
-- **Phase 15: Automated Test Verification**
-  - Vitest test suites, full journey coverage.
-- **Phase 16 & 17: Final Verification & Production Documentation**
-  - Complete check of clean builds, migrations, tests, and documentation.
+- **Phase 0: Architecture & Environment Audit (Completed)**
+  - Confirmed directory isolation in `FlowForge`.
+  - Audited local toolchain (Node 24, npm 11, pnpm 12, Git 2.56, Docker host limitations).
+  - Authored foundational specifications (`architecture.md`, `database-schema.md`, `workflow-specification.md`, `execution-state-machine.md`, `api-contracts.md`, `security.md`, `testing.md`).
+
+- **Phase 1: Project Foundation & Database Layer (Completed)**
+  - Configured pnpm workspaces with strict TypeScript settings (`tsconfig.base.json`).
+  - Implemented `@flowforge/config` with Zod environment validation.
+  - Implemented `@flowforge/shared` with Zod domain schemas, AST nodes, execution states, and API envelopes.
+  - Implemented `@flowforge/database` with PostgreSQL Prisma schema, versioned migration DDL (`migration.sql`), and tenant isolation helpers.
+  - Implemented non-cascade deletion invariant (`ON DELETE RESTRICT`) preventing execution history loss on workflow removal.
+  - Implemented initial API foundation in `apps/api` with structured logging, `X-Correlation-Id` propagation, `/health` liveness, and `/ready` dependency checks.
+  - Established Docker Compose specification for PostgreSQL 16 and Redis 7.
+  - Created automated test suites in Vitest: 56/56 passing tests across unit, integration, and security layers.
+  - Verified ESLint, Prettier, and TypeScript compilation across all 10 workspace packages.
+
+- **Phase 2: Authentication, Authorization & Tenant Security (Next Phase)**
+  - Cookie session management, CSRF protection, rate limiting, and RBAC middleware.
+
+- **Phase 3: Workflow Management & Publishing REST API**
+  - Workflow draft CRUD, graph publishing, version sequencing, and version snapshotting.
+
+- **Phase 4: Frontend Foundation & Navigation**
+  - Next.js UI shell, responsive navigation, and authentication flows.
+
+- **Phase 5: Visual Workflow Builder**
+  - React Flow interactive canvas, custom node palette, and property configuration drawer.
+
+- **Phase 6: Workflow Execution Engine & State Machine**
+  - Distributed execution orchestrator, step planner, condition evaluator, and retry policies.
+
+- **Phase 7: Background Worker & Recovery**
+  - BullMQ job processor, failure recovery, worker interruption handling, and heartbeat monitoring.
+
+- **Phase 8: Human Approvals & Decision Inbox**
+  - Approval inbox, audit trail, concurrency handling, and execution resumption.
+
+- **Phase 9: Integrations Subsystem**
+  - SSRF-safe HTTP action, webhooks with HMAC signatures, email delivery, and cron scheduler.
+
+- **Phase 10: Production Verification & Deployment**
+  - End-to-end containerized verification and operational documentation.
