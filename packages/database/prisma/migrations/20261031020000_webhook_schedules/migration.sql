@@ -49,3 +49,4 @@ ALTER TABLE "webhook_configs" ADD CONSTRAINT "webhook_configs_workflowId_fkey" F
 -- AddForeignKey
 ALTER TABLE "workflow_schedules" ADD CONSTRAINT "workflow_schedules_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "workflow_schedules" ADD CONSTRAINT "workflow_schedules_workflowId_fkey" FOREIGN KEY ("workflowId") REFERENCES "workflows"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
