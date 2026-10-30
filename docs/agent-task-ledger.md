@@ -525,4 +525,55 @@
 - **ACTUAL RESULTS**: All 25/25 Prompt 14 integration tests passing; 324/324 total tests passing across 24 test suites; full monorepo build and Next.js 14 production build succeed with 0 errors.
 - **STATUS**: DONE
 
+---
+
+## TASK-032: Prompt 15 — Enterprise Notifications and Event Delivery
+- **STATUS**: DONE
+- **OBJECTIVE**: Implement a reliable, secure, tenant-aware notification and event-delivery subsystem connecting workflow lifecycle and business events to internal in-app notifications, email notifications, and outbound webhooks with transactional outbox, SSRF defense, HMAC signatures, and retry backoff.
+- **SUCCESS CRITERIA**:
+  1. Canonical Event Model (`FlowForgeEvent`, schema validation, stable types, correlation IDs, tenant scoping).
+  2. Transactional Outbox pattern (`OutboxEvent` model in DB/store, durable async dispatcher, at-least-once delivery guarantee).
+  3. Notification rules & deterministic recipient resolution (workflow owners, collaborators, approvers, org admins, self-action suppression).
+  4. In-app notification center (listing, unread counts, mark read/unread, mark all read, filtering, pagination, strict recipient/tenant isolation).
+  5. Email delivery integration with existing `defaultEmailService`, deduplication, and sensitive data redaction.
+  6. Outbound webhook delivery with SSRF protection (blocking loopback/private/metadata destinations), HMAC-SHA256 signing (`X-FlowForge-Signature`), secret masking, and secret rotation.
+  7. Delivery state machine (`PENDING` -> `PROCESSING` -> `SUCCEEDED` / `FAILED_PERMANENTLY` / `RETRY_SCHEDULED` / `DEAD_LETTERED`), bounded exponential backoff with jitter, and dead-letter replay endpoint.
+  8. User notification preferences & organization policies (`NotificationPreference` model, per-category in-app and email toggles).
+  9. Delivery monitoring and operational metrics (`/api/v1/notifications/metrics`).
+  10. UI integration (`NotificationBell` in navigation, notifications/webhooks settings tabs in `/settings`), and comprehensive integration test suite (`tests/integration/enterprise-notifications-event-delivery.test.ts`).
+- **IMPLEMENTATION PLAN**:
+  1. Shared Contracts (`packages/shared/src/index.ts`):
+     - Added permissions `notifications:read`, `notifications:write`, `webhooks:read`, `webhooks:write` to `Permission` and `ROLE_PERMISSIONS`.
+     - Added `FlowForgeEventTypeEnum` and `FlowForgeEventSchema` with resource types, version, correlation ID, and data payload.
+     - Added `NotificationCategoryEnum` and `NotificationPriorityEnum`.
+     - Added Zod schemas: `NotificationResponseSchema`, `NotificationQuerySchema`, `UpdateNotificationReadSchema`, `NotificationPreferenceItemSchema`, `UpdateNotificationPreferencesSchema`, `WebhookDeliveryStatusEnum`, `CreateWebhookSubscriptionSchema`, `UpdateWebhookSubscriptionSchema`, `WebhookSubscriptionResponseSchema`, `WebhookDeliveryResponseSchema`.
+  2. Database Layer (`packages/database`):
+     - Added Prisma models: `OutboxEvent`, `Notification`, `NotificationPreference`, `WebhookSubscription`, `WebhookDelivery`.
+     - Added relations to `Organization` and `User`.
+     - Migration: `20261031100000_notifications_and_events`.
+  3. In-Memory Store (`packages/test-utils/src/index.ts`):
+     - Added record interfaces: `OutboxEventRecord`, `NotificationRecord`, `NotificationPreferenceRecord`, `WebhookSubscriptionRecord`, `WebhookDeliveryRecord`.
+     - Added collections to `InMemoryDatabase`: `outboxEvents`, `notifications`, `notificationPreferences`, `webhookSubscriptions`, `webhookDeliveries`.
+     - Added `publishOutboxEvent()` and `createNotification()` helper methods.
+  4. Event Delivery & Webhook Engine (`packages/integrations`):
+     - In `packages/integrations/src/webhook.ts`: added `signWebhookPayload(secret, payload, timestamp)` returning `{ signature, headerValue: 't=...,v1=...', timestamp }` and extended `verifyWebhookSignatureDetailed` to handle timestamped headers.
+     - In `packages/integrations/src/event-delivery.ts`: created `publishDomainEvent`, `resolveEventRecipients`, `formatNotificationForEvent`, `dispatchOutboxEvent`, `executeWebhookDelivery`, and `replayWebhookDelivery`.
+  5. API Middleware & Routing (`apps/api`):
+     - `apps/api/src/routes/notification.routes.ts`: `GET /`, `GET /unread-count`, `PATCH /:id/read`, `POST /read-all`, `DELETE /:id`, `GET /preferences`, `PATCH /preferences`, `GET /metrics`.
+     - `apps/api/src/routes/webhook-subscription.routes.ts`: `GET /subscriptions`, `POST /subscriptions` (SSRF checks, secret generation), `GET /subscriptions/:id`, `PATCH /subscriptions/:id`, `POST /subscriptions/:id/rotate-secret`, `DELETE /subscriptions/:id`, `GET /subscriptions/:id/deliveries`, `POST /deliveries/:id/retry`.
+     - Mounted in `apps/api/src/app.ts` at `/api/v1/notifications` and `/api/v1/webhooks`.
+     - Domain event publishing wired into execution cancellation, approval decision, workflow version publication, and collaborator lifecycle.
+  6. Frontend UI (`apps/web`):
+     - `apps/web/src/components/NotificationBell.tsx`: Interactive bell icon with unread badge count, dropdown with notifications list, category icons, relative timestamps, links to resources, and read/unread toggles.
+     - Updated `apps/web/src/components/Navigation.tsx` to render `<NotificationBell />`.
+     - Updated `apps/web/src/app/settings/page.tsx` with `"notifications"` and `"webhooks"` tabs, notification preference checkboxes, webhook subscription roster, add webhook modal, secret reveal banner, delivery attempt logs, and replay button.
+  7. Automated Integration Tests (`tests/integration/enterprise-notifications-event-delivery.test.ts`):
+     - 26 tests covering canonical events, outbox, recipient resolution, self-action suppression, in-app notification center, email delivery, notification preferences, outbound webhooks with SSRF & HMAC signatures, secret rotation, delivery lifecycle/retries/dead-letter, replay, and metrics.
+- **ACCEPTANCE CRITERIA**: 100% test pass rate across all 25 test suites (350/350 tests passing); zero TypeScript errors; Next.js 14 production build succeeds with 0 errors.
+- **REQUIRED TESTS**: `tests/integration/enterprise-notifications-event-delivery.test.ts`
+- **VERIFICATION COMMANDS**: `pnpm test; pnpm typecheck; pnpm build`
+- **ACTUAL RESULTS**: All 26/26 Prompt 15 integration tests passing; 350/350 total tests passing across 25 test suites; full monorepo build and Next.js 14 production build succeed with 0 errors.
+- **STATUS**: DONE
+
+
 

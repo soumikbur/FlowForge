@@ -135,6 +135,11 @@ model Organization {
   collaborators  WorkflowCollaborator[]
   comments       WorkflowComment[]
   activities     WorkflowActivity[]
+  outboxEvents   OutboxEvent[]
+  notifications  Notification[]
+  notificationPreferences NotificationPreference[]
+  webhookSubscriptions    WebhookSubscription[]
+  webhookDeliveries       WebhookDelivery[]
 
   @@map("organizations")
 }
@@ -166,6 +171,8 @@ model User {
   comments          WorkflowComment[]
   resolvedComments  WorkflowComment[]        @relation("CommentResolver")
   activities        WorkflowActivity[]
+  notifications     Notification[]
+  notificationPreferences NotificationPreference[]
 
   @@map("users")
 }
@@ -684,6 +691,112 @@ model WorkflowActivity {
   @@index([userId])
   @@index([type])
   @@map("workflow_activities")
+}
+
+model OutboxEvent {
+  id             String    @id @default(uuid())
+  organizationId String
+  eventType      String
+  payload        Json
+  status         String    @default("PENDING") // PENDING, PROCESSING, PUBLISHED, FAILED
+  attemptCount   Int       @default(0)
+  lastAttemptAt  DateTime?
+  error          String?
+  createdAt      DateTime  @default(now())
+  publishedAt    DateTime?
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([status, createdAt])
+  @@map("outbox_events")
+}
+
+model Notification {
+  id             String    @id @default(uuid())
+  organizationId String
+  userId         String
+  eventId        String?
+  title          String
+  message        String
+  category       String    @default("WORKFLOW") // WORKFLOW, APPROVAL, COLLABORATION, SYSTEM, SECURITY
+  priority       String    @default("NORMAL")   // LOW, NORMAL, HIGH, URGENT
+  isRead         Boolean   @default(false)
+  readAt         DateTime?
+  resourceType   String?
+  resourceId     String?
+  linkUrl        String?
+  createdAt      DateTime  @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, userId, isRead])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String
+  category       String   // WORKFLOW, APPROVAL, COLLABORATION, SYSTEM, SECURITY
+  inApp          Boolean  @default(true)
+  email          Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, category])
+  @@index([organizationId, userId])
+  @@map("notification_preferences")
+}
+
+model WebhookSubscription {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  url            String
+  events         String[] // Array of event types or ["*"]
+  enabled        Boolean  @default(true)
+  secret         String   // HMAC signing secret
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deliveries     WebhookDelivery[]
+
+  @@index([organizationId, enabled])
+  @@map("webhook_subscriptions")
+}
+
+model WebhookDelivery {
+  id             String    @id @default(uuid())
+  organizationId String
+  subscriptionId String
+  eventId        String
+  url            String
+  status         String    @default("PENDING") // PENDING, PROCESSING, SUCCEEDED, RETRY_SCHEDULED, FAILED_PERMANENTLY, DEAD_LETTERED
+  attemptCount   Int       @default(0)
+  maxAttempts    Int       @default(5)
+  nextRetryAt    DateTime?
+  statusCode     Int?
+  durationMs     Int?
+  error          String?
+  requestPayload Json
+  responseBody   String?
+  createdAt      DateTime  @default(now())
+  completedAt    DateTime?
+
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subscription   WebhookSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([subscriptionId, createdAt])
+  @@index([status, nextRetryAt])
+  @@map("webhook_deliveries")
 }
 
 

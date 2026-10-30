@@ -356,6 +356,84 @@ export interface WorkflowActivityRecord {
   createdAt: Date;
 }
 
+export interface OutboxEventRecord {
+  id: string;
+  organizationId: string;
+  eventType: string;
+  payload: any;
+  status: "PENDING" | "PROCESSING" | "PUBLISHED" | "FAILED";
+  attemptCount: number;
+  lastAttemptAt?: Date | null;
+  error?: string | null;
+  createdAt: Date;
+  publishedAt?: Date | null;
+}
+
+export interface NotificationRecord {
+  id: string;
+  organizationId: string;
+  userId: string;
+  eventId?: string | null;
+  title: string;
+  message: string;
+  category: "WORKFLOW" | "APPROVAL" | "COLLABORATION" | "SYSTEM" | "SECURITY";
+  priority: "LOW" | "NORMAL" | "HIGH" | "URGENT";
+  isRead: boolean;
+  readAt?: Date | null;
+  resourceType?: string | null;
+  resourceId?: string | null;
+  linkUrl?: string | null;
+  createdAt: Date;
+}
+
+export interface NotificationPreferenceRecord {
+  id: string;
+  organizationId: string;
+  userId: string;
+  category: "WORKFLOW" | "APPROVAL" | "COLLABORATION" | "SYSTEM" | "SECURITY";
+  inApp: boolean;
+  email: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface WebhookSubscriptionRecord {
+  id: string;
+  organizationId: string;
+  name: string;
+  url: string;
+  events: string[];
+  enabled: boolean;
+  secret: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface WebhookDeliveryRecord {
+  id: string;
+  organizationId: string;
+  subscriptionId: string;
+  eventId: string;
+  url: string;
+  status:
+    | "PENDING"
+    | "PROCESSING"
+    | "SUCCEEDED"
+    | "RETRY_SCHEDULED"
+    | "FAILED_PERMANENTLY"
+    | "DEAD_LETTERED";
+  attemptCount: number;
+  maxAttempts: number;
+  nextRetryAt?: Date | null;
+  statusCode?: number | null;
+  durationMs?: number | null;
+  error?: string | null;
+  requestPayload: Record<string, unknown>;
+  responseBody?: string | null;
+  createdAt: Date;
+  completedAt?: Date | null;
+}
+
 export class InMemoryDatabase {
   public users = new Map<string, UserRecord>();
   public organizations = new Map<string, OrganizationRecord>();
@@ -382,6 +460,42 @@ export class InMemoryDatabase {
   public comments = new Map<string, WorkflowCommentRecord>();
   public activities: Array<WorkflowActivityRecord> = [];
   public auditLogs: Array<AuditLogRecord> = [];
+  public outboxEvents = new Map<string, OutboxEventRecord>();
+  public notifications = new Map<string, NotificationRecord>();
+  public notificationPreferences = new Map<string, NotificationPreferenceRecord>();
+  public webhookSubscriptions = new Map<string, WebhookSubscriptionRecord>();
+  public webhookDeliveries = new Map<string, WebhookDeliveryRecord>();
+
+  public publishOutboxEvent(event: any): OutboxEventRecord {
+    const outboxRecord: OutboxEventRecord = {
+      id: event.id || `outbox_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      organizationId: event.organizationId,
+      eventType: event.type,
+      payload: event,
+      status: "PENDING",
+      attemptCount: 0,
+      createdAt: new Date(),
+    };
+    this.outboxEvents.set(outboxRecord.id, outboxRecord);
+    return outboxRecord;
+  }
+
+  public createNotification(
+    record: Omit<NotificationRecord, "id" | "createdAt" | "isRead" | "readAt"> & {
+      isRead?: boolean;
+      readAt?: Date | null;
+    },
+  ): NotificationRecord {
+    const notif: NotificationRecord = {
+      id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      createdAt: new Date(),
+      isRead: record.isRead ?? false,
+      readAt: record.readAt ?? null,
+      ...record,
+    };
+    this.notifications.set(notif.id, notif);
+    return notif;
+  }
 
   public recordAudit(record: Omit<AuditLogRecord, "id" | "createdAt">): AuditLogRecord {
     const auditRecord: AuditLogRecord = {
@@ -427,6 +541,11 @@ export class InMemoryDatabase {
     this.templateVersions.clear();
     this.collaborators.clear();
     this.comments.clear();
+    this.outboxEvents.clear();
+    this.notifications.clear();
+    this.notificationPreferences.clear();
+    this.webhookSubscriptions.clear();
+    this.webhookDeliveries.clear();
     this.activities = [];
     this.auditLogs = [];
   }

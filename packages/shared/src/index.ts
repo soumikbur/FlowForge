@@ -41,7 +41,9 @@ export type Permission =
   | "connections:write"
   | "templates:read"
   | "templates:write"
-  | "templates:publish";
+  | "templates:publish"
+  | "notifications:read"
+  | "notifications:write";
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   OWNER: [
@@ -80,6 +82,8 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "templates:read",
     "templates:write",
     "templates:publish",
+    "notifications:read",
+    "notifications:write",
   ],
   ADMIN: [
     "org:read",
@@ -114,6 +118,8 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "templates:read",
     "templates:write",
     "templates:publish",
+    "notifications:read",
+    "notifications:write",
   ],
   MEMBER: [
     "org:read",
@@ -127,6 +133,8 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "analytics:read",
     "connections:read",
     "templates:read",
+    "notifications:read",
+    "notifications:write",
   ],
   VIEWER: [
     "org:read",
@@ -137,6 +145,8 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "audit:read",
     "connections:read",
     "templates:read",
+    "notifications:read",
+    "notifications:write",
   ],
 };
 
@@ -977,6 +987,174 @@ export const WorkflowActivityResponseSchema = z.object({
   createdAt: z.string().datetime(),
 });
 export type WorkflowActivityResponse = z.infer<typeof WorkflowActivityResponseSchema>;
+
+// ==========================================
+// 15. CANONICAL DOMAIN EVENTS & NOTIFICATIONS
+// ==========================================
+
+export const FlowForgeEventTypeEnum = z.enum([
+  "workflow.execution.started",
+  "workflow.execution.completed",
+  "workflow.execution.failed",
+  "workflow.execution.cancelled",
+  "approval.requested",
+  "approval.decided",
+  "workflow.published",
+  "workflow.ownership_transferred",
+  "workflow.collaborator_added",
+  "workflow.collaborator_removed",
+  "connection.failed",
+  "schedule.execution_failed",
+]);
+export type FlowForgeEventType = z.infer<typeof FlowForgeEventTypeEnum>;
+
+export const FlowForgeEventSchema = z.object({
+  id: z.string(),
+  type: FlowForgeEventTypeEnum,
+  version: z.string().default("1.0"),
+  organizationId: z.string(),
+  actorId: z.string().nullable().optional(),
+  resourceType: z.enum([
+    "workflow",
+    "execution",
+    "approval",
+    "connection",
+    "collaborator",
+    "comment",
+    "system",
+  ]),
+  resourceId: z.string(),
+  createdAt: z.string().datetime(),
+  correlationId: z.string(),
+  causationId: z.string().nullable().optional(),
+  data: z.record(z.unknown()).default({}),
+});
+export type FlowForgeEvent = z.infer<typeof FlowForgeEventSchema>;
+
+export const NotificationCategoryEnum = z.enum([
+  "WORKFLOW",
+  "APPROVAL",
+  "COLLABORATION",
+  "SYSTEM",
+  "SECURITY",
+]);
+export type NotificationCategory = z.infer<typeof NotificationCategoryEnum>;
+
+export const NotificationPriorityEnum = z.enum([
+  "LOW",
+  "NORMAL",
+  "HIGH",
+  "URGENT",
+]);
+export type NotificationPriority = z.infer<typeof NotificationPriorityEnum>;
+
+export const NotificationResponseSchema = z.object({
+  id: z.string(),
+  organizationId: z.string(),
+  userId: z.string(),
+  eventId: z.string().nullable().optional(),
+  title: z.string(),
+  message: z.string(),
+  category: NotificationCategoryEnum,
+  priority: NotificationPriorityEnum,
+  isRead: z.boolean(),
+  readAt: z.string().datetime().nullable().optional(),
+  resourceType: z.string().nullable().optional(),
+  resourceId: z.string().nullable().optional(),
+  linkUrl: z.string().nullable().optional(),
+  createdAt: z.string().datetime(),
+});
+export type NotificationResponse = z.infer<typeof NotificationResponseSchema>;
+
+export const NotificationQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  isRead: z
+    .preprocess((val) => {
+      if (val === "true" || val === true) return true;
+      if (val === "false" || val === false) return false;
+      return undefined;
+    }, z.boolean().optional())
+    .optional(),
+  category: NotificationCategoryEnum.optional(),
+});
+export type NotificationQuery = z.infer<typeof NotificationQuerySchema>;
+
+export const UpdateNotificationReadSchema = z.object({
+  isRead: z.boolean().default(true),
+});
+export type UpdateNotificationReadRequest = z.infer<typeof UpdateNotificationReadSchema>;
+
+export const NotificationPreferenceItemSchema = z.object({
+  category: NotificationCategoryEnum,
+  inApp: z.boolean(),
+  email: z.boolean(),
+});
+export type NotificationPreferenceItem = z.infer<typeof NotificationPreferenceItemSchema>;
+
+export const UpdateNotificationPreferencesSchema = z.object({
+  preferences: z.array(NotificationPreferenceItemSchema),
+});
+export type UpdateNotificationPreferencesRequest = z.infer<typeof UpdateNotificationPreferencesSchema>;
+
+// Outbound Webhook Subscriptions & Delivery
+export const WebhookDeliveryStatusEnum = z.enum([
+  "PENDING",
+  "PROCESSING",
+  "SUCCEEDED",
+  "RETRY_SCHEDULED",
+  "FAILED_PERMANENTLY",
+  "DEAD_LETTERED",
+]);
+export type WebhookDeliveryStatus = z.infer<typeof WebhookDeliveryStatusEnum>;
+
+export const CreateWebhookSubscriptionSchema = z.object({
+  name: z.string().min(1, "Subscription name is required").max(100),
+  url: z.string().url("Valid HTTP(S) URL is required"),
+  events: z.array(z.string()).min(1, "At least one event type or '*' is required"),
+  enabled: z.boolean().default(true),
+  secret: z.string().min(16).max(128).optional(),
+});
+export type CreateWebhookSubscriptionRequest = z.infer<typeof CreateWebhookSubscriptionSchema>;
+
+export const UpdateWebhookSubscriptionSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  url: z.string().url().optional(),
+  events: z.array(z.string()).min(1).optional(),
+  enabled: z.boolean().optional(),
+});
+export type UpdateWebhookSubscriptionRequest = z.infer<typeof UpdateWebhookSubscriptionSchema>;
+
+export const WebhookSubscriptionResponseSchema = z.object({
+  id: z.string(),
+  organizationId: z.string(),
+  name: z.string(),
+  url: z.string(),
+  events: z.array(z.string()),
+  enabled: z.boolean(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+export type WebhookSubscriptionResponse = z.infer<typeof WebhookSubscriptionResponseSchema>;
+
+export const WebhookDeliveryResponseSchema = z.object({
+  id: z.string(),
+  organizationId: z.string(),
+  subscriptionId: z.string(),
+  eventId: z.string(),
+  url: z.string(),
+  status: WebhookDeliveryStatusEnum,
+  attemptCount: z.number(),
+  maxAttempts: z.number(),
+  nextRetryAt: z.string().datetime().nullable().optional(),
+  statusCode: z.number().nullable().optional(),
+  durationMs: z.number().nullable().optional(),
+  error: z.string().nullable().optional(),
+  createdAt: z.string().datetime(),
+  completedAt: z.string().datetime().nullable().optional(),
+});
+export type WebhookDeliveryResponse = z.infer<typeof WebhookDeliveryResponseSchema>;
+
 
 
 

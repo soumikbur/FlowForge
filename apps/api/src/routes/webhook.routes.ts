@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import crypto from "crypto";
 import {
   CreateWebhookConfigSchema,
@@ -23,7 +23,11 @@ export const webhookRouter = Router();
 // ==========================================
 // 1. INBOUND WEBHOOK INGESTION (Unauthenticated by Session, Authenticated by Signature)
 // ==========================================
-const handleInboundWebhook = async (req: Request, res: Response) => {
+const handleInboundWebhook = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   const targetId = req.params.id || req.params.workflowId;
 
   // 1. Check if targetId references a registered WebhookConfig
@@ -33,6 +37,12 @@ const handleInboundWebhook = async (req: Request, res: Response) => {
     : apiStore.workflows.get(targetId);
 
   if (!workflow || workflow.deletedAt) {
+    if (
+      req.params.workflowId === "subscriptions" ||
+      req.params.workflowId === "deliveries"
+    ) {
+      return next();
+    }
     res.status(404).json({
       success: false,
       data: null,

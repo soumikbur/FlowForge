@@ -8,6 +8,7 @@ import { resolveNextNodes } from "@flowforge/workflow-engine";
 import { apiStore } from "../store.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
+import { publishDomainEvent } from "../services/event-delivery.service.js";
 
 export const approvalRouter = Router();
 
@@ -328,6 +329,20 @@ approvalRouter.post(
         executionId: approval.executionId,
       },
       ipAddress: req.ip,
+    });
+
+    publishDomainEvent(apiStore, {
+      type: "approval.decided",
+      organizationId: req.organizationId!,
+      resourceType: "approval",
+      resourceId: approval.id,
+      actorId: req.user?.id,
+      data: {
+        decision,
+        status: approval.status,
+        comment,
+        executionId: approval.executionId,
+      },
     });
 
     res.json({

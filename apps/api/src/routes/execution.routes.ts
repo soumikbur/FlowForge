@@ -4,6 +4,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { canTransition } from "@flowforge/workflow-engine";
 import { RetryExecutionSchema } from "@flowforge/shared";
+import { publishDomainEvent } from "../services/event-delivery.service.js";
 
 export const executionRouter = Router();
 
@@ -212,6 +213,19 @@ executionRouter.post(
       resourceId: execution.id,
       metadata: { reason },
       ipAddress: req.ip,
+    });
+
+    publishDomainEvent(apiStore, {
+      type: "workflow.execution.cancelled",
+      organizationId: req.organizationId!,
+      resourceType: "execution",
+      resourceId: execution.id,
+      actorId: req.user?.id,
+      data: {
+        workflowId: execution.workflowId,
+        executionId: execution.id,
+        reason,
+      },
     });
 
     res.json({

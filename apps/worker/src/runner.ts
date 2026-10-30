@@ -17,6 +17,7 @@ import {
   defaultConnectorRegistry,
   redactDeep,
   redactErrorMessage,
+  publishDomainEvent,
 } from "@flowforge/integrations";
 import {
   InMemoryDatabase,
@@ -907,6 +908,20 @@ export class WorkflowExecutionRunner {
             execution.updatedAt = new Date();
             this.db.executions.set(execution.id, execution);
             this.activeExecutions.delete(executionId);
+
+            publishDomainEvent(this.db, {
+              type: "workflow.execution.failed",
+              organizationId: execution.organizationId,
+              resourceType: "execution",
+              resourceId: execution.id,
+              actorId: (execution.contextData?.userId as string) || undefined,
+              data: {
+                workflowId: execution.workflowId,
+                executionId: execution.id,
+                error: err.message,
+              },
+            });
+
             return execution;
           }
         }
@@ -945,6 +960,21 @@ export class WorkflowExecutionRunner {
             execution.updatedAt = new Date();
             this.db.executions.set(execution.id, execution);
             this.activeExecutions.delete(executionId);
+
+            publishDomainEvent(this.db, {
+              type: "approval.requested",
+              organizationId: execution.organizationId,
+              resourceType: "approval",
+              resourceId: approvalId,
+              actorId: (execution.contextData?.userId as string) || undefined,
+              data: {
+                approvalId,
+                executionId: execution.id,
+                title: approval.title,
+                assignedUserId: approval.assignedUserId,
+              },
+            });
+
             return execution;
           }
 
@@ -1019,6 +1049,19 @@ export class WorkflowExecutionRunner {
           execution.updatedAt = new Date();
           this.db.executions.set(execution.id, execution);
           this.activeExecutions.delete(executionId);
+
+          publishDomainEvent(this.db, {
+            type: "workflow.execution.completed",
+            organizationId: execution.organizationId,
+            resourceType: "execution",
+            resourceId: execution.id,
+            actorId: (execution.contextData?.userId as string) || undefined,
+            data: {
+              workflowId: execution.workflowId,
+              executionId: execution.id,
+            },
+          });
+
           return execution;
         }
 
@@ -1033,6 +1076,19 @@ export class WorkflowExecutionRunner {
           message: "Max workflow execution step limit reached (100).",
         };
         this.db.executions.set(execution.id, execution);
+
+        publishDomainEvent(this.db, {
+          type: "workflow.execution.failed",
+          organizationId: execution.organizationId,
+          resourceType: "execution",
+          resourceId: execution.id,
+          actorId: (execution.contextData?.userId as string) || undefined,
+          data: {
+            workflowId: execution.workflowId,
+            executionId: execution.id,
+            error: "Max workflow execution step limit reached (100).",
+          },
+        });
       }
     } finally {
       this.activeExecutions.delete(executionId);

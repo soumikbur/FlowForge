@@ -23,6 +23,7 @@ import {
   WorkflowDeploymentRecord,
 } from "../store.js";
 import { requireAuth } from "../middleware/auth.js";
+import { publishDomainEvent } from "../services/event-delivery.service.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { resolveWorkflowAccess } from "../middleware/workflow-access.js";
 import { collaborationRouter } from "./collaboration.routes.js";
@@ -622,6 +623,19 @@ workflowRouter.post(
       userId: req.user?.id,
       type: "WORKFLOW_PUBLISHED",
       metadata: {
+        versionNumber: nextVersionNumber,
+        versionId,
+        contentHash,
+      },
+    });
+
+    publishDomainEvent(apiStore, {
+      type: "workflow.published",
+      organizationId: workflow.organizationId,
+      resourceType: "workflow",
+      resourceId: workflow.id,
+      actorId: req.user?.id,
+      data: {
         versionNumber: nextVersionNumber,
         versionId,
         contentHash,

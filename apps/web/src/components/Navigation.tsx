@@ -13,6 +13,7 @@ import {
   Shield,
   BookOpen,
 } from "lucide-react";
+import { NotificationBell } from "./NotificationBell";
 
 export function Navigation() {
   const pathname = usePathname();
@@ -64,7 +65,8 @@ export function Navigation() {
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <NotificationBell />
             <span className="text-xs text-slate-400 bg-slate-800 px-2 py-1 rounded">
               Acme Operations
             </span>

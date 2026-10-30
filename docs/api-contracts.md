@@ -481,5 +481,72 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
   - **Permissions**: Organization member. Cross-org access rejected with 403 `FORBIDDEN`.
   - **Response**: Organization-wide activity feed across all workflows with event type filtering.
 
+---
+
+## 15. Enterprise Notifications and Outbound Webhooks API
+
+### 15.1 In-App Notification Center
+- `GET /api/v1/notifications`:
+  - **Permissions**: `notifications:read`
+  - **Query Parameters**: `isRead?: boolean`, `category?: NotificationCategory`, `limit?: number`, `offset?: number`
+  - **Response**: Paginated list of user notifications scoped strictly to `req.user.id` and `req.organizationId`.
+- `GET /api/v1/notifications/unread-count`:
+  - **Permissions**: `notifications:read`
+  - **Response**: `{ success: true, data: { unreadCount: number } }`
+- `PATCH /api/v1/notifications/:id/read`:
+  - **Permissions**: `notifications:write`
+  - **Body**: `{ isRead: boolean }`
+  - **Response**: Updated notification record with `isRead` and `readAt` timestamp. Cross-user/cross-tenant access rejected with 404.
+- `POST /api/v1/notifications/read-all`:
+  - **Permissions**: `notifications:write`
+  - **Response**: `{ success: true, data: { markedReadCount: number } }`
+- `DELETE /api/v1/notifications/:id`:
+  - **Permissions**: `notifications:write`
+  - **Response**: 200 OK. Cross-user access rejected with 404.
+
+### 15.2 Notification Channel Preferences
+- `GET /api/v1/notifications/preferences`:
+  - **Permissions**: `notifications:read`
+  - **Response**: Array of category preferences with `inApp: boolean` and `email: boolean`. Defaults applied for unconfigured categories.
+- `PATCH /api/v1/notifications/preferences`:
+  - **Permissions**: `notifications:write`
+  - **Body**: `{ preferences: Array<{ category: NotificationCategory, inApp: boolean, email: boolean }> }`
+  - **Response**: Updated preference list. Subsequent domain event dispatches respect channel settings.
+
+### 15.3 Outbound Webhook Subscriptions
+- `GET /api/v1/webhooks/subscriptions`:
+  - **Permissions**: `webhook:read`
+  - **Response**: List of organization webhook subscriptions with masked/omitted secrets.
+- `POST /api/v1/webhooks/subscriptions`:
+  - **Permissions**: `webhook:write`
+  - **Body**: `{ name: string, url: string, events: string[], secret?: string }`
+  - **Security**: SSRF protection blocks private, loopback, and metadata destinations with 400 `SSRF_BLOCKED_DESTINATION`.
+  - **Response**: 201 Created with generated `whsec_` secret revealed once.
+- `GET /api/v1/webhooks/subscriptions/:id`:
+  - **Permissions**: `webhook:read`
+  - **Response**: Subscription details (secret masked).
+- `PATCH /api/v1/webhooks/subscriptions/:id`:
+  - **Permissions**: `webhook:write`
+  - **Body**: `{ name?: string, url?: string, events?: string[], enabled?: boolean }`
+  - **Response**: Updated subscription details.
+- `POST /api/v1/webhooks/subscriptions/:id/rotate-secret`:
+  - **Permissions**: `webhook:write`
+  - **Response**: Generates new `whsec_` HMAC secret and returns `{ subscriptionId, secret, newSecret, updatedAt }`.
+- `DELETE /api/v1/webhooks/subscriptions/:id`:
+  - **Permissions**: `webhook:write`
+  - **Response**: 200 OK.
+- `GET /api/v1/webhooks/subscriptions/:id/deliveries`:
+  - **Permissions**: `webhook:read`
+  - **Response**: Delivery log history with status, duration, response codes, and attempt counts.
+- `POST /api/v1/webhooks/deliveries/:id/retry`:
+  - **Permissions**: `webhook:write`
+  - **Response**: Replays dead-lettered or failed delivery immediately with new timestamp and signature.
+
+### 15.4 Operational Delivery Metrics
+- `GET /api/v1/notifications/metrics`:
+  - **Permissions**: `notifications:read`
+  - **Response**: `{ pendingOutboxCount: number, deliveries: { total, succeeded, failedPermanently, retryScheduled, deadLettered, pending } }`
+
+
 
 

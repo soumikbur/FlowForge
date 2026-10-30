@@ -402,4 +402,71 @@ flowchart TD
 1. **Optimistic Concurrency Control**: Draft saves accept `expectedRevision`. If another collaborator saves an update concurrently, the conflicting save is rejected with a 409 `DRAFT_CONFLICT` containing `currentRevision`, `expectedRevision`, and `lastUpdatedById`.
 2. **Chronological Activity Feeds**: All lifecycle and collaboration events (`WORKFLOW_CREATED`, `DRAFT_UPDATED`, `WORKFLOW_PUBLISHED`, `OWNERSHIP_TRANSFERRED`, `COLLABORATOR_ADDED`, `COLLABORATOR_REMOVED`, `COLLABORATOR_ROLE_UPDATED`, `COMMENT_ADDED`, `COMMENT_RESOLVED`, `COMMENT_DELETED`) are durably recorded in `WorkflowActivity` and surfaced at both workflow and organization levels.
 
+---
+
+## 12. Notification & Event Delivery Architecture
+
+```mermaid
+flowchart TD
+    subgraph DomainEvents["Domain Events Engine"]
+        DomainAction["Workflow / Approval / System Action"] --> PublishEvent["publishDomainEvent()"]
+        PublishEvent --> OutboxRecord[("OutboxEvent (PENDING)")]
+    end
+
+    subgraph OutboxDispatcher["Transactional Outbox Dispatcher"]
+        OutboxRecord --> Dispatcher["dispatchOutboxEvent()"]
+        Dispatcher --> OutboxPublished[("OutboxEvent (PUBLISHED)")]
+    end
+
+    subgraph RecipientEngine["Recipient Resolution & Preferences"]
+        Dispatcher --> ResolveRecipients["resolveEventRecipients()"]
+        ResolveRecipients --> SelfSuppression["Filter Actor (Self-Action Suppression)"]
+        SelfSuppression --> TenantEnclosure["Validate Org Membership"]
+        TenantEnclosure --> CheckPreferences["Evaluate User Preferences"]
+    end
+
+    subgraph InternalChannels["Internal Channels"]
+        CheckPreferences --> InApp["createNotification() -> InApp Center"]
+        CheckPreferences --> EmailChannel["defaultEmailService.sendEmail()"]
+    end
+
+    subgraph OutboundWebhooks["Outbound Webhook Delivery"]
+        Dispatcher --> MatchSubs["Find Matching Subscriptions"]
+        MatchSubs --> SSRFGuard{"isPrivateOrBlockedDestination()"}
+        SSRFGuard -- Blocked --> FailedPerm["Status: FAILED_PERMANENTLY"]
+        SSRFGuard -- Safe --> SignPayload["HMAC-SHA256 (t=...,v1=...)"]
+        SignPayload --> HTTPDispatch["executeSafeHttpRequest()"]
+        HTTPDispatch -- "2xx" --> Succeeded["Status: SUCCEEDED"]
+        HTTPDispatch -- "4xx (non-429)" --> FailedPerm
+        HTTPDispatch -- "5xx / Timeout" --> BackoffRetry["Exponential Backoff Retry"]
+        BackoffRetry -- Attempts Exhausted --> DeadLetter["Status: DEAD_LETTERED"]
+        DeadLetter --> ManualReplay["POST /deliveries/:id/retry"]
+    end
+```
+
+### 12.1 Canonical Event Contract
+- All platform actions emit strongly-typed canonical events conforming to `FlowForgeEventSchema` (`v1.0`).
+- Every event carries a UUID `id`, `type`, `organizationId`, `actorId`, `resourceType`, `resourceId`, ISO `createdAt`, and a distributed tracing `correlationId`.
+- Stable types include `workflow.execution.*`, `approval.*`, `workflow.published`, `workflow.collaborator_*`, and `workflow.ownership_transferred`.
+
+### 12.2 Transactional Outbox Pattern
+- Events are written synchronously to `outbox_events` within the originating transaction with `status: PENDING`.
+- An asynchronous dispatcher (`dispatchOutboxEvent`) reads pending outbox entries, resolves recipients, fans out internal notifications and outbound webhooks, and transitions the outbox entry to `status: PUBLISHED` with `publishedAt`.
+- This ensures at-least-once delivery semantics without holding open web request transactions or dropping notifications on worker failure.
+
+### 12.3 Recipient Resolution & Self-Action Suppression
+- Rules deterministically map event types to user roles:
+  - `workflow.execution.failed`: Resolves workflow owner, collaborators (`MAINTAINER`, `EDITOR`), and organization administrators.
+  - `approval.requested`: Resolves assigned approver, or broadcasts to organization admins if unassigned.
+  - `workflow.collaborator_added`: Resolves targeted collaborator.
+- **Self-Action Suppression**: The user who triggered the event (`actorId`) is excluded from recipient lists to prevent self-notification spam.
+- **Multi-Tenant Boundary**: All resolved recipients are validated against organization memberships (`OrganizationMember`), preventing cross-tenant information disclosure.
+
+### 12.4 Secure Outbound Webhooks & SSRF Defense
+- **SSRF Defense**: Subscriptions and deliveries validate destinations using `isPrivateOrBlockedDestination` and deep DNS checks, blocking loopback (`127.0.0.1`, `localhost`), link-local (`169.254.169.254`), private RFC1918 subnets, and non-HTTP(S) schemes. Blocked attempts fail immediately without retry.
+- **HMAC Signatures**: Every outbound request carries `X-FlowForge-Signature: t=${timestamp},v1=${signature}`, computed via HMAC-SHA256 over `${timestamp}.${rawJsonPayload}`.
+- **Secret Lifecycle**: Webhook secrets are prefixed with `whsec_`, masked in all list/read endpoints, and support zero-downtime rotation via `POST /subscriptions/:id/rotate-secret`.
+- **Delivery State Machine**: Tracks status (`PENDING` -> `PROCESSING` -> `SUCCEEDED` / `FAILED_PERMANENTLY` / `RETRY_SCHEDULED` / `DEAD_LETTERED`). Retries use bounded exponential backoff with jitter up to 5 attempts, with manual replay support via `POST /deliveries/:id/retry`.
+
+
 

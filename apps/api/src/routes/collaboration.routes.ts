@@ -16,6 +16,7 @@ import {
 } from "../store.js";
 import { requireAuth } from "../middleware/auth.js";
 import { resolveWorkflowAccess } from "../middleware/workflow-access.js";
+import { publishDomainEvent } from "../services/event-delivery.service.js";
 
 // Router with mergeParams: true to inherit :id from parent router
 export const collaborationRouter = Router({ mergeParams: true });
@@ -226,6 +227,19 @@ collaborationRouter.post("/collaborators", (req: Request, res: Response) => {
     metadata: { collaboratorUserId: userId, role, userEmail: targetUser.email },
   });
 
+  publishDomainEvent(apiStore, {
+    type: "workflow.collaborator_added",
+    organizationId: workflow.organizationId,
+    resourceType: "workflow",
+    resourceId: workflow.id,
+    actorId: req.user?.id,
+    data: {
+      collaboratorUserId: userId,
+      role,
+      userEmail: targetUser.email,
+    },
+  });
+
   res.status(201).json({
     success: true,
     data: {
@@ -388,6 +402,17 @@ collaborationRouter.delete("/collaborators/:userId", (req: Request, res: Respons
     metadata: { removedUserId: userId },
   });
 
+  publishDomainEvent(apiStore, {
+    type: "workflow.collaborator_removed",
+    organizationId: workflow.organizationId,
+    resourceType: "workflow",
+    resourceId: workflow.id,
+    actorId: req.user?.id,
+    data: {
+      removedUserId: userId,
+    },
+  });
+
   res.json({
     success: true,
     data: { message: "Collaborator removed successfully." },
@@ -504,6 +529,18 @@ collaborationRouter.post("/transfer-ownership", (req: Request, res: Response) =>
     userId: req.user?.id,
     type: "OWNERSHIP_TRANSFERRED",
     metadata: { previousOwnerId, newOwnerId },
+  });
+
+  publishDomainEvent(apiStore, {
+    type: "workflow.ownership_transferred",
+    organizationId: workflow.organizationId,
+    resourceType: "workflow",
+    resourceId: workflow.id,
+    actorId: req.user?.id,
+    data: {
+      previousOwnerId,
+      newOwnerId,
+    },
   });
 
   res.json({

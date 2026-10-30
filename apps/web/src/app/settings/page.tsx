@@ -19,9 +19,21 @@ import {
   Plus,
   Lock,
   Plug,
+  Bell,
+  Radio,
+  Send,
 } from "lucide-react";
 
-type TabType = "general" | "members" | "invitations" | "api-keys" | "integrations" | "audit" | "retention";
+type TabType =
+  | "general"
+  | "members"
+  | "invitations"
+  | "api-keys"
+  | "integrations"
+  | "notifications"
+  | "webhooks"
+  | "audit"
+  | "retention";
 
 interface Member {
   id: string;
@@ -162,6 +174,25 @@ export default function SettingsPage() {
   const [testingConnectionId, setTestingConnectionId] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string; latencyMs?: number; errorCategory?: string } | null>(null);
 
+  // Notification Preferences State
+  const [notificationPrefs, setNotificationPrefs] = useState<Array<{ category: string; inApp: boolean; email: boolean }>>([
+    { category: "WORKFLOW", inApp: true, email: false },
+    { category: "APPROVAL", inApp: true, email: true },
+    { category: "COLLABORATION", inApp: true, email: false },
+    { category: "SYSTEM", inApp: true, email: true },
+    { category: "SECURITY", inApp: true, email: true },
+  ]);
+
+  // Outbound Webhooks State
+  const [webhookSubs, setWebhookSubs] = useState<any[]>([]);
+  const [selectedSubDeliveries, setSelectedSubDeliveries] = useState<any[]>([]);
+  const [selectedSubId, setSelectedSubId] = useState<string | null>(null);
+  const [showAddWebhookModal, setShowAddWebhookModal] = useState(false);
+  const [newWebhookName, setNewWebhookName] = useState("");
+  const [newWebhookUrl, setNewWebhookUrl] = useState("");
+  const [newWebhookEvents, setNewWebhookEvents] = useState("*");
+  const [revealedWebhookSecret, setRevealedWebhookSecret] = useState<string | null>(null);
+
   useEffect(() => {
     fetchInitialData();
   }, []);
@@ -236,6 +267,24 @@ export default function SettingsPage() {
       const connsRes = await fetch(`/api/v1/organizations/${targetOrgId}/connections`);
       if (connsRes.ok) {
         setConnections((await connsRes.json()).data || []);
+      }
+
+      // Fetch Notification Preferences
+      const prefsRes = await fetch("/api/v1/notifications/preferences");
+      if (prefsRes.ok) {
+        const pData = await prefsRes.json();
+        if (pData.success && Array.isArray(pData.data)) {
+          setNotificationPrefs(pData.data);
+        }
+      }
+
+      // Fetch Webhook Subscriptions
+      const subsRes = await fetch("/api/v1/webhooks/subscriptions");
+      if (subsRes.ok) {
+        const subData = await subsRes.json();
+        if (subData.success && Array.isArray(subData.data)) {
+          setWebhookSubs(subData.data);
+        }
       }
     } catch (err) {
       console.error("Failed to load org data", err);
@@ -577,6 +626,120 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleSaveNotificationPrefs(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      const res = await fetch("/api/v1/notifications/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preferences: notificationPrefs }),
+      });
+      if (res.ok) {
+        setStatusMessage("Notification preferences saved.");
+        setTimeout(() => setStatusMessage(null), 3000);
+      } else {
+        alert("Failed to save notification preferences.");
+      }
+    } catch {
+      alert("Error saving notification preferences.");
+    }
+  }
+
+  async function handleCreateWebhook(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      const events = newWebhookEvents.split(",").map((s) => s.trim()).filter(Boolean);
+      const res = await fetch("/api/v1/webhooks/subscriptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newWebhookName,
+          url: newWebhookUrl,
+          events: events.length > 0 ? events : ["*"],
+          enabled: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error?.message || "Failed to create webhook subscription");
+        return;
+      }
+      setRevealedWebhookSecret(data.data.secret);
+      setShowAddWebhookModal(false);
+      setNewWebhookName("");
+      setNewWebhookUrl("");
+      setNewWebhookEvents("*");
+      await loadOrgData(orgId);
+    } catch {
+      alert("Error creating webhook subscription.");
+    }
+  }
+
+  async function handleRotateWebhookSecret(id: string) {
+    if (!confirm("Rotating the signing secret will invalidate the previous secret immediately. Continue?")) return;
+    try {
+      const res = await fetch(`/api/v1/webhooks/subscriptions/${id}/rotate-secret`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setRevealedWebhookSecret(data.data.newSecret);
+      } else {
+        alert(data.error?.message || "Failed to rotate secret");
+      }
+    } catch {
+      alert("Error rotating secret.");
+    }
+  }
+
+  async function handleDeleteWebhook(id: string) {
+    if (!confirm("Are you sure you want to delete this webhook destination?")) return;
+    try {
+      const res = await fetch(`/api/v1/webhooks/subscriptions/${id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setStatusMessage("Webhook subscription deleted.");
+        await loadOrgData(orgId);
+      }
+    } catch {
+      alert("Error deleting webhook.");
+    }
+  }
+
+  async function handleLoadDeliveries(id: string) {
+    setSelectedSubId(selectedSubId === id ? null : id);
+    if (selectedSubId === id) return;
+    try {
+      const res = await fetch(`/api/v1/webhooks/subscriptions/${id}/deliveries`);
+      if (res.ok) {
+        const data = await res.json();
+        setSelectedSubDeliveries(data.data || []);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleRetryDelivery(deliveryId: string) {
+    try {
+      const res = await fetch(`/api/v1/webhooks/deliveries/${deliveryId}/retry`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setStatusMessage(`Delivery replayed with outcome: ${data.data.status}`);
+        if (selectedSubId) {
+          handleLoadDeliveries(selectedSubId);
+        }
+      } else {
+        alert(data.error?.message || "Failed to replay delivery");
+      }
+    } catch {
+      alert("Error replaying delivery.");
+    }
+  }
+
   return (
     <div className="flex-1 bg-slate-50 p-6 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -652,6 +815,8 @@ export default function SettingsPage() {
             { id: "invitations", label: "Invitations", icon: Mail },
             { id: "api-keys", label: "API Credentials", icon: Key },
             { id: "integrations", label: "Integrations & Connectors", icon: Plug },
+            { id: "notifications", label: "Notifications", icon: Bell },
+            { id: "webhooks", label: "Outbound Webhooks", icon: Radio },
             { id: "audit", label: "Security Audit Trail", icon: FileText },
             { id: "retention", label: "Data Retention", icon: Database },
           ].map((tab) => {
@@ -1697,6 +1862,311 @@ export default function SettingsPage() {
                       Save Connection
                     </button>
                   </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* TAB: NOTIFICATIONS */}
+        {activeTab === "notifications" && (
+          <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm max-w-4xl space-y-6">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900 mb-1">Notification Preferences</h2>
+              <p className="text-sm text-slate-500">
+                Choose how and when you receive operational alerts, approval decisions, and workflow updates.
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveNotificationPrefs} className="space-y-4">
+              <div className="border border-slate-200 rounded-lg overflow-hidden divide-y divide-slate-200">
+                <div className="grid grid-cols-12 bg-slate-50 p-3 text-xs font-semibold text-slate-600">
+                  <div className="col-span-6">Category</div>
+                  <div className="col-span-3 text-center">In-App Notification</div>
+                  <div className="col-span-3 text-center">Email Dispatch</div>
+                </div>
+
+                {notificationPrefs.map((pref, idx) => (
+                  <div key={pref.category} className="grid grid-cols-12 p-3 text-xs items-center hover:bg-slate-50">
+                    <div className="col-span-6">
+                      <span className="font-semibold text-slate-900 block">{pref.category}</span>
+                      <span className="text-slate-400 text-[11px]">
+                        {pref.category === "WORKFLOW" && "Execution failures, success summaries, and publishing updates."}
+                        {pref.category === "APPROVAL" && "Approval decisions assigned to you or decided by peers."}
+                        {pref.category === "COLLABORATION" && "Team invitations, role updates, and ownership assignments."}
+                        {pref.category === "SYSTEM" && "Integration connection failures and scheduled execution errors."}
+                        {pref.category === "SECURITY" && "Credential rotations, key revocations, and IP boundary alerts."}
+                      </span>
+                    </div>
+
+                    <div className="col-span-3 flex justify-center">
+                      <input
+                        type="checkbox"
+                        checked={pref.inApp}
+                        onChange={(e) => {
+                          const updated = [...notificationPrefs];
+                          updated[idx].inApp = e.target.checked;
+                          setNotificationPrefs(updated);
+                        }}
+                        className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                      />
+                    </div>
+
+                    <div className="col-span-3 flex justify-center">
+                      <input
+                        type="checkbox"
+                        checked={pref.email}
+                        onChange={(e) => {
+                          const updated = [...notificationPrefs];
+                          updated[idx].email = e.target.checked;
+                          setNotificationPrefs(updated);
+                        }}
+                        className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-md shadow-xs"
+                >
+                  Save Notification Preferences
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* TAB: OUTBOUND WEBHOOKS */}
+        {activeTab === "webhooks" && (
+          <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm max-w-5xl space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900 mb-1">Outbound Webhooks</h2>
+                <p className="text-sm text-slate-500">
+                  Deliver signed domain events directly to external endpoints with SSRF protections and automated retry.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowAddWebhookModal(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-md shadow-xs"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Webhook</span>
+              </button>
+            </div>
+
+            {revealedWebhookSecret && (
+              <div className="p-4 bg-amber-50 border border-amber-300 rounded-lg text-amber-900 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 font-semibold text-xs">
+                    <AlertTriangle className="w-4 h-4 text-amber-600" />
+                    <span>Webhook Signing Secret (Copy now! It will not be shown again):</span>
+                  </div>
+                  <button
+                    onClick={() => setRevealedWebhookSecret(null)}
+                    className="text-xs text-amber-700 hover:text-amber-900 underline"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <code className="bg-white px-3 py-1.5 border border-amber-200 rounded text-xs font-mono select-all flex-1 text-slate-900">
+                    {revealedWebhookSecret}
+                  </code>
+                </div>
+              </div>
+            )}
+
+            <div className="border border-slate-200 rounded-lg overflow-hidden divide-y divide-slate-200">
+              {webhookSubs.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-400">
+                  No outbound webhook destinations configured yet.
+                </div>
+              ) : (
+                webhookSubs.map((sub) => (
+                  <div key={sub.id} className="p-4 space-y-3 hover:bg-slate-50/50">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm text-slate-900">{sub.name}</span>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                              sub.enabled
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-slate-100 text-slate-600"
+                            }`}
+                          >
+                            {sub.enabled ? "Active" : "Disabled"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 font-mono mt-0.5">{sub.url}</p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleLoadDeliveries(sub.id)}
+                          className="px-2.5 py-1 text-xs border border-slate-300 rounded hover:bg-slate-100 font-medium text-slate-700"
+                        >
+                          {selectedSubId === sub.id ? "Hide Logs" : "Delivery Logs"}
+                        </button>
+                        <button
+                          onClick={() => handleRotateWebhookSecret(sub.id)}
+                          className="px-2.5 py-1 text-xs border border-slate-300 rounded hover:bg-slate-100 font-medium text-slate-700"
+                        >
+                          Rotate Secret
+                        </button>
+                        <button
+                          onClick={() => handleDeleteWebhook(sub.id)}
+                          className="p-1 text-slate-400 hover:text-red-600"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[11px] text-slate-400">Events:</span>
+                      {sub.events.map((evt: string) => (
+                        <span
+                          key={evt}
+                          className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-mono"
+                        >
+                          {evt}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Delivery logs panel */}
+                    {selectedSubId === sub.id && (
+                      <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+                        <h4 className="text-xs font-semibold text-slate-700">Recent Delivery Attempts</h4>
+                        {selectedSubDeliveries.length === 0 ? (
+                          <p className="text-xs text-slate-400">No delivery attempts recorded yet.</p>
+                        ) : (
+                          <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                            {selectedSubDeliveries.map((del) => (
+                              <div
+                                key={del.id}
+                                className="p-2 bg-white border border-slate-200 rounded flex items-center justify-between text-xs"
+                              >
+                                <div className="space-y-0.5">
+                                  <div className="flex items-center gap-2">
+                                    <span
+                                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                        del.status === "SUCCEEDED"
+                                          ? "bg-emerald-100 text-emerald-800"
+                                          : del.status === "FAILED_PERMANENTLY" || del.status === "DEAD_LETTERED"
+                                            ? "bg-red-100 text-red-800"
+                                            : "bg-amber-100 text-amber-800"
+                                      }`}
+                                    >
+                                      {del.status}
+                                    </span>
+                                    {del.statusCode && (
+                                      <span className="text-slate-500 font-mono">HTTP {del.statusCode}</span>
+                                    )}
+                                    {del.durationMs && (
+                                      <span className="text-slate-400 text-[10px]">{del.durationMs}ms</span>
+                                    )}
+                                  </div>
+                                  {del.error && (
+                                    <p className="text-[11px] text-red-600 font-mono">{del.error}</p>
+                                  )}
+                                  <span className="text-[10px] text-slate-400">
+                                    {new Date(del.createdAt).toLocaleString()} (Attempt {del.attemptCount}/{del.maxAttempts})
+                                  </span>
+                                </div>
+
+                                {(del.status === "FAILED_PERMANENTLY" || del.status === "DEAD_LETTERED") && (
+                                  <button
+                                    onClick={() => handleRetryDelivery(del.id)}
+                                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] rounded"
+                                  >
+                                    Replay
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: ADD WEBHOOK SUBSCRIPTION */}
+        {showAddWebhookModal && (
+          <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl space-y-4">
+              <h3 className="text-lg font-bold text-slate-900">Add Outbound Webhook</h3>
+              <form onSubmit={handleCreateWebhook} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Destination Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Datadog / Production Webhook"
+                    value={newWebhookName}
+                    onChange={(e) => setNewWebhookName(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Destination URL (HTTPS required in prod)
+                  </label>
+                  <input
+                    type="url"
+                    required
+                    placeholder="https://api.yourdomain.com/flowforge-events"
+                    value={newWebhookUrl}
+                    onChange={(e) => setNewWebhookUrl(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded text-xs font-mono"
+                  />
+                  <span className="text-[10px] text-slate-400 block mt-0.5">
+                    Internal IPs and loopback destinations are strictly blocked by SSRF defense.
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Subscribed Events (comma-separated or &apos;*&apos;)
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="* or workflow.execution.failed, approval.requested"
+                    value={newWebhookEvents}
+                    onChange={(e) => setNewWebhookEvents(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded text-xs font-mono"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddWebhookModal(false)}
+                    className="px-3 py-1.5 border border-slate-300 text-slate-700 text-xs rounded hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded"
+                  >
+                    Create Webhook
+                  </button>
                 </div>
               </form>
             </div>

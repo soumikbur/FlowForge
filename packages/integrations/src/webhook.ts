@@ -81,14 +81,28 @@ export function verifyWebhookSignatureDetailed(
       ? payload.toString("utf8")
       : payload;
 
-    // Support both standard payload and timestamp-prefixed payloads
-    const candidates = [rawPayloadString];
-    if (timestamp !== undefined) {
-      candidates.unshift(`${timestamp}.${rawPayloadString}`);
+    let cleanSignature = signature.replace(/^(sha256=|sha1=)/i, "").trim();
+    let headerTimestamp = timestamp;
+
+    if (signature.includes("t=") || signature.includes("v1=")) {
+      const parts = signature.split(",");
+      const v1Part = parts.find((p) => p.trim().startsWith("v1="));
+      const tPart = parts.find((p) => p.trim().startsWith("t="));
+      if (v1Part) {
+        cleanSignature = v1Part.trim().slice(3);
+      }
+      if (tPart && headerTimestamp === undefined) {
+        headerTimestamp = Number(tPart.trim().slice(2));
+      }
     }
 
-    const cleanSignature = signature.replace(/^(sha256=|sha1=)/i, "").trim();
     const signatureBuffer = Buffer.from(cleanSignature, "hex");
+
+    // Support both standard payload and timestamp-prefixed payloads
+    const candidates = [rawPayloadString];
+    if (headerTimestamp !== undefined) {
+      candidates.unshift(`${headerTimestamp}.${rawPayloadString}`);
+    }
 
     for (const candidate of candidates) {
       const hmac = crypto.createHmac(algorithm, secret);
@@ -125,4 +139,37 @@ export function verifyWebhookSignature(
   options: WebhookValidationOptions,
 ): boolean {
   return verifyWebhookSignatureDetailed(options).isValid;
+}
+
+/**
+ * Computes an HMAC signature for an outbound webhook payload with timestamp binding.
+ */
+export function signWebhookPayload(
+  secret: string,
+  payload: string | Buffer | Record<string, unknown>,
+  timestamp?: number | string,
+  algorithm: "sha256" | "sha1" = "sha256",
+): { signature: string; headerValue: string; timestamp: number } {
+  const ts =
+    typeof timestamp === "number"
+      ? timestamp
+      : timestamp
+        ? Date.parse(String(timestamp))
+        : Date.now();
+  const rawPayload = Buffer.isBuffer(payload)
+    ? payload.toString("utf8")
+    : typeof payload === "string"
+      ? payload
+      : JSON.stringify(payload);
+
+  const signedContent = `${ts}.${rawPayload}`;
+  const hmac = crypto.createHmac(algorithm, secret);
+  hmac.update(signedContent);
+  const signatureHex = hmac.digest("hex");
+
+  return {
+    signature: signatureHex,
+    headerValue: `t=${ts},v1=${signatureHex}`,
+    timestamp: ts,
+  };
 }
