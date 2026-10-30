@@ -438,60 +438,93 @@ workflowRouter.get(
 );
 
 // ==========================================
-// 10. Trigger workflow execution
+// 10. Trigger / Execute workflow execution
 // ==========================================
+const dispatchExecutionHandler = async (req: any, res: any) => {
+  const workflow = apiStore.workflows.get(req.params.id);
+  if (!workflow || workflow.organizationId !== req.organizationId || workflow.deletedAt) {
+    res.status(404).json({
+      success: false,
+      data: null,
+      error: { code: "NOT_FOUND", message: "Workflow not found." },
+    });
+    return;
+  }
+
+  if (!workflow.publishedVersionId) {
+    res.status(400).json({
+      success: false,
+      data: null,
+      error: {
+        code: "WORKFLOW_NOT_PUBLISHED",
+        message: "Workflow must have a published version before execution.",
+      },
+    });
+    return;
+  }
+
+  // Idempotency check
+  const idempotencyKey =
+    (req.headers["idempotency-key"] as string) ||
+    req.body?.idempotencyKey;
+
+  if (idempotencyKey) {
+    const existing = Array.from(apiStore.executions.values()).find(
+      (e) =>
+        e.organizationId === req.organizationId &&
+        e.workflowId === workflow.id &&
+        e.idempotencyKey === idempotencyKey,
+    );
+
+    if (existing) {
+      res.status(200).json({
+        success: true,
+        data: existing,
+        error: null,
+        meta: { idempotent: true },
+      });
+      return;
+    }
+  }
+
+  const parseResult = TriggerWorkflowSchema.safeParse(req.body);
+  const triggerPayload = parseResult.success ? parseResult.data.payload : {};
+
+  const executionId = `exec_${crypto.randomUUID()}`;
+  const now = new Date();
+
+  const execution: WorkflowExecutionRecord = {
+    id: executionId,
+    organizationId: req.organizationId!,
+    workflowId: workflow.id,
+    workflowVersionId: workflow.publishedVersionId,
+    triggerType: "MANUAL",
+    triggerPayload,
+    idempotencyKey,
+    status: "QUEUED",
+    contextData: { trigger: { payload: triggerPayload, type: "MANUAL" } },
+    retryCount: 0,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  apiStore.executions.set(executionId, execution);
+
+  res.status(202).json({
+    success: true,
+    data: execution,
+    error: null,
+  });
+};
+
 workflowRouter.post(
   "/:id/trigger",
   requirePermission("workflow:execute"),
-  async (req, res) => {
-    const workflow = apiStore.workflows.get(req.params.id);
-    if (!workflow || workflow.organizationId !== req.organizationId || workflow.deletedAt) {
-      res.status(404).json({
-        success: false,
-        data: null,
-        error: { code: "NOT_FOUND", message: "Workflow not found." },
-      });
-      return;
-    }
+  dispatchExecutionHandler,
+);
 
-    if (!workflow.publishedVersionId) {
-      res.status(400).json({
-        success: false,
-        data: null,
-        error: {
-          code: "WORKFLOW_NOT_PUBLISHED",
-          message: "Workflow must have a published version before execution.",
-        },
-      });
-      return;
-    }
-
-    const parseResult = TriggerWorkflowSchema.safeParse(req.body);
-    const triggerPayload = parseResult.success ? parseResult.data.payload : {};
-
-    const executionId = `exec_${crypto.randomUUID()}`;
-    const now = new Date();
-
-    const execution: WorkflowExecutionRecord = {
-      id: executionId,
-      organizationId: req.organizationId!,
-      workflowId: workflow.id,
-      workflowVersionId: workflow.publishedVersionId,
-      triggerType: "MANUAL",
-      triggerPayload,
-      status: "QUEUED",
-      contextData: { trigger: { payload: triggerPayload, type: "MANUAL" } },
-      retryCount: 0,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    apiStore.executions.set(executionId, execution);
-
-    res.status(202).json({
-      success: true,
-      data: execution,
-      error: null,
-    });
-  },
+workflowRouter.post(
+  "/:id/execute",
+  requirePermission("workflow:execute"),
+  dispatchExecutionHandler,
 );

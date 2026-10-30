@@ -190,3 +190,27 @@
 - **REQUIRED TESTS**: `packages/workflow-engine/test/workflow-engine.test.ts`, `packages/workflow-engine/test/workflow-engine-phase4.test.ts`
 - **ACTUAL RESULTS**: All 27 engine tests passing; 118/118 tests passing across the entire repository.
 - **STATUS**: DONE
+
+
+---
+
+### TASK-023: Workflow Execution Runtime, Node Scheduling, Persistence, and Recovery
+
+- **OBJECTIVE**: Implement the production workflow execution runtime coordinating plan validation, graph-driven step dispatch, database persistence (`WorkflowExecutionRecord` and `ExecutionStepRecord`), conditional branching mutual exclusion, retry policies with exponential backoff, background cancellation, and worker crash recovery.
+- **DEPENDENCIES**: TASK-008, TASK-009, TASK-022
+- **ALLOWED FILES**: `apps/worker/src/*`, `apps/api/src/routes/*`, `packages/test-utils/src/*`, `tests/integration/workflow-runtime-execution.test.ts`, `docs/*`
+- **REQUIREMENTS**:
+  1. Runtime coordinator (`WorkflowExecutionRunner`) validating execution plans before start.
+  2. Step attempt tracking and independent persistence (`ExecutionStepRecord.attempt`).
+  3. Exponential backoff and max retry enforcement on transient failures, with immediate termination on non-retryable errors.
+  4. Mutual exclusion on conditional branching: evaluating true branch executes true targets and completely omits false branch nodes.
+  5. Asynchronous cancellation via `POST /api/v1/executions/:id/cancel` and `runner.cancelExecution`, aborting active executions, transitioning status to `CANCELLED`, marking in-flight steps as `SKIPPED`, and preventing terminal `SUCCEEDED` racing.
+  6. Idempotent execution dispatch via `POST /api/v1/workflows/:id/execute` and `/:id/trigger` with `Idempotency-Key` deduplication.
+  7. Worker crash recovery via `runner.recoverInterruptedExecutions()` reconciling orphaned running steps and safely resuming or terminating interrupted executions.
+  8. Step query endpoint `GET /api/v1/executions/:id/steps` returning chronological step timelines.
+  9. Strict tenant isolation across all execution listing, inspection, and cancellation endpoints.
+- **ACCEPTANCE CRITERIA**: 100% test pass rate across new and existing integration test suites; zero TypeScript compilation or lint errors.
+- **REQUIRED TESTS**: `tests/integration/workflow-runtime-execution.test.ts`
+- **VERIFICATION COMMANDS**: `pnpm test; pnpm typecheck; pnpm lint; pnpm build`
+- **ACTUAL RESULTS**: All 20/20 Phase 5 integration tests passing; 138/138 total tests passing across 16 test suites.
+- **STATUS**: DONE

@@ -28,3 +28,5 @@ server.listen(port, () => {
     `[FlowForge Worker] Worker service running and healthy on port ${port}`,
   );
 });
+
+export { WorkflowExecutionRunner };

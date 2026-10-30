@@ -70,6 +70,7 @@ export interface WorkflowExecutionRecord {
   workflowVersionId: string;
   triggerType: "MANUAL" | "WEBHOOK" | "SCHEDULE";
   triggerPayload: Record<string, unknown>;
+  idempotencyKey?: string;
   status:
     | "QUEUED"
     | "RUNNING"

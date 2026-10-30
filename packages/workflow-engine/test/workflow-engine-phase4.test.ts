@@ -364,3 +364,4 @@ describe("Phase 4: Node Handler Contracts & Metadata Registry", () => {
     expect(endMeta?.outputs).toBe(0);
   });
 });
+

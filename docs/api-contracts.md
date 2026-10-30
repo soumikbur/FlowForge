@@ -66,10 +66,12 @@ In case of errors:
 
 ## 4. Workflow Execution Endpoints
 
-- `POST /api/v1/workflows/:id/trigger`: Manually trigger execution of published workflow with payload.
+- `POST /api/v1/workflows/:id/trigger`: Manually trigger execution of published workflow with payload. Supports `Idempotency-Key` header.
+- `POST /api/v1/workflows/:id/execute`: Dispatch execution of published workflow with payload. Supports `Idempotency-Key` header to prevent duplicate execution. Returns HTTP 202 on initial dispatch, HTTP 200 with `{ idempotent: true }` on duplicate key match.
 - `GET /api/v1/executions`: List executions with filtering (`?status=FAILED&workflowId=...`).
 - `GET /api/v1/executions/:id`: Retrieve complete execution record, step results, and timeline.
-- `POST /api/v1/executions/:id/cancel`: Cancel an active or queued execution.
+- `GET /api/v1/executions/:id/steps`: Retrieve ordered step execution timeline with attempt counts and input/output payloads.
+- `POST /api/v1/executions/:id/cancel`: Cancel an active or queued execution with optional `{ reason }`. Transitions state to `CANCELLED`, aborts in-flight handlers, marks running steps as `SKIPPED`, and records cancellation audit entry.
 - `POST /api/v1/executions/:id/retry`: Retry execution from failed step.
 
 ## 5. Approvals Endpoints
