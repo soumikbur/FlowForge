@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from "express";
+import crypto from "crypto";
 import { apiStore } from "../store.js";
 import { Role } from "@flowforge/shared";
+import { ApiKeyRecord } from "@flowforge/test-utils";
 
 declare global {
   namespace Express {
@@ -13,6 +15,9 @@ declare global {
       };
       organizationId?: string;
       role?: Role;
+      isApiKey?: boolean;
+      apiKey?: ApiKeyRecord;
+      apiKeyScopes?: string[];
     }
   }
 }
@@ -22,11 +27,13 @@ export function requireAuth(
   res: Response,
   next: NextFunction,
 ): void {
-  const token =
-    req.cookies?.flowforge_session ||
-    req.headers.authorization?.replace(/^Bearer\s+/i, "");
+  const apiKeyHeader = (req.headers["x-api-key"] as string) || undefined;
+  const authHeader = req.headers.authorization?.replace(/^Bearer\s+/i, "");
+  const sessionCookie = req.cookies?.flowforge_session;
 
-  if (!token) {
+  const rawToken = apiKeyHeader || authHeader || sessionCookie;
+
+  if (!rawToken) {
     res.status(401).json({
       success: false,
       data: null,
@@ -38,9 +45,91 @@ export function requireAuth(
     return;
   }
 
-  // Look up session
-  let session = Array.from(apiStore.sessions.values()).find(
-    (s) => s.token === token,
+  // 1. Check if token is an API Key (starts with "ff_" or passed via x-api-key)
+  if (apiKeyHeader || rawToken.startsWith("ff_")) {
+    const keyHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+    const apiKey = Array.from(apiStore.apiKeys.values()).find(
+      (k) => k.keyHash === keyHash,
+    );
+
+    if (!apiKey) {
+      res.status(401).json({
+        success: false,
+        data: null,
+        error: {
+          code: "INVALID_API_KEY",
+          message: "API key is invalid or unknown.",
+        },
+      });
+      return;
+    }
+
+    if (apiKey.revokedAt) {
+      res.status(401).json({
+        success: false,
+        data: null,
+        error: {
+          code: "REVOKED_API_KEY",
+          message: "API key has been revoked.",
+        },
+      });
+      return;
+    }
+
+    if (apiKey.expiresAt && new Date() > new Date(apiKey.expiresAt)) {
+      res.status(401).json({
+        success: false,
+        data: null,
+        error: {
+          code: "EXPIRED_API_KEY",
+          message: "API key has expired.",
+        },
+      });
+      return;
+    }
+
+    const org = apiStore.organizations.get(apiKey.organizationId);
+    if (!org) {
+      res.status(401).json({
+        success: false,
+        data: null,
+        error: {
+          code: "ORGANIZATION_NOT_FOUND",
+          message: "Organization associated with this API key no longer exists.",
+        },
+      });
+      return;
+    }
+
+    // Update last used timestamp
+    apiKey.lastUsedAt = new Date();
+    apiStore.apiKeys.set(apiKey.id, apiKey);
+
+    const creator = apiStore.users.get(apiKey.createdById);
+
+    req.isApiKey = true;
+    req.apiKey = apiKey;
+    req.apiKeyScopes = apiKey.scopes;
+    req.organizationId = apiKey.organizationId;
+    req.role = "MEMBER";
+    req.user = creator
+      ? {
+          id: creator.id,
+          email: creator.email,
+          firstName: creator.firstName,
+          lastName: creator.lastName,
+        }
+      : {
+          id: apiKey.createdById,
+          email: "service-account@flowforge.internal",
+        };
+
+    return next();
+  }
+
+  // 2. Otherwise look up User Session
+  const session = Array.from(apiStore.sessions.values()).find(
+    (s) => s.token === rawToken,
   );
 
   if (!session || new Date() > new Date(session.expiresAt)) {

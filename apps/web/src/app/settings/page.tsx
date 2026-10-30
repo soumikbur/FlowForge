@@ -1,0 +1,1136 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+import {
+  Shield,
+  Users,
+  Mail,
+  Key,
+  FileText,
+  Database,
+  Check,
+  Copy,
+  AlertTriangle,
+  RefreshCw,
+  Search,
+  Trash2,
+  UserCheck,
+  Clock,
+  Plus,
+  Lock,
+} from "lucide-react";
+
+type TabType = "general" | "members" | "invitations" | "api-keys" | "audit" | "retention";
+
+interface Member {
+  id: string;
+  userId: string;
+  role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
+  user: {
+    id: string;
+    email: string;
+    firstName?: string;
+    lastName?: string;
+  } | null;
+}
+
+interface Invitation {
+  id: string;
+  email: string;
+  role: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
+  status: "PENDING" | "ACCEPTED" | "REVOKED" | "EXPIRED";
+  expiresAt: string;
+  createdAt: string;
+}
+
+interface ApiKeyItem {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  scopes: string[];
+  lastUsedAt?: string;
+  expiresAt?: string;
+  revokedAt?: string;
+  createdAt: string;
+}
+
+interface AuditLog {
+  id: string;
+  action: string;
+  resourceType: string;
+  resourceId: string;
+  userId?: string;
+  metadata?: Record<string, any>;
+  ipAddress?: string;
+  createdAt: string;
+}
+
+export default function SettingsPage() {
+  const [activeTab, setActiveTab] = useState<TabType>("general");
+  const [orgId, setOrgId] = useState<string>("org_default");
+  const [loading, setLoading] = useState<boolean>(true);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  // Settings State
+  const [name, setName] = useState("Acme Operations");
+  const [timezone, setTimezone] = useState("UTC");
+  const [billingEmail, setBillingEmail] = useState("security@acme.com");
+  const [enforce2FA, setEnforce2FA] = useState(false);
+  const [allowedIpRanges, setAllowedIpRanges] = useState("10.0.0.0/8, 192.168.1.0/24");
+  const [executionRetentionDays, setExecutionRetentionDays] = useState(90);
+  const [auditRetentionDays, setAuditRetentionDays] = useState(365);
+  const [userRole, setUserRole] = useState<string>("OWNER");
+
+  // Members State
+  const [members, setMembers] = useState<Member[]>([]);
+  const [memberSearch, setMemberSearch] = useState("");
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [selectedNewOwner, setSelectedNewOwner] = useState("");
+
+  // Invitations State
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"ADMIN" | "MEMBER" | "VIEWER">("MEMBER");
+  const [revealedInviteUrl, setRevealedInviteUrl] = useState<string | null>(null);
+
+  // API Keys State
+  const [apiKeys, setApiKeys] = useState<ApiKeyItem[]>([]);
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [keyName, setKeyName] = useState("");
+  const [keyExpiryDays, setKeyExpiryDays] = useState("90");
+  const [keyScopes, setKeyScopes] = useState<string[]>(["workflow:read", "workflow:execute"]);
+  const [revealedToken, setRevealedToken] = useState<string | null>(null);
+  const [copiedToken, setCopiedToken] = useState(false);
+
+  // Audit Logs State
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [auditFilterAction, setAuditFilterAction] = useState("");
+
+  // Retention Cleanup State
+  const [cleanupResult, setCleanupResult] = useState<any>(null);
+
+  useEffect(() => {
+    fetchInitialData();
+  }, []);
+
+  async function fetchInitialData() {
+    setLoading(true);
+    try {
+      // 1. Fetch current user & organization
+      const meRes = await fetch("/api/v1/auth/me");
+      if (meRes.ok) {
+        const meData = await meRes.json();
+        const activeOrgId = meData.data?.organization?.id;
+        if (activeOrgId) {
+          setOrgId(activeOrgId);
+          setUserRole(meData.data.role || "OWNER");
+          await loadOrgData(activeOrgId);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadOrgData(targetOrgId: string) {
+    try {
+      // Fetch Settings
+      const settingsRes = await fetch(`/api/v1/organizations/${targetOrgId}/settings`);
+      if (settingsRes.ok) {
+        const s = (await settingsRes.json()).data;
+        setName(s.name || "");
+        setTimezone(s.timezone || "UTC");
+        setBillingEmail(s.billingEmail || "");
+        setEnforce2FA(!!s.enforce2FA);
+        setAllowedIpRanges(Array.isArray(s.allowedIpRanges) ? s.allowedIpRanges.join(", ") : "");
+        setExecutionRetentionDays(s.executionRetentionDays || 90);
+        setAuditRetentionDays(s.auditRetentionDays || 365);
+      }
+
+      // Fetch Members
+      const membersRes = await fetch(`/api/v1/organizations/${targetOrgId}/members`);
+      if (membersRes.ok) {
+        setMembers((await membersRes.json()).data || []);
+      }
+
+      // Fetch Invitations
+      const invRes = await fetch(`/api/v1/organizations/${targetOrgId}/invitations`);
+      if (invRes.ok) {
+        setInvitations((await invRes.json()).data || []);
+      }
+
+      // Fetch API Keys
+      const keysRes = await fetch(`/api/v1/organizations/${targetOrgId}/api-keys`);
+      if (keysRes.ok) {
+        setApiKeys((await keysRes.json()).data || []);
+      }
+
+      // Fetch Audit Logs
+      const auditRes = await fetch(`/api/v1/organizations/${targetOrgId}/audit-logs?pageSize=30`);
+      if (auditRes.ok) {
+        setAuditLogs((await auditRes.json()).data || []);
+      }
+    } catch (err) {
+      console.error("Failed to load org data", err);
+    }
+  }
+
+  async function handleSaveSettings(e: React.FormEvent) {
+    e.preventDefault();
+    setStatusMessage(null);
+    try {
+      const res = await fetch(`/api/v1/organizations/${orgId}/settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          timezone,
+          billingEmail: billingEmail || null,
+          enforce2FA,
+          allowedIpRanges: allowedIpRanges
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean),
+          executionRetentionDays: Number(executionRetentionDays),
+          auditRetentionDays: Number(auditRetentionDays),
+        }),
+      });
+
+      if (res.ok) {
+        setStatusMessage("Settings saved successfully.");
+        setTimeout(() => setStatusMessage(null), 3000);
+      } else {
+        const err = await res.json();
+        alert(err.error?.message || "Failed to update settings.");
+      }
+    } catch (err) {
+      alert("Error saving settings.");
+    }
+  }
+
+  async function handleTransferOwnership() {
+    if (!selectedNewOwner) return;
+    if (!confirm("Are you sure? You will be demoted to Administrator and transfer total control of the organization.")) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/v1/organizations/${orgId}/transfer-ownership`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newOwnerUserId: selectedNewOwner }),
+      });
+
+      if (res.ok) {
+        alert("Ownership successfully transferred.");
+        setShowTransferModal(false);
+        loadOrgData(orgId);
+      } else {
+        const err = await res.json();
+        alert(err.error?.message || "Ownership transfer failed.");
+      }
+    } catch (err) {
+      alert("Failed to transfer ownership.");
+    }
+  }
+
+  async function handleRoleChange(membershipId: string, newRole: string) {
+    try {
+      const res = await fetch(`/api/v1/organizations/${orgId}/members/${membershipId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: newRole }),
+      });
+      if (res.ok) {
+        loadOrgData(orgId);
+      } else {
+        const err = await res.json();
+        alert(err.error?.message || "Failed to update role.");
+      }
+    } catch (err) {
+      alert("Network error updating role.");
+    }
+  }
+
+  async function handleRemoveMember(membershipId: string) {
+    if (!confirm("Are you sure you want to remove this member?")) return;
+    try {
+      const res = await fetch(`/api/v1/organizations/${orgId}/members/${membershipId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        loadOrgData(orgId);
+      } else {
+        const err = await res.json();
+        alert(err.error?.message || "Failed to remove member.");
+      }
+    } catch (err) {
+      alert("Error removing member.");
+    }
+  }
+
+  async function handleCreateInvitation(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      const res = await fetch(`/api/v1/organizations/${orgId}/invitations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setRevealedInviteUrl(data.data.invitationUrl);
+        setInviteEmail("");
+        loadOrgData(orgId);
+      } else {
+        const err = await res.json();
+        alert(err.error?.message || "Failed to create invitation.");
+      }
+    } catch (err) {
+      alert("Error creating invitation.");
+    }
+  }
+
+  async function handleRevokeInvitation(invitationId: string) {
+    try {
+      const res = await fetch(`/api/v1/organizations/${orgId}/invitations/${invitationId}/revoke`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        loadOrgData(orgId);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function handleCreateApiKey(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      const res = await fetch(`/api/v1/organizations/${orgId}/api-keys`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: keyName,
+          scopes: keyScopes,
+          expiresInDays: keyExpiryDays ? Number(keyExpiryDays) : undefined,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setRevealedToken(data.data.token);
+        setShowApiKeyModal(false);
+        setKeyName("");
+        loadOrgData(orgId);
+      } else {
+        const err = await res.json();
+        alert(err.error?.message || "Failed to generate API key.");
+      }
+    } catch (err) {
+      alert("Error generating API key.");
+    }
+  }
+
+  async function handleRevokeApiKey(keyId: string) {
+    if (!confirm("Revoking this API key is irreversible. Any integrations using it will immediately fail.")) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/v1/organizations/${orgId}/api-keys/${keyId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        loadOrgData(orgId);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function handleRunRetention(dryRun: boolean) {
+    try {
+      const res = await fetch(`/api/v1/organizations/${orgId}/retention/cleanup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCleanupResult(data.data);
+      } else {
+        const err = await res.json();
+        alert(err.error?.message || "Retention cleanup failed.");
+      }
+    } catch (err) {
+      alert("Retention cleanup execution error.");
+    }
+  }
+
+  return (
+    <div className="flex-1 bg-slate-50 p-6 md:p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+          <div>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-indigo-50 border border-indigo-200 rounded-lg text-indigo-600">
+                <Shield className="w-6 h-6" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900">
+                  Enterprise Security & Organization Administration
+                </h1>
+                <p className="text-sm text-slate-500">
+                  Manage organization governance, roles, team invitations, API credentials, and audit logs.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="px-3 py-1 bg-slate-100 text-slate-700 text-xs font-semibold rounded-full border border-slate-300">
+              Role: {userRole}
+            </span>
+          </div>
+        </div>
+
+        {/* Status banner */}
+        {statusMessage && (
+          <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-md text-emerald-800 text-sm flex items-center gap-2">
+            <Check className="w-4 h-4 text-emerald-600" />
+            <span>{statusMessage}</span>
+          </div>
+        )}
+
+        {/* Revealed Secret Banner */}
+        {revealedToken && (
+          <div className="p-4 bg-amber-50 border border-amber-300 rounded-lg text-amber-900 space-y-2">
+            <div className="flex items-center gap-2 font-semibold text-sm">
+              <AlertTriangle className="w-4 h-4 text-amber-600" />
+              <span>Copy your new API Key now. It will never be displayed again!</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <code className="bg-white px-3 py-2 border border-amber-200 rounded text-xs font-mono select-all flex-1 text-slate-900">
+                {revealedToken}
+              </code>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(revealedToken);
+                  setCopiedToken(true);
+                  setTimeout(() => setCopiedToken(false), 2000);
+                }}
+                className="px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium rounded flex items-center gap-1.5 transition"
+              >
+                {copiedToken ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedToken ? "Copied" : "Copy"}</span>
+              </button>
+              <button
+                onClick={() => setRevealedToken(null)}
+                className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-medium rounded transition"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Tab Navigation */}
+        <div className="flex items-center gap-2 border-b border-slate-200 overflow-x-auto">
+          {[
+            { id: "general", label: "General Settings", icon: Shield },
+            { id: "members", label: "Members & Roles", icon: Users },
+            { id: "invitations", label: "Invitations", icon: Mail },
+            { id: "api-keys", label: "API Credentials", icon: Key },
+            { id: "audit", label: "Security Audit Trail", icon: FileText },
+            { id: "retention", label: "Data Retention", icon: Database },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as TabType)}
+                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition -mb-px whitespace-nowrap ${
+                  active
+                    ? "border-indigo-600 text-indigo-600"
+                    : "border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300"
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* TAB 1: GENERAL SETTINGS */}
+        {activeTab === "general" && (
+          <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm max-w-4xl">
+            <h2 className="text-lg font-semibold text-slate-900 mb-1">Organization Policy & Security Defaults</h2>
+            <p className="text-sm text-slate-500 mb-6">
+              Configure organizational display settings, regional timezones, 2FA requirements, and IP boundary allowlists.
+            </p>
+
+            <form onSubmit={handleSaveSettings} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-2">
+                    Organization Name
+                  </label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-2">
+                    System Timezone
+                  </label>
+                  <select
+                    value={timezone}
+                    onChange={(e) => setTimezone(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="UTC">UTC (Universal Coordinated Time)</option>
+                    <option value="America/New_York">America/New_York (EST/EDT)</option>
+                    <option value="America/Chicago">America/Chicago (CST/CDT)</option>
+                    <option value="America/Los_Angeles">America/Los_Angeles (PST/PDT)</option>
+                    <option value="Europe/London">Europe/London (GMT/BST)</option>
+                    <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-2">
+                    Administrative / Security Contact Email
+                  </label>
+                  <input
+                    type="email"
+                    value={billingEmail}
+                    onChange={(e) => setBillingEmail(e.target.value)}
+                    placeholder="security@example.com"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div className="flex items-center gap-3 pt-6">
+                  <input
+                    type="checkbox"
+                    id="enforce2fa"
+                    checked={enforce2FA}
+                    onChange={(e) => setEnforce2FA(e.target.checked)}
+                    className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                  />
+                  <label htmlFor="enforce2fa" className="text-sm font-medium text-slate-700">
+                    Enforce Two-Factor Authentication (2FA) for all members
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-2">
+                  Allowed IP CIDR Ranges (Comma Separated)
+                </label>
+                <input
+                  type="text"
+                  value={allowedIpRanges}
+                  onChange={(e) => setAllowedIpRanges(e.target.value)}
+                  placeholder="10.0.0.0/8, 192.168.1.0/24"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <p className="text-xs text-slate-400 mt-1">
+                  Restrict API and management portal access to authorized network segments.
+                </p>
+              </div>
+
+              <div className="pt-4 border-t border-slate-200 flex justify-end">
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md shadow-sm transition"
+                >
+                  Save Organization Settings
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* TAB 2: MEMBERS & ROLES */}
+        {activeTab === "members" && (
+          <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Organization Members & Role-Based Access</h2>
+                <p className="text-sm text-slate-500">
+                  Assign administrative, execution, or read-only roles to your organization team.
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                {userRole === "OWNER" && (
+                  <button
+                    onClick={() => setShowTransferModal(true)}
+                    className="px-3.5 py-2 border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 text-sm font-medium rounded-md flex items-center gap-1.5 transition"
+                  >
+                    <Lock className="w-4 h-4 text-amber-600" />
+                    <span>Transfer Ownership</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowInviteModal(true)}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md flex items-center gap-1.5 transition"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Invite Member</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Member List */}
+            <div className="border border-slate-200 rounded-lg overflow-hidden">
+              <table className="w-full text-left text-sm text-slate-700">
+                <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold uppercase text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Member</th>
+                    <th className="px-4 py-3">Email</th>
+                    <th className="px-4 py-3">Current Role</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {members.map((m) => (
+                    <tr key={m.id} className="hover:bg-slate-50 transition">
+                      <td className="px-4 py-3 font-medium text-slate-900">
+                        {m.user?.firstName || m.user?.lastName
+                          ? `${m.user?.firstName || ""} ${m.user?.lastName || ""}`.trim()
+                          : "Team Member"}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">{m.user?.email || "Unknown"}</td>
+                      <td className="px-4 py-3">
+                        <select
+                          value={m.role}
+                          disabled={userRole !== "OWNER" && userRole !== "ADMIN"}
+                          onChange={(e) => handleRoleChange(m.id, e.target.value)}
+                          className="px-2.5 py-1 text-xs border border-slate-300 rounded font-medium bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        >
+                          <option value="OWNER">OWNER</option>
+                          <option value="ADMIN">ADMIN</option>
+                          <option value="MEMBER">MEMBER</option>
+                          <option value="VIEWER">VIEWER</option>
+                        </select>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => handleRemoveMember(m.id)}
+                          className="text-rose-600 hover:text-rose-800 text-xs font-medium p-1 rounded hover:bg-rose-50 transition"
+                          title="Remove Member"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: INVITATIONS */}
+        {activeTab === "invitations" && (
+          <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Pending & Historical Invitations</h2>
+                <p className="text-sm text-slate-500">
+                  Track single-use, cryptographically hashed invitations issued to new team members.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowInviteModal(true)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md flex items-center gap-1.5 transition"
+              >
+                <Plus className="w-4 h-4" />
+                <span>New Invitation</span>
+              </button>
+            </div>
+
+            {revealedInviteUrl && (
+              <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-md text-indigo-900 space-y-1">
+                <div className="font-semibold text-sm">Invitation Created!</div>
+                <p className="text-xs text-indigo-700">Share this one-time link with the invited person:</p>
+                <div className="flex items-center gap-2 pt-1">
+                  <code className="bg-white px-3 py-1.5 border border-indigo-300 rounded text-xs flex-1 select-all font-mono">
+                    {revealedInviteUrl}
+                  </code>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(revealedInviteUrl);
+                      alert("Invitation URL copied to clipboard.");
+                    }}
+                    className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded hover:bg-indigo-700"
+                  >
+                    Copy Link
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="border border-slate-200 rounded-lg overflow-hidden">
+              <table className="w-full text-left text-sm text-slate-700">
+                <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold uppercase text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Recipient Email</th>
+                    <th className="px-4 py-3">Assigned Role</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Expires At</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {invitations.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-6 text-center text-slate-400 text-sm">
+                        No invitations sent yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    invitations.map((inv) => (
+                      <tr key={inv.id} className="hover:bg-slate-50 transition">
+                        <td className="px-4 py-3 font-medium text-slate-900">{inv.email}</td>
+                        <td className="px-4 py-3">
+                          <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 rounded text-xs font-mono">
+                            {inv.role}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                              inv.status === "PENDING"
+                                ? "bg-amber-100 text-amber-800"
+                                : inv.status === "ACCEPTED"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : "bg-slate-100 text-slate-600"
+                            }`}
+                          >
+                            {inv.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-500 text-xs">
+                          {new Date(inv.expiresAt).toLocaleDateString()}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {inv.status === "PENDING" && (
+                            <button
+                              onClick={() => handleRevokeInvitation(inv.id)}
+                              className="text-xs text-rose-600 hover:text-rose-800 font-medium"
+                            >
+                              Revoke
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: API CREDENTIALS */}
+        {activeTab === "api-keys" && (
+          <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">API Credentials & Service Access</h2>
+                <p className="text-sm text-slate-500">
+                  Generate scoped API keys for programmatic execution and CI/CD automation. Plaintext keys are never stored.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowApiKeyModal(true)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-md flex items-center gap-1.5 transition"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create API Key</span>
+              </button>
+            </div>
+
+            <div className="border border-slate-200 rounded-lg overflow-hidden">
+              <table className="w-full text-left text-sm text-slate-700">
+                <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold uppercase text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Key Name</th>
+                    <th className="px-4 py-3">Prefix</th>
+                    <th className="px-4 py-3">Authorized Scopes</th>
+                    <th className="px-4 py-3">Last Used</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {apiKeys.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-6 text-center text-slate-400 text-sm">
+                        No API credentials generated yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    apiKeys.map((k) => (
+                      <tr key={k.id} className="hover:bg-slate-50 transition">
+                        <td className="px-4 py-3 font-medium text-slate-900">{k.name}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-slate-600">{k.keyPrefix}...</td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-1">
+                            {k.scopes.map((s) => (
+                              <span
+                                key={s}
+                                className="px-1.5 py-0.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded text-xs"
+                              >
+                                {s}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-slate-500">
+                          {k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleString() : "Never"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                              k.revokedAt
+                                ? "bg-rose-100 text-rose-800"
+                                : k.expiresAt && new Date() > new Date(k.expiresAt)
+                                ? "bg-slate-200 text-slate-700"
+                                : "bg-emerald-100 text-emerald-800"
+                            }`}
+                          >
+                            {k.revokedAt ? "REVOKED" : "ACTIVE"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {!k.revokedAt && (
+                            <button
+                              onClick={() => handleRevokeApiKey(k.id)}
+                              className="text-xs text-rose-600 hover:text-rose-800 font-medium"
+                            >
+                              Revoke
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: AUDIT LOGS */}
+        {activeTab === "audit" && (
+          <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Security Audit Trail</h2>
+                <p className="text-sm text-slate-500">
+                  Immutable audit records of administrative, authorization, and sensitive lifecycle operations.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Filter by action..."
+                  value={auditFilterAction}
+                  onChange={(e) => setAuditFilterAction(e.target.value)}
+                  className="px-3 py-1.5 border border-slate-300 rounded text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+
+            <div className="border border-slate-200 rounded-lg overflow-hidden">
+              <table className="w-full text-left text-sm text-slate-700">
+                <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold uppercase text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Timestamp (UTC)</th>
+                    <th className="px-4 py-3">Action</th>
+                    <th className="px-4 py-3">Resource Type</th>
+                    <th className="px-4 py-3">Resource ID</th>
+                    <th className="px-4 py-3">Actor</th>
+                    <th className="px-4 py-3">Metadata</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {auditLogs
+                    .filter((l) => (auditFilterAction ? l.action.includes(auditFilterAction) : true))
+                    .map((log) => (
+                      <tr key={log.id} className="hover:bg-slate-50 transition">
+                        <td className="px-4 py-3 text-xs text-slate-500 font-mono">
+                          {new Date(log.createdAt).toISOString()}
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs font-semibold text-indigo-700">{log.action}</td>
+                        <td className="px-4 py-3 text-xs text-slate-600">{log.resourceType}</td>
+                        <td className="px-4 py-3 text-xs text-slate-600 font-mono truncate max-w-[120px]">
+                          {log.resourceId}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-slate-600 font-mono truncate max-w-[100px]">
+                          {log.userId || "System"}
+                        </td>
+                        <td className="px-4 py-3 text-xs font-mono text-slate-500 truncate max-w-[200px]">
+                          {log.metadata ? JSON.stringify(log.metadata) : "-"}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 6: RETENTION */}
+        {activeTab === "retention" && (
+          <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm space-y-6 max-w-4xl">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Data Retention & Privacy Controls</h2>
+              <p className="text-sm text-slate-500">
+                Automated pruning for completed workflow runs and security logs according to organizational policy.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
+                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Execution Retention</div>
+                <div className="text-2xl font-bold text-slate-900 mt-1">{executionRetentionDays} Days</div>
+                <p className="text-xs text-slate-500 mt-1">
+                  Terminal executions (SUCCEEDED, FAILED, CANCELLED) older than this window are eligible for purge.
+                </p>
+              </div>
+
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
+                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Audit Log Retention</div>
+                <div className="text-2xl font-bold text-slate-900 mt-1">{auditRetentionDays} Days</div>
+                <p className="text-xs text-slate-500 mt-1">
+                  Security logs are preserved for compliance before scheduled rotation.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg space-y-3">
+              <div className="flex items-center gap-2 font-semibold text-sm text-amber-900">
+                <AlertTriangle className="w-4 h-4 text-amber-600" />
+                <span>Active Execution Invariant Guarantee</span>
+              </div>
+              <p className="text-xs text-amber-800">
+                Under no circumstances will non-terminal workflows (QUEUED, RUNNING, WAITING_APPROVAL, WAITING_DELAY) be
+                pruned by retention policies.
+              </p>
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={() => handleRunRetention(true)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-medium rounded-md transition"
+                >
+                  Run Dry Run Assessment
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm("Confirm execution purge? All eligible terminal records will be permanently removed.")) {
+                      handleRunRetention(false);
+                    }
+                  }}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium rounded-md transition"
+                >
+                  Execute Purge Now
+                </button>
+              </div>
+            </div>
+
+            {cleanupResult && (
+              <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-md text-emerald-900 text-xs font-mono space-y-1">
+                <div className="font-bold">Cleanup Outcome:</div>
+                <div>Dry Run: {cleanupResult.dryRun ? "YES" : "NO"}</div>
+                <div>Candidate Terminal Executions: {cleanupResult.candidateExecutionsCount}</div>
+                <div>Pruned Executions: {cleanupResult.prunedExecutionsCount}</div>
+                <div>Cutoff Timestamp: {cleanupResult.cutoff}</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* MODAL: TRANSFER OWNERSHIP */}
+        {showTransferModal && (
+          <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl space-y-4">
+              <h3 className="text-lg font-bold text-slate-900">Transfer Organization Ownership</h3>
+              <p className="text-sm text-slate-600">
+                Select an existing member to assume total control of this organization. You will remain an
+                Administrator.
+              </p>
+              <div>
+                <label className="block text-xs font-semibold uppercase text-slate-700 mb-1">Select New Owner</label>
+                <select
+                  value={selectedNewOwner}
+                  onChange={(e) => setSelectedNewOwner(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded text-sm text-slate-900"
+                >
+                  <option value="">-- Choose Member --</option>
+                  {members.map((m) => (
+                    <option key={m.userId} value={m.userId}>
+                      {m.user?.email || m.userId} ({m.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  onClick={() => setShowTransferModal(false)}
+                  className="px-4 py-2 border border-slate-300 text-slate-700 text-sm font-medium rounded hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleTransferOwnership}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded"
+                >
+                  Confirm Transfer
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: INVITE MEMBER */}
+        {showInviteModal && (
+          <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl space-y-4">
+              <h3 className="text-lg font-bold text-slate-900">Invite New Member</h3>
+              <form onSubmit={handleCreateInvitation} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold uppercase text-slate-700 mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    required
+                    placeholder="teammate@company.com"
+                    className="w-full px-3 py-2 border border-slate-300 rounded text-sm text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase text-slate-700 mb-1">Assign Role</label>
+                  <select
+                    value={inviteRole}
+                    onChange={(e) => setInviteRole(e.target.value as any)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded text-sm text-slate-900"
+                  >
+                    <option value="ADMIN">ADMIN</option>
+                    <option value="MEMBER">MEMBER</option>
+                    <option value="VIEWER">VIEWER</option>
+                  </select>
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowInviteModal(false)}
+                    className="px-4 py-2 border border-slate-300 text-slate-700 text-sm font-medium rounded hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded"
+                  >
+                    Send Invitation
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: CREATE API KEY */}
+        {showApiKeyModal && (
+          <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl space-y-4">
+              <h3 className="text-lg font-bold text-slate-900">Generate New API Key</h3>
+              <form onSubmit={handleCreateApiKey} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold uppercase text-slate-700 mb-1">Key Name / Service</label>
+                  <input
+                    type="text"
+                    value={keyName}
+                    onChange={(e) => setKeyName(e.target.value)}
+                    required
+                    placeholder="e.g. CI/CD GitHub Action Runner"
+                    className="w-full px-3 py-2 border border-slate-300 rounded text-sm text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase text-slate-700 mb-1">Expiration (Days)</label>
+                  <input
+                    type="number"
+                    value={keyExpiryDays}
+                    onChange={(e) => setKeyExpiryDays(e.target.value)}
+                    min="1"
+                    max="365"
+                    className="w-full px-3 py-2 border border-slate-300 rounded text-sm text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase text-slate-700 mb-1">Authorized Scopes</label>
+                  <div className="space-y-1.5 border border-slate-200 rounded p-3 text-xs">
+                    {[
+                      "workflow:read",
+                      "workflow:execute",
+                      "workflow:write",
+                      "analytics:read",
+                      "audit:read",
+                    ].map((scope) => (
+                      <label key={scope} className="flex items-center gap-2 text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={keyScopes.includes(scope)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setKeyScopes([...keyScopes, scope]);
+                            } else {
+                              setKeyScopes(keyScopes.filter((s) => s !== scope));
+                            }
+                          }}
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="font-mono">{scope}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKeyModal(false)}
+                    className="px-4 py-2 border border-slate-300 text-slate-700 text-sm font-medium rounded hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded"
+                  >
+                    Generate Key
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

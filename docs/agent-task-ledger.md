@@ -23,6 +23,7 @@
 | TASK-025 | Human-in-the-Loop Approvals & Execution Controls       | TASK-008..TASK-024           | Reliability Engineer      | DONE   | Approval Inbox, step retry & cancellation                     |
 | TASK-026 | Workflow Versioning, Publishing & Environment Promotion| TASK-006..TASK-025           | Lifecycle Lead Engineer   | DONE   | Content hashing, promotions, rollbacks & comparison           |
 | TASK-027 | Analytics, Monitoring, and Operational Intelligence    | TASK-008..TASK-026           | Lead Observability Eng    | DONE   | Real-time KPIs, latency percentiles, bottlenecks & alerts     |
+| TASK-028 | Enterprise Security, Governance & Administration       | TASK-005..TASK-027           | Lead Security Engineer    | DONE   | Roles (Viewer), invitations, API keys, retention & audit trail|
 
 ---
 
@@ -340,4 +341,51 @@
 - **REQUIRED TESTS**: `tests/integration/analytics-monitoring-alerts.test.ts`
 - **VERIFICATION COMMANDS**: `pnpm test; pnpm typecheck; pnpm build`
 - **ACTUAL RESULTS**: All 18/18 Prompt 10 integration tests passing; 227/227 total tests passing across 20 test suites; full monorepo build and Next.js 14 production build succeed with 0 errors.
+- **STATUS**: DONE
+
+
+---
+
+### TASK-028: Enterprise Security, Governance, and Organization Administration (Prompt 11)
+
+- **OBJECTIVE**: Design, implement, harden, and verify enterprise-grade security, governance, role-based access control, cryptographic member invitations, scoped API credentials, data retention cleanup, rate limiting, and security audit logging across `@flowforge/shared`, `@flowforge/database`, `@flowforge/api`, `@flowforge/web`, and `@flowforge/test-utils` within `C:\Users\soumi\OneDrive\Documents\Antigravity\FlowForge`.
+- **DEPENDENCIES**: TASK-005, TASK-006, TASK-008, TASK-024, TASK-025, TASK-026, TASK-027
+- **ALLOWED FILES**: `packages/shared/src/*`, `packages/database/prisma/*`, `packages/test-utils/src/*`, `apps/api/src/*`, `apps/web/src/*`, `tests/integration/enterprise-security-governance.test.ts`, `docs/*`
+- **REQUIREMENTS**:
+  1. Role & Permission Hardening (`packages/shared/src/index.ts`):
+     - Added `VIEWER` to `RoleEnum` with read-only permissions (`org:read`, `org:members:read`, `workflow:read`, `approval:read`, `analytics:read`, `audit:read`). Enforced server-side prevention of workflow modification, execution, deployment, member administration, or settings changes.
+     - Added granular permissions: `api-keys:read`, `api-keys:write`, `invitation:read`, `invitation:write`, `retention:write`.
+     - Explicit RBAC matrix across `OWNER`, `ADMIN`, `MEMBER`, and `VIEWER`.
+  2. Database Models & Migrations (`packages/database/prisma/schema.prisma`):
+     - Updated `Role` enum with `VIEWER`.
+     - Created `InvitationStatus` enum (`PENDING`, `ACCEPTED`, `REVOKED`, `EXPIRED`).
+     - Added organization settings fields to `Organization`: `timezone`, `billingEmail`, `enforce2FA`, `allowedIpRanges`, `executionRetentionDays`, `auditRetentionDays`.
+     - Created `OrganizationInvitation` model with single-use `tokenHash`, expiry, and audit relationships.
+     - Created `ApiKey` model with `keyPrefix`, `keyHash`, scopes, last used, and revocation tracking.
+     - Migration: `20261031060000_enterprise_security_governance`.
+  3. In-Memory Store Updates (`packages/test-utils/src/index.ts`):
+     - Updated `OrganizationRecord`, added `OrganizationInvitationRecord` and `ApiKeyRecord`.
+     - Added `InMemoryDatabase.invitations` and `InMemoryDatabase.apiKeys`.
+  4. Dual Authentication & Middleware Hardening (`apps/api/src/middleware/`):
+     - `auth.ts`: Transparently verifies both user session cookies/tokens and programmatic API keys (`Authorization: Bearer ff_live_...` or `x-api-key`). Matches SHA-256 hashes, checks expiry/revocation, updates `lastUsedAt`, establishes tenant boundary, and denies access to session escalation.
+     - `rbac.ts`: Enforces explicit scopes on API key calls (`INSUFFICIENT_SCOPE` 403 on unscoped actions) and full permission matrix on user sessions.
+     - `rate-limit.ts`: Standardized RFC rate limiter emitting `Retry-After` and `X-RateLimit-*` headers with configurable windows.
+  5. Administrative REST APIs (`apps/api/src/routes/organization.routes.ts`):
+     - Organization Settings: `GET /:organizationId/settings`, `PATCH /:organizationId/settings`.
+     - Ownership Transfer: `POST /:organizationId/transfer-ownership` (promotes target to OWNER, demotes caller to ADMIN, records audit trail).
+     - Last-Owner Protection: Server-side invariant prevents demoting or removing the sole owner (`400 LAST_OWNER_PROTECTION`).
+     - Member Administration: `GET /:organizationId/members` with pagination and search; `PATCH` roles; `DELETE` member.
+     - Invitations: `POST /:organizationId/invitations` (returns raw token once), `GET /:organizationId/invitations`, `POST /:organizationId/invitations/:id/revoke`, and public/authenticated single-use atomic acceptance `POST /invitations/accept`.
+     - API Keys: `POST /:organizationId/api-keys` (returns plaintext key once), `GET /:organizationId/api-keys`, `DELETE /:organizationId/api-keys/:id` (revoke).
+     - Data Retention: `POST /:organizationId/retention/cleanup` (supports `dryRun`, strictly preserves non-terminal active runs, prunes completed terminal runs older than cutoff).
+     - Audit Logs: `GET /:organizationId/audit-logs` with action/date/resource filters and credential redaction.
+  6. Frontend Administration Cockpit (`apps/web/src/app/settings/page.tsx` & `Navigation.tsx`):
+     - Settings Navigation link with `Shield` icon.
+     - Comprehensive management interface: General Settings, Members & Roles (with Transfer Ownership modal), Invitations (with Invite modal and copy link), API Keys (with scopes checklist, one-time reveal banner, copy button, and revoke action), Security Audit Log (with action filtering and metadata view), and Data Retention (with Dry Run and Execute Purge controls).
+  7. Automated Integration Tests (`tests/integration/enterprise-security-governance.test.ts`):
+     - 27 tests verifying Viewer read-only restrictions, Member execution boundaries, Admin restrictions, Owner privileges, last-owner demotion/removal guards, ownership transfer flow, invitation hashing/acceptance/expiry/revocation, API key scopes/hashing/revocation, cross-tenant isolation, rate-limit 429 and Retry-After, and active execution retention preservation.
+- **ACCEPTANCE CRITERIA**: 100% test pass rate across all 21 test suites (254/254 tests passing); zero TypeScript, lint, or build errors; Next.js 14 compiles with zero errors.
+- **REQUIRED TESTS**: `tests/integration/enterprise-security-governance.test.ts`
+- **VERIFICATION COMMANDS**: `pnpm test; pnpm typecheck; pnpm build`
+- **ACTUAL RESULTS**: All 27/27 Prompt 11 integration tests passing; 254/254 total tests passing across 21 test suites; full monorepo build and Next.js 14 production build succeed with 0 errors.
 - **STATUS**: DONE

@@ -3,7 +3,7 @@ import { z } from "zod";
 // ==========================================
 // ROLES & PERMISSIONS
 // ==========================================
-export const RoleEnum = z.enum(["OWNER", "ADMIN", "MEMBER"]);
+export const RoleEnum = z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"]);
 export type Role = z.infer<typeof RoleEnum>;
 
 export type Permission =
@@ -31,7 +31,12 @@ export type Permission =
   | "workflow:deploy"
   | "workflow:deploy:prod"
   | "analytics:read"
-  | "analytics:write";
+  | "analytics:write"
+  | "api-keys:read"
+  | "api-keys:write"
+  | "invitation:read"
+  | "invitation:write"
+  | "retention:write";
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   OWNER: [
@@ -60,6 +65,11 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "workflow:deploy:prod",
     "analytics:read",
     "analytics:write",
+    "api-keys:read",
+    "api-keys:write",
+    "invitation:read",
+    "invitation:write",
+    "retention:write",
   ],
   ADMIN: [
     "org:read",
@@ -85,6 +95,10 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "workflow:deploy:prod",
     "analytics:read",
     "analytics:write",
+    "api-keys:read",
+    "api-keys:write",
+    "invitation:read",
+    "invitation:write",
   ],
   MEMBER: [
     "org:read",
@@ -96,6 +110,14 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "schedule:read",
     "credentials:read",
     "analytics:read",
+  ],
+  VIEWER: [
+    "org:read",
+    "org:members:read",
+    "workflow:read",
+    "approval:read",
+    "analytics:read",
+    "audit:read",
   ],
 };
 
@@ -350,6 +372,58 @@ export const UpdateMemberRoleSchema = z.object({
   role: RoleEnum,
 });
 export type UpdateMemberRoleRequest = z.infer<typeof UpdateMemberRoleSchema>;
+
+export const OrganizationSettingsSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  timezone: z.string().default("UTC").optional(),
+  billingEmail: z.string().email().optional().nullable(),
+  enforce2FA: z.boolean().default(false).optional(),
+  allowedIpRanges: z.array(z.string()).default([]).optional(),
+  executionRetentionDays: z.coerce.number().int().min(1).max(3650).default(90).optional(),
+  auditRetentionDays: z.coerce.number().int().min(1).max(3650).default(365).optional(),
+});
+export type OrganizationSettings = z.infer<typeof OrganizationSettingsSchema>;
+
+export const TransferOwnershipSchema = z.object({
+  newOwnerUserId: z.string().min(1, "Target user ID is required"),
+});
+export type TransferOwnershipRequest = z.infer<typeof TransferOwnershipSchema>;
+
+export const InvitationStatusEnum = z.enum(["PENDING", "ACCEPTED", "REVOKED", "EXPIRED"]);
+export type InvitationStatus = z.infer<typeof InvitationStatusEnum>;
+
+export const CreateInvitationSchema = z.object({
+  email: z.string().email("Valid email required"),
+  role: RoleEnum.default("MEMBER"),
+});
+export type CreateInvitationRequest = z.infer<typeof CreateInvitationSchema>;
+
+export const AcceptInvitationSchema = z.object({
+  token: z.string().min(16, "Valid invitation token required"),
+});
+export type AcceptInvitationRequest = z.infer<typeof AcceptInvitationSchema>;
+
+export const ApiKeyScopeEnum = z.enum([
+  "workflow:read",
+  "workflow:execute",
+  "workflow:write",
+  "analytics:read",
+  "audit:read",
+]);
+export type ApiKeyScope = z.infer<typeof ApiKeyScopeEnum>;
+
+export const CreateApiKeySchema = z.object({
+  name: z.string().min(1, "Key name is required").max(100),
+  scopes: z.array(ApiKeyScopeEnum).min(1, "At least one scope is required"),
+  expiresInDays: z.coerce.number().int().min(1).max(365).optional(),
+});
+export type CreateApiKeyRequest = z.infer<typeof CreateApiKeySchema>;
+
+export const RetentionCleanupSchema = z.object({
+  dryRun: z.coerce.boolean().default(true),
+  olderThanDays: z.coerce.number().int().min(1).optional(),
+});
+export type RetentionCleanupRequest = z.infer<typeof RetentionCleanupSchema>;
 
 export const PaginationQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),

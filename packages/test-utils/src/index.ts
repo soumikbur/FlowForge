@@ -12,6 +12,14 @@ export interface OrganizationRecord {
   id: string;
   name: string;
   slug: string;
+  timezone?: string;
+  billingEmail?: string | null;
+  enforce2FA?: boolean;
+  allowedIpRanges?: string[];
+  executionRetentionDays?: number;
+  auditRetentionDays?: number;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface MembershipRecord {
@@ -220,6 +228,34 @@ export interface OperationalAlertRecord {
   dedupKey?: string;
 }
 
+export interface OrganizationInvitationRecord {
+  id: string;
+  organizationId: string;
+  email: string;
+  role: Role;
+  tokenHash: string;
+  inviterId: string;
+  expiresAt: Date;
+  status: "PENDING" | "ACCEPTED" | "REVOKED" | "EXPIRED";
+  acceptedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ApiKeyRecord {
+  id: string;
+  organizationId: string;
+  name: string;
+  keyPrefix: string;
+  keyHash: string;
+  scopes: string[];
+  createdById: string;
+  expiresAt?: Date;
+  lastUsedAt?: Date;
+  revokedAt?: Date;
+  createdAt: Date;
+}
+
 export class InMemoryDatabase {
   public users = new Map<string, UserRecord>();
   public organizations = new Map<string, OrganizationRecord>();
@@ -237,6 +273,8 @@ export class InMemoryDatabase {
   public delays = new Map<string, DelayRecord>();
   public deployments = new Map<string, WorkflowDeploymentRecord>();
   public alerts = new Map<string, OperationalAlertRecord>();
+  public invitations = new Map<string, OrganizationInvitationRecord>();
+  public apiKeys = new Map<string, ApiKeyRecord>();
   public auditLogs: Array<AuditLogRecord> = [];
 
   public recordAudit(record: Omit<AuditLogRecord, "id" | "createdAt">): AuditLogRecord {
@@ -266,6 +304,8 @@ export class InMemoryDatabase {
     this.delays.clear();
     this.deployments.clear();
     this.alerts.clear();
+    this.invitations.clear();
+    this.apiKeys.clear();
     this.auditLogs = [];
   }
 }

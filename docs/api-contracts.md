@@ -242,3 +242,74 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
   - **Permissions**: Requires `analytics:write` (`OWNER`, `ADMIN`).
   - **Body**: `{ resolutionNote?: string }`.
   - **Response**: Updates alert `status` to `RESOLVED`, sets `resolvedAt`, `resolvedById`, records `resolutionNote`, and emits an audit log `alert.resolved`.
+
+
+## 11. Enterprise Security, Governance, Invitations, API Keys & Retention Endpoints
+
+### 11.1 Organization Governance & Settings
+- `GET /api/v1/organizations/:organizationId/settings`:
+  - **Permissions**: Requires membership in target organization (`org:read`).
+  - **Response**: `{ id, name, slug, timezone, billingEmail, enforce2FA, allowedIpRanges, executionRetentionDays, auditRetentionDays, role }`.
+- `PATCH /api/v1/organizations/:organizationId/settings`:
+  - **Permissions**: Requires `org:write` (`OWNER`, `ADMIN`). Blocked for API keys.
+  - **Body**: `{ name?, timezone?, billingEmail?, enforce2FA?, allowedIpRanges?, executionRetentionDays?, auditRetentionDays? }`.
+  - **Validation**: Enforces valid IANA timezone string, positive retention integer ranges, and IP CIDR formatting.
+  - **Auditing**: Emits `organization.settings_updated`.
+- `POST /api/v1/organizations/:organizationId/transfer-ownership`:
+  - **Permissions**: Restrictive `OWNER` only. Blocked for API keys.
+  - **Body**: `{ newOwnerUserId: string }`.
+  - **Invariants**: Target user must be an existing organization member. Promotes target to `OWNER` and demotes caller to `ADMIN`.
+  - **Auditing**: Emits `organization.ownership_transferred`.
+
+### 11.2 Member Administration & Last-Owner Protection
+- `GET /api/v1/organizations/:organizationId/members`:
+  - **Query Parameters**: `page`, `pageSize`, `search` (filter by email or name), `status` (role filter).
+  - **Security**: Strips `passwordHash`, sessions, and credential metadata from member objects.
+- `PATCH /api/v1/organizations/:organizationId/members/:membershipId`:
+  - **Invariants**: Non-owners cannot promote or demote `OWNER` role (`403`). Demoting the sole organization owner is rejected (`400 LAST_OWNER_PROTECTION`).
+- `DELETE /api/v1/organizations/:organizationId/members/:membershipId`:
+  - **Invariants**: Non-owners cannot remove `OWNER` role (`403`). Removing the sole organization owner is rejected (`400 LAST_OWNER_PROTECTION`).
+
+### 11.3 Secure Member Invitation Lifecycle
+- `POST /api/v1/organizations/:organizationId/invitations`:
+  - **Permissions**: Requires `org:members:write` (`OWNER`, `ADMIN`). Non-owners cannot invite with role `OWNER`.
+  - **Body**: `{ email: string, role: "ADMIN" | "MEMBER" | "VIEWER" }`.
+  - **Security Guarantee**: Generates 32-byte cryptographic random token (`rawToken`). Stores SHA-256 `tokenHash` in database. Raw token is returned **strictly once** in 201 response and never logged in audit metadata.
+  - **Invariants**: Rejects duplicate pending invitations for the same email (`409 INVITATION_ALREADY_EXISTS`) and existing members (`409 MEMBER_EXISTS`).
+- `GET /api/v1/organizations/:organizationId/invitations`:
+  - **Permissions**: Requires `org:members:read`. Filterable by `status` (`PENDING`, `ACCEPTED`, `REVOKED`, `EXPIRED`). Raw tokens and token hashes are omitted.
+- `POST /api/v1/organizations/:organizationId/invitations/:invitationId/revoke`:
+  - **Permissions**: Requires `org:members:write`. Sets status to `REVOKED`.
+- `POST /api/v1/organizations/invitations/accept`:
+  - **Public / Authenticated Entrypoint**: Accepts `{ token: string }`.
+  - **Verification**: Matches SHA-256 hash. Verifies single-use (`PENDING` only) and expiry timestamp (`7 days`). Atomically creates organization membership with invited role, updates invitation status to `ACCEPTED`, and emits `organization.invitation.accepted`. Re-using an accepted token returns `400 INVITATION_ALREADY_USED`.
+
+### 11.4 Scoped API Credentials & Service Access
+- `POST /api/v1/organizations/:organizationId/api-keys`:
+  - **Permissions**: Requires `api-keys:write` (`OWNER`, `ADMIN`). Blocked for API keys.
+  - **Body**: `{ name: string, scopes: ApiKeyScope[], expiresInDays?: number }`.
+  - **Token Format**: `ff_live_<randomHex32>`.
+  - **Security Guarantee**: Stored as SHA-256 `keyHash` and 16-character `keyPrefix`. Plaintext token revealed **strictly once** in 201 response.
+- `GET /api/v1/organizations/:organizationId/api-keys`:
+  - **Permissions**: Requires `api-keys:read` (`OWNER`, `ADMIN`). Lists key metadata (`id`, `name`, `keyPrefix`, `scopes`, `lastUsedAt`, `expiresAt`, `revokedAt`).
+- `DELETE /api/v1/organizations/:organizationId/api-keys/:keyId`:
+  - **Permissions**: Requires `api-keys:write`. Marks key as revoked (`revokedAt = now`).
+- **Authentication via API Key**:
+  - Accepts `Authorization: Bearer ff_live_...` or `x-api-key: ff_live_...`.
+  - Enforces explicit scopes (`workflow:read`, `workflow:execute`, `workflow:write`, `analytics:read`, `audit:read`). Unscoped operations return `403 INSUFFICIENT_SCOPE`.
+  - Denies access to user session or organizational ownership administration.
+  - Updates `lastUsedAt` timestamp on each successful request.
+
+### 11.5 Data Retention & Privacy Controls
+- `POST /api/v1/organizations/:organizationId/retention/cleanup`:
+  - **Permissions**: Requires `retention:write` (`OWNER`). Blocked for API keys.
+  - **Body**: `{ dryRun?: boolean, olderThanDays?: number }`.
+  - **Active State Preservation Invariant**: Never prunes non-terminal executions (`QUEUED`, `RUNNING`, `WAITING_APPROVAL`, `WAITING_DELAY`, `RETRYING`). Prunes only terminal runs (`SUCCEEDED`, `FAILED`, `CANCELLED`) older than the retention cutoff.
+  - **Auditing**: Emits `organization.retention.cleanup` with candidate count, pruned count, and cutoff timestamp.
+
+### 11.6 Rate Limiting & Abuse Controls
+- Standard RFC rate-limiting headers returned on API responses:
+  - `Retry-After`: Seconds to wait before retrying (on HTTP 429).
+  - `X-RateLimit-Limit`: Maximum requests permitted in window.
+  - `X-RateLimit-Remaining`: Remaining request quota.
+  - `X-RateLimit-Reset`: Unix timestamp when current window resets.

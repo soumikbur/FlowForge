@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   LogOut,
   Workflow,
+  Shield,
 } from "lucide-react";
 
 export function Navigation() {
@@ -23,6 +24,7 @@ export function Navigation() {
     { label: "Workflows", href: "/workflows", icon: Workflow },
     { label: "Executions", href: "/executions", icon: PlayCircle },
     { label: "Approval Inbox", href: "/approvals", icon: CheckSquare },
+    { label: "Settings", href: "/settings", icon: Shield },
   ];
 
   return (

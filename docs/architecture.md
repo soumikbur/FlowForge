@@ -147,3 +147,63 @@ flowchart TD
 - Rules evaluate high failure rates (>= 25% failure over last hour with >= 4 executions), consecutive workflow failures (>= 3 failures), queue backlog thresholds (> 15 queued executions), and scheduler lag (> 2 minutes overdue).
 - Enforces an automated 15-minute cooldown per rule and entity (`${orgId}_${ruleType}_${target}`) preventing notification flooding during sustained outages.
 - Provides manual resolution workflow (`POST /alerts/:id/resolve`) requiring `analytics:write` with mandatory audit trail capture.
+
+
+## 8. Enterprise Security, Governance, and Audit Trail Architecture
+
+```mermaid
+flowchart TD
+    Client[Web UI / External CI/CD Service] --> AuthGuard[Authentication & Rate Limit Guard]
+    
+    subgraph Auth & Identity Boundary
+        AuthGuard -->|Bearer ff_live_*| ApiKeyAuth[API Key Verifier: SHA-256 Hash Lookup]
+        AuthGuard -->|Cookie / Bearer sess_*| SessionAuth[Session Store Verifier]
+    end
+    
+    ApiKeyAuth --> ScopeCheck{Scope Verification}
+    SessionAuth --> RBACCheck{RBAC Matrix Check}
+    
+    subgraph Authorization Layer
+        ScopeCheck -->|workflow:execute, read| ScopedOps[Scoped Execution / Read APIs]
+        ScopeCheck -->|Denied: Settings, Admin| ScopeDenied[403 Insufficient Scope]
+        
+        RBACCheck -->|OWNER| AllAdmin[Total Administration & Ownership Transfer]
+        RBACCheck -->|ADMIN| OrgAdmin[Organization & Member Management]
+        RBACCheck -->|MEMBER| NormalOps[Workflow Execution & Approvals]
+        RBACCheck -->|VIEWER| ReadOnlyOps[Read-Only Workflow / Analytics Access]
+    end
+    
+    subgraph Governance & Audit Engine
+        AllAdmin --> AuditLog[Immutable Audit Trail]
+        OrgAdmin --> AuditLog
+        NormalOps --> AuditLog
+        
+        AllAdmin --> RetentionPruner[Retention Engine: Purge Terminal Executions Only]
+        RetentionPruner --> InvariantCheck{Active Runs Invariant}
+        InvariantCheck -->|Preserve Running, Queued| SafeStore[(PostgreSQL Primary)]
+    end
+```
+
+### 8.1 Dual Authentication & Credential Boundaries
+1. **User Sessions**: Issue HTTP-only, secure cookies or session bearer tokens for human interactive web use. Map to explicit role tiers (`OWNER`, `ADMIN`, `MEMBER`, `VIEWER`).
+2. **Programmatic API Keys**: Formatted as `ff_live_<hex32>`. Plaintext tokens are returned strictly once at generation time. Only a SHA-256 `keyHash` and 16-character `keyPrefix` are persisted in the database.
+3. **Scope Enforcements**: API keys carry granular authorization scopes (`workflow:read`, `workflow:execute`, `workflow:write`, `analytics:read`, `audit:read`). Programmatic keys are strictly forbidden from performing identity management, ownership transfer, or session escalation.
+
+### 8.2 Role-Based Access Control (RBAC) Matrix
+| Resource / Operation | Owner | Admin | Member | Viewer |
+| :--- | :---: | :---: | :---: | :---: |
+| **Transfer Ownership** | Yes | No | No | No |
+| **Organization Settings & Retention** | Yes | Yes (No Retention) | No | No |
+| **Member Administration & Roles** | Yes | Yes (Non-Owner) | No | No |
+| **Issue & Revoke Invitations** | Yes | Yes (Non-Owner) | No | No |
+| **Generate & Revoke API Keys** | Yes | Yes | No | No |
+| **Create & Publish Workflows** | Yes | Yes | No | No |
+| **Promote to Production** | Yes | Yes | No | No |
+| **Execute Workflows & Decisions** | Yes | Yes | Yes | No |
+| **Read Workflows, Executions & Analytics** | Yes | Yes | Yes | Yes |
+
+### 8.3 Invariant Guarantees
+- **Last-Owner Protection**: An organization must never become ownerless. System enforces server-side guards preventing demoting, deleting, or self-leaving the sole owner.
+- **Single-Use Cryptographic Invitations**: Invitation tokens are hashed with SHA-256 before storage. Acceptance is atomic and single-use; tokens expire after 7 days and can be revoked on-demand.
+- **Active State Data Retention Invariant**: Retention policies strictly purge completed terminal runs (`SUCCEEDED`, `FAILED`, `CANCELLED`). Running, queued, or paused workflows (`RUNNING`, `QUEUED`, `WAITING_APPROVAL`, `WAITING_DELAY`, `RETRYING`) are permanently shielded from deletion.
+- **Sanitized Audit Trail**: All administrative and lifecycle mutations emit structured audit events. Raw passwords, bearer tokens, API key secrets, and invitation secrets are unconditionally excluded.

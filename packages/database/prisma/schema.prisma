@@ -11,6 +11,14 @@ enum Role {
   OWNER
   ADMIN
   MEMBER
+  VIEWER
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
 }
 
 enum WorkflowStatus {
@@ -60,11 +68,17 @@ enum CredentialType {
 }
 
 model Organization {
-  id          String   @id @default(uuid())
-  name        String
-  slug        String   @unique
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                     String   @id @default(uuid())
+  name                   String
+  slug                   String   @unique
+  timezone               String   @default("UTC")
+  billingEmail           String?
+  enforce2FA             Boolean  @default(false)
+  allowedIpRanges        Json     @default("[]")
+  executionRetentionDays Int      @default(90)
+  auditRetentionDays     Int      @default(365)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   memberships    OrganizationMembership[]
   workflows      Workflow[]
@@ -77,6 +91,8 @@ model Organization {
   deployments    WorkflowDeployment[]
   auditLogs      AuditLog[]
   alerts         OperationalAlert[]
+  invitations    OrganizationInvitation[]
+  apiKeys        ApiKey[]
 
   @@map("organizations")
 }
@@ -92,13 +108,15 @@ model User {
 
   memberships       OrganizationMembership[]
   sessions          Session[]
-  createdWorkflows  Workflow[]              @relation("WorkflowCreator")
-  publishedVersions WorkflowVersion[]       @relation("VersionPublisher")
-  decidedApprovals  Approval[]              @relation("ApprovalDecider")
-  assignedApprovals Approval[]              @relation("ApprovalAssignee")
-  deployments       WorkflowDeployment[]    @relation("DeploymentDeployer")
+  createdWorkflows  Workflow[]               @relation("WorkflowCreator")
+  publishedVersions WorkflowVersion[]        @relation("VersionPublisher")
+  decidedApprovals  Approval[]               @relation("ApprovalDecider")
+  assignedApprovals Approval[]               @relation("ApprovalAssignee")
+  deployments       WorkflowDeployment[]     @relation("DeploymentDeployer")
   auditLogs         AuditLog[]
-  resolvedAlerts    OperationalAlert[]      @relation("AlertResolver")
+  resolvedAlerts    OperationalAlert[]       @relation("AlertResolver")
+  sentInvitations   OrganizationInvitation[] @relation("InvitationInviter")
+  createdApiKeys    ApiKey[]                 @relation("ApiKeyCreator")
 
   @@map("users")
 }
@@ -418,4 +436,48 @@ model OperationalAlert {
   @@index([organizationId, triggeredAt])
   @@index([dedupKey])
   @@map("operational_alerts")
+}
+
+model OrganizationInvitation {
+  id             String           @id @default(uuid())
+  organizationId String
+  email          String
+  role           Role             @default(MEMBER)
+  tokenHash      String           @unique
+  inviterId      String
+  expiresAt      DateTime
+  status         InvitationStatus @default(PENDING)
+  acceptedAt     DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inviter        User             @relation("InvitationInviter", fields: [inviterId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([tokenHash])
+  @@index([email])
+  @@map("organization_invitations")
+}
+
+model ApiKey {
+  id             String    @id @default(uuid())
+  organizationId String
+  name           String
+  keyPrefix      String
+  keyHash        String    @unique
+  scopes         Json      @default("[]")
+  createdById    String
+  expiresAt      DateTime?
+  lastUsedAt     DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User         @relation("ApiKeyCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([keyHash])
+  @@index([keyPrefix])
+  @@map("api_keys")
 }
