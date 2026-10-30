@@ -140,6 +140,9 @@ export const ApprovalNodeConfigSchema = z.object({
   description: z.string().optional(),
   requiredRole: RoleEnum.default("ADMIN"),
   timeoutSeconds: z.number().int().positive().max(604800).default(86400), // max 7 days
+  timeoutPolicy: z.enum(["REJECT", "FAIL"]).default("REJECT"),
+  allowSelfApproval: z.boolean().default(false),
+  assignedUserId: z.string().optional(),
 });
 
 export const DelayNodeConfigSchema = z.object({
@@ -270,6 +273,23 @@ export const DecideApprovalSchema = z.object({
 });
 export type DecideApprovalRequest = z.infer<typeof DecideApprovalSchema>;
 
+export const ReassignApprovalSchema = z
+  .object({
+    assignedUserId: z.string().optional(),
+    requiredRole: RoleEnum.optional(),
+    reason: z.string().optional(),
+  })
+  .refine((data) => data.assignedUserId || data.requiredRole, {
+    message: "Either assignedUserId or requiredRole must be provided",
+  });
+export type ReassignApprovalRequest = z.infer<typeof ReassignApprovalSchema>;
+
+export const RetryExecutionSchema = z.object({
+  stepId: z.string().optional(),
+  reason: z.string().optional(),
+});
+export type RetryExecutionRequest = z.infer<typeof RetryExecutionSchema>;
+
 export const CreateOrganizationSchema = z.object({
   name: z.string().min(1, "Organization name is required"),
 });
@@ -298,6 +318,18 @@ export const PaginationQuerySchema = z.object({
   status: z.string().optional(),
 });
 export type PaginationQuery = z.infer<typeof PaginationQuerySchema>;
+
+export const ApprovalQuerySchema = PaginationQuerySchema.extend({
+  assignedToMe: z.coerce.boolean().optional(),
+  status: ApprovalStatusEnum.optional(),
+});
+export type ApprovalQuery = z.infer<typeof ApprovalQuerySchema>;
+
+export const ExecutionQuerySchema = PaginationQuerySchema.extend({
+  status: ExecutionStatusEnum.optional(),
+  workflowId: z.string().optional(),
+});
+export type ExecutionQuery = z.infer<typeof ExecutionQuerySchema>;
 
 // ==========================================
 // WEBHOOK CONFIG SCHEMAS

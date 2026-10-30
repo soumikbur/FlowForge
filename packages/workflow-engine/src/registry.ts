@@ -171,6 +171,9 @@ export class NodeHandlerRegistry {
             description: node.config.description,
             requiredRole: node.config.requiredRole || "ADMIN",
             timeoutSeconds: node.config.timeoutSeconds || 86400,
+            timeoutPolicy: node.config.timeoutPolicy || "REJECT",
+            allowSelfApproval: node.config.allowSelfApproval ?? false,
+            assignedUserId: node.config.assignedUserId,
           },
         };
       },

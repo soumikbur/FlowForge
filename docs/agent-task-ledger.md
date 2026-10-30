@@ -237,3 +237,33 @@
 - **VERIFICATION COMMANDS**: `pnpm test; pnpm typecheck; pnpm lint; pnpm build`
 - **ACTUAL RESULTS**: All 32/32 Prompt 7 integration tests passing; 170/170 total tests passing across 17 test suites; Next.js 14 and all packages build with 0 errors.
 - **STATUS**: DONE
+
+
+---
+
+### TASK-025: Human-in-the-Loop Approvals, Execution Controls, and Observability (Prompt 8)
+
+- **OBJECTIVE**: Implement production-grade human approval workflows, execution controls (safe step retry and concurrency-safe cancellation), approval timeout recovery, and real-time operational observability across API, worker runtime, and Next.js frontend within `C:\Users\soumi\OneDrive\Documents\Antigravity\FlowForge`.
+- **DEPENDENCIES**: TASK-008, TASK-009, TASK-010, TASK-023, TASK-024
+- **ALLOWED FILES**: `packages/shared/src/*`, `packages/database/prisma/*`, `packages/test-utils/src/*`, `packages/workflow-engine/src/*`, `apps/worker/src/*`, `apps/api/src/*`, `apps/web/src/app/*`, `tests/integration/approvals-execution-controls.test.ts`, `docs/*`
+- **REQUIREMENTS**:
+  1. Durable Approval Node & State Transitions: `ApprovalNodeConfigSchema` supporting `requiredRole`, `assignedUserId`, `timeoutSeconds`, `timeoutPolicy: "REJECT" | "FAIL"`, and `allowSelfApproval: boolean`. Atomic decision recording (`APPROVED`, `REJECTED`, `TIMEOUT`), queue resumption without busy-waiting threads, and automatic overdue timeout recovery (`runner.recoverOverdueApprovals`).
+  2. Approval REST APIs (`apps/api/src/routes/approval.routes.ts`):
+     - `GET /api/v1/approvals`: Filterable by `status`, `assignedToMe=true`, with pagination (`page`, `pageSize`, `total`).
+     - `GET /api/v1/approvals/:id`: Detailed view with execution context, step summary, decider/assignee information.
+     - `POST /api/v1/approvals/:id/decide`: Atomic decision submission (`APPROVE` or `REJECT`) with optional comment, conflict guard (409 on `ALREADY_DECIDED`), self-approval prevention (403 `SELF_APPROVAL_FORBIDDEN` for workflow creators unless explicitly allowed or `OWNER`), and resumption dispatch.
+     - `POST /api/v1/approvals/:id/reassign`: Reassignment to another user or role with organization membership validation and audit log generation.
+  3. Execution Controls (`apps/api/src/routes/execution.routes.ts` & `apps/worker/src/runner.ts`):
+     - `POST /api/v1/executions/:id/cancel`: Concurrency-safe cancellation, aborting active runs, transitioning to `CANCELLED`, skipping in-flight steps, invalidating pending delays, and rejecting pending approvals to prevent late resumptions. Rejects cancellation of terminal executions (400 `INVALID_TRANSITION`).
+     - `POST /api/v1/executions/:id/retry`: Safe step retry or resumption from failed step with idempotency, attempt tracking, error clearing, and audit logging. Rejects retry on non-failed executions (400 `INVALID_STATE`).
+  4. Approval & Execution UI (`apps/web/src/app/`):
+     - Approval Inbox (`/approvals`): filter tabs (`ALL`, `PENDING`, `APPROVED`, `REJECTED`, `TIMEOUT`), "Assigned to me" toggle, decision modal with comment input, reassign modal, conflict/error handling, and empty state.
+     - Execution History (`/executions`): status filters, trigger badges, retry counts, timestamping, and pagination.
+     - Execution Diagnostics (`/executions/[id]`): auto-polling every 3s while non-terminal, manual Cancel and Retry buttons, human approval pending alert banner, failure diagnostics box, and chronological collapsible step timeline with input/output payloads.
+  5. Audit Logging & Notifications: structured audit events for `approval.decided`, `approval.reassigned`, `execution.cancelled`, and `execution.retried`.
+  6. Automated Integration Tests: `tests/integration/approvals-execution-controls.test.ts` verifying all 16 lifecycle, timeout, concurrency, self-approval, RBAC, and multi-tenant security boundaries.
+- **ACCEPTANCE CRITERIA**: 100% test pass rate across new and existing integration test suites (186/186 tests passing); zero TypeScript, lint, or build errors; Next.js 14 compiles with zero errors.
+- **REQUIRED TESTS**: `tests/integration/approvals-execution-controls.test.ts`
+- **VERIFICATION COMMANDS**: `pnpm test; pnpm typecheck; pnpm lint; pnpm build`
+- **ACTUAL RESULTS**: All 16/16 Prompt 8 integration tests passing; 186/186 total tests passing across 18 test suites; Next.js 14 and all monorepo packages build with 0 errors.
+- **STATUS**: DONE

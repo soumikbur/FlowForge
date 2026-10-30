@@ -68,17 +68,18 @@ In case of errors:
 
 - `POST /api/v1/workflows/:id/trigger`: Manually trigger execution of published workflow with payload. Supports `Idempotency-Key` header.
 - `POST /api/v1/workflows/:id/execute`: Dispatch execution of published workflow with payload. Supports `Idempotency-Key` header to prevent duplicate execution. Returns HTTP 202 on initial dispatch, HTTP 200 with `{ idempotent: true }` on duplicate key match.
-- `GET /api/v1/executions`: List executions with filtering (`?status=FAILED&workflowId=...`).
-- `GET /api/v1/executions/:id`: Retrieve complete execution record, step results, and timeline.
+- `GET /api/v1/executions`: List executions with pagination and filtering (`?page=1&pageSize=20&status=FAILED&workflowId=...`).
+- `GET /api/v1/executions/:id`: Retrieve complete execution record, step results, approvals, and timeline.
 - `GET /api/v1/executions/:id/steps`: Retrieve ordered step execution timeline with attempt counts and input/output payloads.
-- `POST /api/v1/executions/:id/cancel`: Cancel an active or queued execution with optional `{ reason }`. Transitions state to `CANCELLED`, aborts in-flight handlers, marks running steps as `SKIPPED`, and records cancellation audit entry.
-- `POST /api/v1/executions/:id/retry`: Retry execution from failed step.
+- `POST /api/v1/executions/:id/cancel`: Cancel an active or queued execution with optional `{ reason }`. Transitions state to `CANCELLED`, aborts in-flight handlers, marks running steps as `SKIPPED`, cancels pending delays, rejects/invalidates pending approvals, and records cancellation audit entry. Rejects cancellation of terminal executions with HTTP 400 `INVALID_TRANSITION`.
+- `POST /api/v1/executions/:id/retry`: Retry failed execution with optional `{ stepId, reason }`. Resets failed step or designated step to `PENDING`, clears error details, increments attempt and retry counts, transitions execution to `QUEUED`, and resumes execution. Rejects retry on non-failed executions with HTTP 400 `INVALID_STATE`.
 
 ## 5. Approvals Endpoints
 
-- `GET /api/v1/approvals`: List pending and historical approvals for user role.
-- `GET /api/v1/approvals/:id`: Retrieve single approval request and execution context.
-- `POST /api/v1/approvals/:id/decide`: Submit decision (`APPROVE` or `REJECT`) with optional comment. Resumes or terminates workflow execution.
+- `GET /api/v1/approvals`: List pending and historical approvals with pagination and filters (`?status=PENDING&assignedToMe=true&page=1&pageSize=20`). Returns enriched approval objects with workflow and execution metadata.
+- `GET /api/v1/approvals/:id`: Retrieve single approval request with full execution context, step summary, decider details, and assignee details.
+- `POST /api/v1/approvals/:id/decide`: Submit decision (`APPROVE` or `REJECT`) with optional comment. Enforces atomic conflict guard (HTTP 409 `ALREADY_DECIDED`), self-approval prevention (HTTP 403 `SELF_APPROVAL_FORBIDDEN` for workflow creators unless explicitly allowed or caller is `OWNER`), and assignee/role authorization (HTTP 403 `NOT_ASSIGNED` / `INSUFFICIENT_ROLE`). Resumes or terminates workflow execution and logs audit event.
+- `POST /api/v1/approvals/:id/reassign`: Reassign an active approval to another organization member or role (`{ assignedUserId?, requiredRole?, reason? }`). Validates target user is an active organization member (HTTP 400 `INVALID_ASSIGNEE`), verifies approval is pending (HTTP 409 `ALREADY_DECIDED`), and records audit entry.
 
 ## 6. Webhooks, Schedules & Integration Credentials Endpoints
 

@@ -118,6 +118,9 @@ export interface ApprovalRecord {
   decisionComment?: string;
   decidedById?: string;
   decidedAt?: Date;
+  assignedUserId?: string;
+  expiresAt?: Date;
+  timeoutPolicy?: "REJECT" | "FAIL";
   createdAt: Date;
 }
 

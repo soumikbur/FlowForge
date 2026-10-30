@@ -179,6 +179,19 @@ export class WorkflowExecutionRunner {
       }
     }
 
+    // Invalidate and reject pending approvals
+    for (const approval of this.db.approvals.values()) {
+      if (
+        approval.executionId === execution.id &&
+        approval.status === "PENDING"
+      ) {
+        approval.status = "REJECTED";
+        approval.decisionComment = "Execution was cancelled";
+        approval.decidedAt = now;
+        this.db.approvals.set(approval.id, approval);
+      }
+    }
+
     return execution;
   }
 
@@ -252,6 +265,225 @@ export class WorkflowExecutionRunner {
     this.db.executions.set(execution.id, execution);
 
     return this.processExecution(executionId);
+  }
+
+  /**
+   * Resumes or concludes an execution waiting on human approval.
+   */
+  public async resumeExecutionAfterApproval(
+    approvalId: string,
+    decision: "APPROVE" | "REJECT",
+    comment?: string,
+    decidedById?: string,
+  ): Promise<{ approval: ApprovalRecord; execution: WorkflowExecutionRecord }> {
+    const approval = this.db.approvals.get(approvalId);
+    if (!approval) {
+      throw new Error(`Approval ${approvalId} not found.`);
+    }
+
+    if (approval.status !== "PENDING") {
+      throw new Error(
+        `Approval already decided with status: ${approval.status}`,
+      );
+    }
+
+    const execution = this.db.executions.get(approval.executionId);
+    if (!execution) {
+      throw new Error(`Execution ${approval.executionId} not found.`);
+    }
+
+    const now = new Date();
+
+    // If execution was cancelled while awaiting approval, record rejection and do not resume
+    if (execution.status === "CANCELLED") {
+      approval.status = "REJECTED";
+      approval.decisionComment = "Execution was cancelled";
+      approval.decidedAt = now;
+      this.db.approvals.set(approval.id, approval);
+      return { approval, execution };
+    }
+
+    approval.status = decision === "APPROVE" ? "APPROVED" : "REJECTED";
+    approval.decisionComment = comment;
+    approval.decidedById = decidedById;
+    approval.decidedAt = now;
+    this.db.approvals.set(approval.id, approval);
+
+    const step = this.db.steps.get(approval.stepId);
+    if (step) {
+      if (decision === "APPROVE") {
+        step.status = "COMPLETED";
+        step.outputPayload = {
+          approved: true,
+          comment,
+          decidedById,
+          decidedAt: now.toISOString(),
+        };
+        step.completedAt = now;
+      } else {
+        step.status = "FAILED";
+        step.errorMessage = comment || "Approval was rejected";
+        step.completedAt = now;
+      }
+      this.db.steps.set(step.id, step);
+    }
+
+    if (decision === "APPROVE") {
+      const version = this.db.versions.get(execution.workflowVersionId);
+      if (!version) {
+        throw new Error("Workflow version snapshot not found.");
+      }
+
+      const currentNodeId = execution.currentNodeId!;
+      execution.contextData = {
+        ...execution.contextData,
+        steps: {
+          ...((execution.contextData.steps as any) || {}),
+          [currentNodeId]: {
+            output: {
+              approved: true,
+              comment,
+              decidedById,
+              decidedAt: now.toISOString(),
+            },
+            status: "COMPLETED",
+          },
+        },
+      };
+
+      const plan = resolveNextNodes(version.definition, currentNodeId, {
+        status: "COMPLETED",
+        output: { approved: true, comment, decidedById },
+      });
+
+      if (plan.isComplete || plan.nextNodes.length === 0) {
+        execution.status = "SUCCEEDED";
+        execution.completedAt = now;
+        execution.updatedAt = now;
+        this.db.executions.set(execution.id, execution);
+        return { approval, execution };
+      }
+
+      execution.currentNodeId = plan.nextNodes[0].id;
+      execution.status = "QUEUED";
+      execution.updatedAt = now;
+      this.db.executions.set(execution.id, execution);
+
+      const processed = await this.processExecution(execution.id);
+      return { approval, execution: processed };
+    } else {
+      execution.status = "FAILED";
+      execution.completedAt = now;
+      execution.updatedAt = now;
+      execution.errorDetails = {
+        failedNodeId: execution.currentNodeId,
+        message: comment || "Approval was rejected",
+        decidedById,
+      };
+      this.db.executions.set(execution.id, execution);
+      return { approval, execution };
+    }
+  }
+
+  /**
+   * Recovers overdue approvals whose timeout duration has expired.
+   */
+  public async recoverOverdueApprovals(
+    now: Date = new Date(),
+  ): Promise<number> {
+    let timedOutCount = 0;
+    for (const approval of this.db.approvals.values()) {
+      if (
+        approval.status === "PENDING" &&
+        approval.expiresAt &&
+        approval.expiresAt.getTime() <= now.getTime()
+      ) {
+        timedOutCount++;
+        approval.status = "TIMEOUT";
+        approval.decisionComment = "Approval timed out";
+        approval.decidedAt = now;
+        this.db.approvals.set(approval.id, approval);
+
+        const execution = this.db.executions.get(approval.executionId);
+        if (execution && execution.status === "WAITING_APPROVAL") {
+          const step = this.db.steps.get(approval.stepId);
+          if (step && step.status === "WAITING") {
+            step.status = "FAILED";
+            step.errorMessage = "Approval timed out";
+            step.completedAt = now;
+            this.db.steps.set(step.id, step);
+          }
+
+          execution.status = "FAILED";
+          execution.completedAt = now;
+          execution.updatedAt = now;
+          execution.errorDetails = {
+            failedNodeId: execution.currentNodeId,
+            message: "Approval timed out",
+            timeoutPolicy: approval.timeoutPolicy || "REJECT",
+          };
+          this.db.executions.set(execution.id, execution);
+        }
+      }
+    }
+    return timedOutCount;
+  }
+
+  /**
+   * Retries a failed execution safely from the failed step or a designated step.
+   */
+  public async retryFailedExecution(
+    executionId: string,
+    options?: { stepId?: string; reason?: string },
+  ): Promise<WorkflowExecutionRecord> {
+    const execution = this.db.executions.get(executionId);
+    if (!execution) {
+      throw new Error(`Execution ${executionId} not found.`);
+    }
+
+    if (execution.status !== "FAILED") {
+      throw new Error(
+        `Cannot retry execution in state '${execution.status}'. Only FAILED executions can be retried.`,
+      );
+    }
+
+    const now = new Date();
+    let targetNodeId = execution.currentNodeId;
+
+    if (options?.stepId) {
+      const step = this.db.steps.get(options.stepId);
+      if (!step || step.executionId !== execution.id) {
+        throw new Error(
+          `Step ${options.stepId} not found for execution ${executionId}.`,
+        );
+      }
+      targetNodeId = step.nodeId;
+      step.status = "PENDING";
+      step.errorMessage = undefined;
+      step.attempt = (step.attempt || 1) + 1;
+      this.db.steps.set(step.id, step);
+    } else {
+      const failedStep = Array.from(this.db.steps.values()).find(
+        (s) => s.executionId === execution.id && s.status === "FAILED",
+      );
+      if (failedStep) {
+        targetNodeId = failedStep.nodeId;
+        failedStep.status = "PENDING";
+        failedStep.errorMessage = undefined;
+        failedStep.attempt = (failedStep.attempt || 1) + 1;
+        this.db.steps.set(failedStep.id, failedStep);
+      }
+    }
+
+    execution.currentNodeId = targetNodeId;
+    execution.status = "QUEUED";
+    execution.completedAt = undefined;
+    execution.errorDetails = undefined;
+    execution.retryCount = (execution.retryCount || 0) + 1;
+    execution.updatedAt = now;
+    this.db.executions.set(execution.id, execution);
+
+    return this.processExecution(execution.id);
   }
 
   /**
@@ -556,6 +788,9 @@ export class WorkflowExecutionRunner {
             this.db.steps.set(stepId, stepRecord);
 
             // Create Approval record
+            const timeoutSeconds =
+              (stepResult.waitPayload?.timeoutSeconds as number) ?? 86400;
+            const expiresAt = new Date(Date.now() + timeoutSeconds * 1000);
             const approvalId = `appr_${crypto.randomUUID()}`;
             const approval: ApprovalRecord = {
               id: approvalId,
@@ -568,6 +803,10 @@ export class WorkflowExecutionRunner {
               requiredRole:
                 (stepResult.waitPayload?.requiredRole as any) || "ADMIN",
               status: "PENDING",
+              assignedUserId: stepResult.waitPayload?.assignedUserId as string,
+              expiresAt,
+              timeoutPolicy:
+                (stepResult.waitPayload?.timeoutPolicy as any) || "REJECT",
               createdAt: new Date(),
             };
             this.db.approvals.set(approvalId, approval);
