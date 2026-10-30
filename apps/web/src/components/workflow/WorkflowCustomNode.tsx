@@ -9,6 +9,7 @@ import {
   Hourglass,
   Flag,
   AlertCircle,
+  Plug,
 } from "lucide-react";
 import { getNodeRegistryItem } from "../../lib/node-registry";
 import { NodeType } from "@flowforge/shared";
@@ -21,6 +22,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   UserCheck,
   Hourglass,
   Flag,
+  Plug,
 };
 
 export const WorkflowCustomNode = memo(({ data, selected }: NodeProps) => {

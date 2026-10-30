@@ -347,9 +347,9 @@ describe("Phase 4: Deterministic Execution Planning", () => {
 });
 
 describe("Phase 4: Node Handler Contracts & Metadata Registry", () => {
-  it("provides registered metadata for all 7 node types", () => {
+  it("provides registered metadata for all registered node types", () => {
     const types = defaultRegistry.listSupportedTypes();
-    expect(types.length).toBe(7);
+    expect(types.length).toBe(8);
 
     const triggerMeta = defaultRegistry.getMetadata("TRIGGER");
     expect(triggerMeta?.isTrigger).toBe(true);

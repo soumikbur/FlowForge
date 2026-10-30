@@ -21,6 +21,7 @@ import {
   ApiKeyRecord,
 } from "../store.js";
 import { requireAuth } from "../middleware/auth.js";
+import { connectionRouter } from "./connection.routes.js";
 
 export const organizationRouter = Router();
 
@@ -171,6 +172,9 @@ organizationRouter.post("/invitations/accept", (req: Request, res: Response) => 
 
 // Protect all subsequent administrative routes
 organizationRouter.use(requireAuth);
+
+// Mount Connections Sub-router
+organizationRouter.use("/:organizationId/connections", connectionRouter);
 
 /**
  * Helper to resolve the authenticated caller's membership and verify organization boundaries.

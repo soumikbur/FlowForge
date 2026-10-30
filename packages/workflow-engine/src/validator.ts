@@ -8,6 +8,7 @@ import {
   ApprovalNodeConfigSchema,
   DelayNodeConfigSchema,
   EndNodeConfigSchema,
+  ConnectorActionNodeConfigSchema,
 } from "@flowforge/shared";
 import { ENGINE_LIMITS } from "./limits.js";
 import {
@@ -153,6 +154,9 @@ export function validateWorkflowDefinition(
         break;
       case "END":
         schemaResult = EndNodeConfigSchema.safeParse(node.config);
+        break;
+      case "CONNECTOR_ACTION":
+        schemaResult = ConnectorActionNodeConfigSchema.safeParse(node.config);
         break;
       default:
         errors.push({

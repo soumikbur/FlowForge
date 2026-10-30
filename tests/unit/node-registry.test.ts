@@ -15,7 +15,7 @@ import {
 } from "@flowforge/shared";
 
 describe("Node Registry Specifications & Contract Verification", () => {
-  it("contains all 7 core workflow node types", () => {
+  it("contains all core workflow node types", () => {
     const registeredTypes = Object.keys(NODE_REGISTRY);
     expect(registeredTypes).toContain("TRIGGER");
     expect(registeredTypes).toContain("CONDITION");
@@ -24,7 +24,8 @@ describe("Node Registry Specifications & Contract Verification", () => {
     expect(registeredTypes).toContain("APPROVAL");
     expect(registeredTypes).toContain("DELAY");
     expect(registeredTypes).toContain("END");
-    expect(registeredTypes.length).toBe(7);
+    expect(registeredTypes).toContain("CONNECTOR_ACTION");
+    expect(registeredTypes.length).toBe(8);
   });
 
   it("organizes nodes into standard UI categories", () => {

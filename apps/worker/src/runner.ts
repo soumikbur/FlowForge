@@ -14,6 +14,9 @@ import {
   executeSafeHttpRequest,
   defaultEmailService,
   decryptCredentialData,
+  defaultConnectorRegistry,
+  redactDeep,
+  redactErrorMessage,
 } from "@flowforge/integrations";
 import {
   InMemoryDatabase,
@@ -41,41 +44,83 @@ export class WorkflowExecutionRunner {
       const url = node.config.url as string;
       const method = (node.config.method as string) || "GET";
       const timeoutMs = (node.config.timeoutMs as number) || 10000;
-      const credentialId = node.config.credentialId as string | undefined;
+      const connectionId =
+        (node.config.connectionId as string) ||
+        (node.config.credentialId as string | undefined);
       const maxRetries = (node.config.maxRetries as number) ?? 2;
       const idempotentRetry = (node.config.idempotentRetry as boolean) ?? false;
       const headers = { ...((node.config.headers as Record<string, string>) || {}) };
 
-      // Resolve credential if configured
-      if (credentialId) {
-        const cred = this.db.credentials.get(credentialId);
-        if (!cred || cred.organizationId !== context.organizationId) {
-          const err = new Error(
-            `Integration credential '${credentialId}' not found or unauthorized for organization.`,
-          );
-          (err as any).isNonRetryable = true;
-          throw err;
-        }
-
-        try {
-          const decrypted = decryptCredentialData(
-            cred.encryptedData,
-          ) as Record<string, unknown>;
-          if (cred.type === "BEARER_TOKEN" && decrypted.token) {
-            headers["Authorization"] = `Bearer ${decrypted.token}`;
-          } else if (cred.type === "API_KEY" && decrypted.apiKey) {
-            const headerName = (decrypted.headerName as string) || "X-API-Key";
-            headers[headerName] = decrypted.apiKey as string;
-          } else if (cred.type === "BASIC_AUTH" && decrypted.username) {
-            const basic = Buffer.from(
-              `${decrypted.username}:${decrypted.password || ""}`,
-            ).toString("base64");
-            headers["Authorization"] = `Basic ${basic}`;
+      // Resolve connection or legacy credential if configured
+      if (connectionId) {
+        const conn = this.db.connections.get(connectionId);
+        if (conn) {
+          if (conn.organizationId !== context.organizationId) {
+            const err = new Error(
+              `Integration connection '${connectionId}' not found or unauthorized for organization.`,
+            );
+            (err as any).isNonRetryable = true;
+            throw err;
           }
-        } catch (decErr: any) {
-          const err = new Error(`Failed to decrypt credential: ${decErr.message}`);
-          (err as any).isNonRetryable = true;
-          throw err;
+          if (conn.status !== "ACTIVE") {
+            const err = new Error(
+              `Integration connection '${connectionId}' is ${conn.status}. Cannot execute request.`,
+            );
+            (err as any).isNonRetryable = true;
+            throw err;
+          }
+          try {
+            const decrypted = decryptCredentialData(
+              conn.encryptedData,
+            ) as Record<string, unknown>;
+            if (decrypted.apiKey) {
+              const headerName = (decrypted.authHeaderName as string) || "Authorization";
+              const prefix = (decrypted.authPrefix as string) ?? "Bearer";
+              headers[headerName] = prefix ? `${prefix} ${decrypted.apiKey}` : String(decrypted.apiKey);
+            } else if (decrypted.token) {
+              headers["Authorization"] = `Bearer ${decrypted.token}`;
+            } else if (decrypted.username) {
+              const basic = Buffer.from(
+                `${decrypted.username}:${decrypted.password || ""}`,
+              ).toString("base64");
+              headers["Authorization"] = `Basic ${basic}`;
+            }
+          } catch (decErr: any) {
+            const err = new Error(`Failed to decrypt connection credentials: ${decErr.message}`);
+            (err as any).isNonRetryable = true;
+            throw err;
+          }
+        } else {
+          // Fallback to legacy credential record
+          const cred = this.db.credentials.get(connectionId);
+          if (!cred || cred.organizationId !== context.organizationId) {
+            const err = new Error(
+              `Integration credential '${connectionId}' not found or unauthorized for organization.`,
+            );
+            (err as any).isNonRetryable = true;
+            throw err;
+          }
+
+          try {
+            const decrypted = decryptCredentialData(
+              cred.encryptedData,
+            ) as Record<string, unknown>;
+            if (cred.type === "BEARER_TOKEN" && decrypted.token) {
+              headers["Authorization"] = `Bearer ${decrypted.token}`;
+            } else if (cred.type === "API_KEY" && decrypted.apiKey) {
+              const headerName = (decrypted.headerName as string) || "X-API-Key";
+              headers[headerName] = decrypted.apiKey as string;
+            } else if (cred.type === "BASIC_AUTH" && decrypted.username) {
+              const basic = Buffer.from(
+                `${decrypted.username}:${decrypted.password || ""}`,
+              ).toString("base64");
+              headers["Authorization"] = `Basic ${basic}`;
+            }
+          } catch (decErr: any) {
+            const err = new Error(`Failed to decrypt credential: ${decErr.message}`);
+            (err as any).isNonRetryable = true;
+            throw err;
+          }
         }
       }
 
@@ -104,6 +149,25 @@ export class WorkflowExecutionRunner {
       const to = (node.config.to as string) || "";
       const subject = (node.config.subject as string) || "";
       const template = (node.config.template as string) || "";
+      const connectionId = node.config.connectionId as string | undefined;
+
+      if (connectionId) {
+        const conn = this.db.connections.get(connectionId);
+        if (!conn || conn.organizationId !== context.organizationId) {
+          const err = new Error(
+            `Email connection '${connectionId}' not found or unauthorized for organization.`,
+          );
+          (err as any).isNonRetryable = true;
+          throw err;
+        }
+        if (conn.status !== "ACTIVE") {
+          const err = new Error(
+            `Email connection '${connectionId}' is ${conn.status}. Cannot send email.`,
+          );
+          (err as any).isNonRetryable = true;
+          throw err;
+        }
+      }
 
       const delivery = await defaultEmailService.sendEmail({
         idempotencyKey: `${context.trigger?.type}_${Date.now()}`,
@@ -120,6 +184,72 @@ export class WorkflowExecutionRunner {
           timestamp: delivery.timestamp,
         },
       };
+    });
+
+    // Register CONNECTOR_ACTION handler
+    this.registry.register("CONNECTOR_ACTION", async (node, context) => {
+      const connectorId = node.config.connectorId as string;
+      const operationId = node.config.operationId as string;
+      const connectionId = node.config.connectionId as string;
+      const parameters = (node.config.parameters as Record<string, unknown>) || {};
+      const timeoutMs = (node.config.timeoutMs as number) || 10000;
+      const idempotentRetry = (node.config.idempotentRetry as boolean) ?? false;
+
+      if (!defaultConnectorRegistry.has(connectorId)) {
+        const err = new Error(`Connector '${connectorId}' is not registered in connector catalog.`);
+        (err as any).isNonRetryable = true;
+        throw err;
+      }
+
+      const conn = this.db.connections.get(connectionId);
+      if (!conn || conn.organizationId !== context.organizationId) {
+        const err = new Error(
+          `Integration connection '${connectionId}' not found or unauthorized for organization.`,
+        );
+        (err as any).isNonRetryable = true;
+        throw err;
+      }
+
+      if (conn.status !== "ACTIVE") {
+        const err = new Error(
+          `Integration connection '${connectionId}' is ${conn.status}. Cannot execute operation.`,
+        );
+        (err as any).isNonRetryable = true;
+        throw err;
+      }
+
+      let credentials: Record<string, unknown> = {};
+      try {
+        credentials = decryptCredentialData(conn.encryptedData) as Record<string, unknown>;
+      } catch (decErr: any) {
+        const err = new Error(
+          `Failed to decrypt credentials for connection '${connectionId}': ${decErr.message}`,
+        );
+        (err as any).isNonRetryable = true;
+        throw err;
+      }
+
+      const handler = defaultConnectorRegistry.getHandler(connectorId);
+      try {
+        const result = await handler(operationId, parameters, {
+          organizationId: context.organizationId,
+          connectionId,
+          credentials,
+          timeoutMs,
+          idempotentRetry,
+        });
+
+        return {
+          status: "COMPLETED",
+          output: redactDeep(result.data) as Record<string, unknown>,
+        };
+      } catch (execErr: any) {
+        const sanitized = redactErrorMessage(execErr.message);
+        const err = new Error(sanitized);
+        (err as any).isNonRetryable = execErr.isNonRetryable ?? (!idempotentRetry);
+        (err as any).category = execErr.category || "CONNECTOR_EXECUTION_ERROR";
+        throw err;
+      }
     });
   }
 

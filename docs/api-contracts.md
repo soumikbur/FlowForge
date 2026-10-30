@@ -313,3 +313,48 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
   - `X-RateLimit-Limit`: Maximum requests permitted in window.
   - `X-RateLimit-Remaining`: Remaining request quota.
   - `X-RateLimit-Reset`: Unix timestamp when current window resets.
+
+---
+
+## 12. Connectors & Integration Connections API
+
+### 12.1 Connector Catalog
+- `GET /api/v1/connectors`:
+  - **Query Parameters**: `category?: ConnectorCategory` (`HTTP`, `NOTIFICATION`, `DATABASE`, `AI`, `CUSTOM`).
+  - **Response**: Array of registered connector definitions with operation specifications and authentication parameter schemas (`http-api`, `smtp-email`, `slack-webhook`).
+- `GET /api/v1/connectors/:connectorId`:
+  - **Response**: Full connector specification, operation schemas, and parameter constraints. 404 if not found.
+
+### 12.2 Organization Connections Management
+- `GET /api/v1/organizations/:organizationId/connections`:
+  - **Permissions**: Requires `connections:read` or `org:read`.
+  - **Response**: List of configured connections. Sensitive secrets are never exposed; returns `maskedSummary` (e.g. `apiKey: ••••••••1234`), status (`ACTIVE`, `DISABLED`, `REVOKED`), and last tested diagnostics.
+- `POST /api/v1/organizations/:organizationId/connections`:
+  - **Permissions**: Requires `connections:write` (`OWNER`, `ADMIN`).
+  - **Body**: `{ connectorId: string, name: string, authType?: AuthType, credentialData: Record<string, unknown>, metadata?: Record<string, unknown> }`.
+  - **Security**: Credentials encrypted with AES-256-GCM authenticated encryption (`iv:authTag:ciphertext`).
+  - **Response**: 201 Created with masked summary. Plaintext is discarded immediately after encryption.
+- `GET /api/v1/organizations/:organizationId/connections/:connectionId`:
+  - **Permissions**: Requires `connections:read`.
+  - **Response**: Connection details with masked summary. 404 if not found or organization mismatch.
+- `PATCH /api/v1/organizations/:organizationId/connections/:connectionId`:
+  - **Permissions**: Requires `connections:write`.
+  - **Body**: `{ name?: string, status?: ConnectionStatus, metadata?: Record<string, unknown> }`.
+  - **Response**: Updated connection metadata.
+- `POST /api/v1/organizations/:organizationId/connections/:connectionId/rotate`:
+  - **Permissions**: Requires `connections:write`.
+  - **Body**: `{ credentialData: Record<string, unknown> }`.
+  - **Security**: Re-encrypts credentials with fresh IV and auth tag. Resets `lastTestedAt` and `lastTestStatus`.
+  - **Audit**: Emits `connection:rotate`.
+- `POST /api/v1/organizations/:organizationId/connections/:connectionId/test`:
+  - **Permissions**: Requires `connections:read` or `connections:write`.
+  - **Execution**: Decrypts credentials server-side and executes health probe against the target service within strict timeouts.
+  - **Response**: `ConnectionTestResult` (`{ success: boolean, message: string, latencyMs?: number, errorCategory?: string, testedAt: string }`). Error messages are sanitized via deep redaction. Updates `lastTestedAt` and `lastTestStatus`.
+- `POST /api/v1/organizations/:organizationId/connections/test-draft`:
+  - **Permissions**: Requires `connections:write`.
+  - **Body**: `{ connectorId: string, credentialData: Record<string, unknown>, config?: Record<string, unknown> }`.
+  - **Execution**: Evaluates credentials before saving. Enforces SSRF defenses (blocks `127.0.0.1`, `169.254.169.254`, and private subnets).
+- `DELETE /api/v1/organizations/:organizationId/connections/:connectionId`:
+  - **Permissions**: Requires `connections:write`.
+  - **Action**: Revokes and removes connection. Subsequent accesses return 404.
+

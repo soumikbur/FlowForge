@@ -389,3 +389,52 @@
 - **VERIFICATION COMMANDS**: `pnpm test; pnpm typecheck; pnpm build`
 - **ACTUAL RESULTS**: All 27/27 Prompt 11 integration tests passing; 254/254 total tests passing across 21 test suites; full monorepo build and Next.js 14 production build succeed with 0 errors.
 - **STATUS**: DONE
+
+---
+
+## TASK-029: Enterprise Integration Management, Connector Registry, and Secure Credential Lifecycle (Prompt 12)
+
+- **OBJECTIVE**: Design, implement, test, and document a unified, production-grade integration and connector platform within `C:\Users\soumi\OneDrive\Documents\Antigravity\FlowForge` across `@flowforge/shared`, `@flowforge/database`, `@flowforge/integrations`, `@flowforge/workflow-engine`, `@flowforge/worker`, `@flowforge/api`, `@flowforge/web`, and `@flowforge/test-utils`.
+- **DEPENDENCIES**: TASK-005, TASK-006, TASK-008, TASK-024, TASK-025, TASK-028
+- **ALLOWED FILES**: `packages/shared/src/*`, `packages/database/prisma/*`, `packages/integrations/src/*`, `packages/workflow-engine/src/*`, `packages/test-utils/src/*`, `apps/worker/src/*`, `apps/api/src/*`, `apps/web/src/*`, `tests/integration/enterprise-integrations-connectors.test.ts`, `docs/*`
+- **REQUIREMENTS**:
+  1. Centralized Typed Connector Registry (`packages/integrations/src/connector-registry.ts`):
+     - `ConnectorRegistry` class with `register()`, `get()`, `getHandler()`, `getTester()`, `list()`, `has()`.
+     - Schema-validated connector definitions, parameters, and operations.
+     - Rejection of duplicate connector IDs and invalid schemas.
+     - Built-in connectors: `http-api` (HTTP/REST client with SSRF guards), `smtp-email` (transactional email with idempotency), `slack-webhook` (rich message posting with HTTPS and SSRF guards).
+  2. Deep Credential Redaction & SSRF Defenses (`packages/integrations/src/redaction.ts`):
+     - Safe recursive traversal of arbitrary structures, arrays, and error instances.
+     - Cycle detection via `WeakSet` preventing stack overflows.
+     - Automatic key detection: `authorization`, `x-api-key`, `cookie`, `set-cookie`, `password`, `secret`, `token`, `webhookUrl`, etc.
+     - `maskSecret()` producing `••••••••${last4}`.
+     - `redactUrl()` removing user credentials and sensitive query parameters.
+     - `redactErrorMessage()` sanitizing exception strings before logs or client responses.
+  3. Database Schema & Migration (`packages/database/prisma/schema.prisma`):
+     - Added `ConnectionStatus` enum (`ACTIVE`, `DISABLED`, `REVOKED`).
+     - Created `IntegrationConnection` model storing AES-256-GCM encrypted data, metadata, status, and health test diagnostics.
+     - Migration: `20261031070000_integration_connections`.
+  4. In-Memory Store Integration (`packages/test-utils/src/index.ts`):
+     - Added `IntegrationConnectionRecord` and `InMemoryDatabase.connections` map with reset.
+  5. Workflow Engine & Node Contracts (`packages/workflow-engine` & `packages/shared`):
+     - Extended `NodeTypeEnum` with `CONNECTOR_ACTION`.
+     - Added `ConnectorActionNodeConfigSchema` with connector, operation, connection reference, and parameters.
+     - Added `connectionId` support to `HttpRequestNodeConfigSchema` and `EmailNodeConfigSchema`.
+  6. Worker Execution Runtime (`apps/worker/src/runner.ts`):
+     - Runner resolves configured connections by ID and organization boundary.
+     - Enforces connection status (`ACTIVE` required, rejects `DISABLED` or `REVOKED`).
+     - Decrypts credentials server-side and executes registered connector operations.
+     - Enforces timeouts, SSRF protections, and non-idempotent retry prevention.
+  7. REST APIs (`apps/api/src/routes/connection.routes.ts`):
+     - Connector Catalog: `GET /api/v1/connectors`, `GET /api/v1/connectors/:id`.
+     - Organization Connections: `GET /api/v1/organizations/:id/connections`, `POST /api/v1/organizations/:id/connections` (encrypted at rest, masked summary returned), `GET /:connId`, `PATCH /:connId`, `POST /:connId/rotate`, `POST /:connId/test`, `POST /test-draft`, `DELETE /:connId`.
+  8. Administration & Workflow Builder UI (`apps/web`):
+     - Settings "Integrations & Connectors" tab: catalog viewer, connection list with status, diagnostics, Test Connection, Rotate Credentials modal, and Add Connection modal with live draft testing.
+     - Workflow builder NodeConfigPanel supports configuring `CONNECTOR_ACTION` and referencing connection IDs.
+  9. Comprehensive Integration Tests (`tests/integration/enterprise-integrations-connectors.test.ts`):
+     - 27 tests covering registry operations, deep redaction, SSRF defenses, AES-256-GCM lifecycle, connection testing, runner execution, and multi-tenant isolation.
+- **ACCEPTANCE CRITERIA**: 100% test pass rate across 22 test suites (281/281 tests passing); zero TypeScript errors; Next.js 14 production build succeeds with 0 errors.
+- **REQUIRED TESTS**: `tests/integration/enterprise-integrations-connectors.test.ts`
+- **VERIFICATION COMMANDS**: `pnpm test; pnpm typecheck; pnpm build`
+- **ACTUAL RESULTS**: All 27/27 Prompt 12 integration tests passing; 281/281 total tests passing across 22 test suites; full monorepo build and Next.js 14 production build succeed with 0 errors.
+- **STATUS**: DONE

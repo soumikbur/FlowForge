@@ -207,3 +207,62 @@ flowchart TD
 - **Single-Use Cryptographic Invitations**: Invitation tokens are hashed with SHA-256 before storage. Acceptance is atomic and single-use; tokens expire after 7 days and can be revoked on-demand.
 - **Active State Data Retention Invariant**: Retention policies strictly purge completed terminal runs (`SUCCEEDED`, `FAILED`, `CANCELLED`). Running, queued, or paused workflows (`RUNNING`, `QUEUED`, `WAITING_APPROVAL`, `WAITING_DELAY`, `RETRYING`) are permanently shielded from deletion.
 - **Sanitized Audit Trail**: All administrative and lifecycle mutations emit structured audit events. Raw passwords, bearer tokens, API key secrets, and invitation secrets are unconditionally excluded.
+
+---
+
+## 9. Connector Registry, Integration Architecture, and Credential Security
+
+```mermaid
+flowchart TD
+    subgraph UI ["Presentation & Cockpit (apps/web)"]
+        CatalogView["Connector Catalog View (/settings)"]
+        ConnForm["Connection Creator Modal"]
+        BuilderNode["CONNECTOR_ACTION Workflow Node (React Flow)"]
+    end
+
+    subgraph API ["REST API Layer (apps/api)"]
+        CatalogRoutes["/api/v1/connectors"]
+        ConnRoutes["/api/v1/organizations/:id/connections"]
+        Encryptor["AES-256-GCM Encryptor (iv:tag:cipher)"]
+        Masker["Secret Masking (••••••••last4)"]
+    end
+
+    subgraph Storage ["Encrypted Persistence"]
+        DB[(PostgreSQL / InMemoryStore)]
+    end
+
+    subgraph Engine ["Runtime Execution (apps/worker & workflow-engine)"]
+        Runner["WorkflowExecutionRunner"]
+        ConnResolver["Connection Resolver & Status Check"]
+        Decryptor["AES-256-GCM Decryptor"]
+        Registry["ConnectorRegistry (http-api, smtp-email, slack-webhook)"]
+        SSRF["SSRF Defense & DNS Resolver"]
+        Redactor["Deep Redaction (Cyclic-Safe WeakSet)"]
+    end
+
+    CatalogView --> CatalogRoutes
+    ConnForm --> ConnRoutes
+    ConnRoutes --> Encryptor
+    Encryptor --> DB
+    ConnRoutes --> Masker --> CatalogView
+
+    BuilderNode -.->|stores connectionId only| DB
+    Runner --> ConnResolver
+    ConnResolver --> DB
+    ConnResolver --> Decryptor
+    Decryptor --> Registry
+    Registry --> SSRF
+    Registry --> Redactor
+```
+
+### 9.1 Separation of Concerns: Connectors vs Connections
+- **Connector (`ConnectorDefinition`)**: A stateless, typed blueprint defining capabilities, supported operations, input/output schemas, and authentication configuration. Connectors are globally registered in `defaultConnectorRegistry` (`http-api`, `smtp-email`, `slack-webhook`).
+- **Connection (`IntegrationConnection`)**: An organization-scoped, configured instance holding authenticated credentials, status (`ACTIVE`, `DISABLED`, `REVOKED`), and health diagnostics. Workflows reference connections strictly by ID; plaintext credentials are never embedded in workflow definitions.
+
+### 9.2 Cryptographic Security & Credential Lifecycle
+1. **AES-256-GCM Encryption at Rest**: All credential payloads (`apiKey`, `password`, `token`, `webhookUrl`) are encrypted using authenticated AES-256-GCM with unique 16-byte initialization vectors. Stored format: `iv:authTag:ciphertext`.
+2. **Zero Plaintext Leakage**: Responses returned across the REST API unconditionally omit plaintext secrets. Only masked summaries (`••••••••last4` or `••••••••`) are displayed in the administration UI.
+3. **Deep Recursive Redaction**: All log messages, response payloads, headers, query parameters, and error traces pass through `redactDeep`. Handles arbitrary structures and cyclic object graphs safely using `WeakSet`.
+4. **Server-Side SSRF Defenses**: Outbound connector requests are validated by `resolveAndValidateDestination` against loopback addresses (`127.0.0.1`), RFC 1918 private subnets (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), and cloud link-local metadata endpoints (`169.254.169.254`). Non-HTTP protocols and private redirect destinations are blocked.
+5. **Non-Idempotent Retry Guards**: Workflow execution runner classifies connector failures; operations that are non-idempotent (`idempotentRetry: false`) fail permanently without retrying, preventing duplicate external charges or messaging.
+

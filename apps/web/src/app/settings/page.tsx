@@ -18,9 +18,10 @@ import {
   Clock,
   Plus,
   Lock,
+  Plug,
 } from "lucide-react";
 
-type TabType = "general" | "members" | "invitations" | "api-keys" | "audit" | "retention";
+type TabType = "general" | "members" | "invitations" | "api-keys" | "integrations" | "audit" | "retention";
 
 interface Member {
   id: string;
@@ -63,6 +64,43 @@ interface AuditLog {
   metadata?: Record<string, any>;
   ipAddress?: string;
   createdAt: string;
+}
+
+interface ConnectionItem {
+  id: string;
+  organizationId: string;
+  connectorId: string;
+  name: string;
+  status: "ACTIVE" | "DISABLED" | "REVOKED";
+  authType: string;
+  maskedSummary: Record<string, string>;
+  lastTestedAt?: string | null;
+  lastTestStatus?: string | null;
+  createdAt: string;
+}
+
+interface ConnectorItem {
+  id: string;
+  name: string;
+  description: string;
+  version: string;
+  category: string;
+  authType: string;
+  authConfigFields: Array<{
+    name: string;
+    label: string;
+    type: string;
+    required?: boolean;
+    defaultValue?: any;
+    description?: string;
+  }>;
+  operations: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    isIdempotent?: boolean;
+  }>;
+  icon?: string;
 }
 
 export default function SettingsPage() {
@@ -109,6 +147,20 @@ export default function SettingsPage() {
 
   // Retention Cleanup State
   const [cleanupResult, setCleanupResult] = useState<any>(null);
+
+  // Integrations & Connectors State
+  const [connectors, setConnectors] = useState<ConnectorItem[]>([]);
+  const [connections, setConnections] = useState<ConnectionItem[]>([]);
+  const [showAddConnModal, setShowAddConnModal] = useState(false);
+  const [showRotateModal, setShowRotateModal] = useState(false);
+  const [selectedConnForRotate, setSelectedConnForRotate] = useState<ConnectionItem | null>(null);
+  const [rotateCredentialValue, setRotateCredentialValue] = useState("");
+  const [newConnName, setNewConnName] = useState("");
+  const [newConnConnectorId, setNewConnConnectorId] = useState("http-api");
+  const [newConnAuthType, setNewConnAuthType] = useState("API_KEY");
+  const [newConnFields, setNewConnFields] = useState<Record<string, string>>({});
+  const [testingConnectionId, setTestingConnectionId] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string; latencyMs?: number; errorCategory?: string } | null>(null);
 
   useEffect(() => {
     fetchInitialData();
@@ -172,6 +224,18 @@ export default function SettingsPage() {
       const auditRes = await fetch(`/api/v1/organizations/${targetOrgId}/audit-logs?pageSize=30`);
       if (auditRes.ok) {
         setAuditLogs((await auditRes.json()).data || []);
+      }
+
+      // Fetch Connectors Catalog
+      const connCatalogRes = await fetch("/api/v1/connectors");
+      if (connCatalogRes.ok) {
+        setConnectors((await connCatalogRes.json()).data || []);
+      }
+
+      // Fetch Connections
+      const connsRes = await fetch(`/api/v1/organizations/${targetOrgId}/connections`);
+      if (connsRes.ok) {
+        setConnections((await connsRes.json()).data || []);
       }
     } catch (err) {
       console.error("Failed to load org data", err);
@@ -371,6 +435,148 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleCreateConnection(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      const res = await fetch(`/api/v1/organizations/${orgId}/connections`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newConnName,
+          connectorId: newConnConnectorId,
+          authType: newConnAuthType,
+          credentialData: newConnFields,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error?.message || "Failed to create connection");
+        return;
+      }
+      setStatusMessage(`Connection '${newConnName}' created successfully.`);
+      setShowAddConnModal(false);
+      setNewConnName("");
+      setNewConnFields({});
+      setTestResult(null);
+      await loadOrgData(orgId);
+    } catch {
+      alert("Error creating connection.");
+    }
+  }
+
+  async function handleTestConnection(connId: string) {
+    setTestingConnectionId(connId);
+    setTestResult(null);
+    try {
+      const res = await fetch(`/api/v1/organizations/${orgId}/connections/${connId}/test`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setTestResult(data.data);
+        await loadOrgData(orgId);
+      } else {
+        setTestResult({
+          success: false,
+          message: data.error?.message || "Test request failed",
+          errorCategory: data.error?.code,
+        });
+      }
+    } catch (err: any) {
+      setTestResult({
+        success: false,
+        message: err.message || "Failed to test connection",
+        errorCategory: "NETWORK_ERROR",
+      });
+    } finally {
+      setTestingConnectionId(null);
+    }
+  }
+
+  async function handleTestDraft() {
+    setTestingConnectionId("draft");
+    setTestResult(null);
+    try {
+      const res = await fetch(`/api/v1/organizations/${orgId}/connections/test-draft`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          connectorId: newConnConnectorId,
+          credentialData: newConnFields,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setTestResult(data.data);
+      } else {
+        setTestResult({
+          success: false,
+          message: data.error?.message || "Draft test failed",
+          errorCategory: data.error?.code,
+        });
+      }
+    } catch (err: any) {
+      setTestResult({
+        success: false,
+        message: err.message || "Network error",
+        errorCategory: "NETWORK_ERROR",
+      });
+    } finally {
+      setTestingConnectionId(null);
+    }
+  }
+
+  async function handleRotateConnection(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedConnForRotate) return;
+    try {
+      const res = await fetch(`/api/v1/organizations/${orgId}/connections/${selectedConnForRotate.id}/rotate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          credentialData: {
+            apiKey: rotateCredentialValue,
+            token: rotateCredentialValue,
+            password: rotateCredentialValue,
+            webhookUrl: rotateCredentialValue,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error?.message || "Rotation failed");
+        return;
+      }
+      setStatusMessage(`Credentials for '${selectedConnForRotate.name}' rotated successfully.`);
+      setShowRotateModal(false);
+      setSelectedConnForRotate(null);
+      setRotateCredentialValue("");
+      await loadOrgData(orgId);
+    } catch {
+      alert("Error rotating connection credentials.");
+    }
+  }
+
+  async function handleRevokeConnection(connId: string, name: string) {
+    if (!confirm(`Are you sure you want to revoke and delete connection '${name}'?`)) return;
+    try {
+      const res = await fetch(`/api/v1/organizations/${orgId}/connections/${connId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setStatusMessage(`Connection '${name}' was revoked.`);
+        await loadOrgData(orgId);
+      } else {
+        const data = await res.json();
+        alert(data.error?.message || "Failed to revoke connection");
+      }
+    } catch {
+      alert("Error revoking connection.");
+    }
+  }
+
   return (
     <div className="flex-1 bg-slate-50 p-6 md:p-8">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -445,6 +651,7 @@ export default function SettingsPage() {
             { id: "members", label: "Members & Roles", icon: Users },
             { id: "invitations", label: "Invitations", icon: Mail },
             { id: "api-keys", label: "API Credentials", icon: Key },
+            { id: "integrations", label: "Integrations & Connectors", icon: Plug },
             { id: "audit", label: "Security Audit Trail", icon: FileText },
             { id: "retention", label: "Data Retention", icon: Database },
           ].map((tab) => {
@@ -964,6 +1171,191 @@ export default function SettingsPage() {
           </div>
         )}
 
+        {/* TAB 5: INTEGRATIONS & CONNECTORS */}
+        {activeTab === "integrations" && (
+          <div className="space-y-6">
+            {/* Header / Add connection button */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Configured Integration Connections</h2>
+                <p className="text-sm text-slate-500">
+                  Manage organization-scoped authenticated connections with AES-256-GCM encryption at rest, health probes, and credential rotation.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowAddConnModal(true);
+                  setTestResult(null);
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-md shadow-xs transition"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Connection</span>
+              </button>
+            </div>
+
+            {/* Test result banner if active */}
+            {testResult && (
+              <div
+                className={`p-4 rounded-lg border text-xs space-y-1 ${
+                  testResult.success
+                    ? "bg-emerald-50 border-emerald-300 text-emerald-900"
+                    : "bg-red-50 border-red-300 text-red-900"
+                }`}
+              >
+                <div className="flex items-center justify-between font-bold">
+                  <span>{testResult.success ? "✓ Connection Test Succeeded" : "✕ Connection Test Failed"}</span>
+                  {testResult.latencyMs !== undefined && <span>{testResult.latencyMs}ms</span>}
+                </div>
+                <div>{testResult.message}</div>
+                {testResult.errorCategory && (
+                  <div className="text-[11px] font-mono text-red-700">Category: {testResult.errorCategory}</div>
+                )}
+              </div>
+            )}
+
+            {/* Connections Table */}
+            <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+              <table className="w-full text-left text-sm text-slate-700">
+                <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold uppercase text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Connection Name</th>
+                    <th className="px-4 py-3">Connector Service</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Masked Credentials</th>
+                    <th className="px-4 py-3">Last Test Diagnostics</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {connections.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-slate-500 text-xs">
+                        No active connections configured yet. Click "Add Connection" to connect HTTP, Email, or Slack.
+                      </td>
+                    </tr>
+                  ) : (
+                    connections.map((conn) => (
+                      <tr key={conn.id} className="hover:bg-slate-50 transition">
+                        <td className="px-4 py-3">
+                          <div className="font-semibold text-slate-900">{conn.name}</div>
+                          <div className="text-[10px] text-slate-400 font-mono">{conn.id}</div>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs text-indigo-700">{conn.connectorId}</td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[11px] font-semibold ${
+                              conn.status === "ACTIVE"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : conn.status === "DISABLED"
+                                  ? "bg-slate-200 text-slate-700"
+                                  : "bg-red-100 text-red-800"
+                            }`}
+                          >
+                            {conn.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs text-slate-600">
+                          {Object.entries(conn.maskedSummary || {})
+                            .map(([k, v]) => `${k}: ${v}`)
+                            .join(", ") || "••••••••"}
+                        </td>
+                        <td className="px-4 py-3 text-xs">
+                          {conn.lastTestedAt ? (
+                            <div>
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-semibold mr-1.5 ${
+                                  conn.lastTestStatus === "SUCCESS"
+                                    ? "bg-emerald-100 text-emerald-700"
+                                    : "bg-red-100 text-red-700"
+                                }`}
+                              >
+                                {conn.lastTestStatus}
+                              </span>
+                              <span className="text-[11px] text-slate-400 font-mono">
+                                {new Date(conn.lastTestedAt).toLocaleTimeString()}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 text-xs italic">Never tested</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right space-x-1.5">
+                          <button
+                            onClick={() => handleTestConnection(conn.id)}
+                            disabled={testingConnectionId === conn.id}
+                            className="px-2.5 py-1 text-xs border border-slate-300 rounded hover:bg-slate-50 font-medium text-slate-700 disabled:opacity-50"
+                          >
+                            {testingConnectionId === conn.id ? "Testing..." : "Test"}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedConnForRotate(conn);
+                              setRotateCredentialValue("");
+                              setShowRotateModal(true);
+                            }}
+                            className="px-2.5 py-1 text-xs border border-indigo-200 text-indigo-700 rounded hover:bg-indigo-50 font-medium"
+                          >
+                            Rotate
+                          </button>
+                          <button
+                            onClick={() => handleRevokeConnection(conn.id, conn.name)}
+                            className="px-2.5 py-1 text-xs text-red-600 hover:text-red-800 font-medium"
+                          >
+                            Revoke
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Available Connectors Registry Catalog */}
+            <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm space-y-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Connector Registry Catalog</h3>
+                <p className="text-xs text-slate-500">
+                  Standardized, typed connector specifications available for workflow execution and connection configuration.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {connectors.map((c) => (
+                  <div key={c.id} className="border border-slate-200 rounded-lg p-4 space-y-3 bg-slate-50">
+                    <div className="flex items-center justify-between">
+                      <span className="px-2 py-0.5 bg-indigo-100 text-indigo-800 text-[10px] font-semibold rounded uppercase">
+                        {c.category}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">v{c.version}</span>
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm">{c.name}</h4>
+                      <p className="text-xs text-slate-600 mt-1 line-clamp-2">{c.description}</p>
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                        Supported Operations
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {c.operations.map((op) => (
+                          <span
+                            key={op.id}
+                            className="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono text-slate-700"
+                          >
+                            {op.id}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* MODAL: TRANSFER OWNERSHIP */}
         {showTransferModal && (
           <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
@@ -1124,6 +1516,233 @@ export default function SettingsPage() {
                     className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded"
                   >
                     Generate Key
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: ADD CONNECTION */}
+        {showAddConnModal && (
+          <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg p-6 max-w-lg w-full shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
+              <h3 className="text-lg font-bold text-slate-900">Add Integration Connection</h3>
+              <p className="text-xs text-slate-500">
+                Credentials are encrypted with AES-256-GCM authenticated encryption and never returned in plaintext.
+              </p>
+
+              {testResult && (
+                <div
+                  className={`p-3 rounded text-xs ${
+                    testResult.success
+                      ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                      : "bg-red-50 text-red-800 border border-red-200"
+                  }`}
+                >
+                  <div className="font-bold">{testResult.success ? "Test Passed" : "Test Failed"}</div>
+                  <div>{testResult.message}</div>
+                </div>
+              )}
+
+              <form onSubmit={handleCreateConnection} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold uppercase text-slate-700 mb-1">Connection Name</label>
+                  <input
+                    type="text"
+                    value={newConnName}
+                    onChange={(e) => setNewConnName(e.target.value)}
+                    required
+                    placeholder="e.g. Production Stripe API or Office Alerts"
+                    className="w-full px-3 py-2 border border-slate-300 rounded text-sm text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase text-slate-700 mb-1">Connector Service</label>
+                  <select
+                    value={newConnConnectorId}
+                    onChange={(e) => {
+                      setNewConnConnectorId(e.target.value);
+                      setNewConnFields({});
+                      setTestResult(null);
+                    }}
+                    className="w-full px-3 py-2 border border-slate-300 rounded text-sm text-slate-900"
+                  >
+                    <option value="http-api">HTTP & REST API (http-api)</option>
+                    <option value="smtp-email">SMTP / Email Notifications (smtp-email)</option>
+                    <option value="slack-webhook">Slack Incoming Webhook (slack-webhook)</option>
+                  </select>
+                </div>
+
+                {newConnConnectorId === "http-api" && (
+                  <div className="space-y-3 bg-slate-50 p-3 rounded border border-slate-200">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Base URL (Optional)</label>
+                      <input
+                        type="url"
+                        placeholder="https://api.example.com"
+                        value={newConnFields.baseUrl || ""}
+                        onChange={(e) => setNewConnFields({ ...newConnFields, baseUrl: e.target.value })}
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded text-xs font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">API Key / Token (Secret)</label>
+                      <input
+                        type="password"
+                        placeholder="sk_live_..."
+                        value={newConnFields.apiKey || ""}
+                        onChange={(e) => setNewConnFields({ ...newConnFields, apiKey: e.target.value })}
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {newConnConnectorId === "smtp-email" && (
+                  <div className="space-y-3 bg-slate-50 p-3 rounded border border-slate-200">
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="col-span-2">
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">SMTP Host</label>
+                        <input
+                          type="text"
+                          placeholder="smtp.sendgrid.net"
+                          value={newConnFields.host || ""}
+                          onChange={(e) => setNewConnFields({ ...newConnFields, host: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-slate-300 rounded text-xs font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Port</label>
+                        <input
+                          type="number"
+                          placeholder="587"
+                          value={newConnFields.port || "587"}
+                          onChange={(e) => setNewConnFields({ ...newConnFields, port: e.target.value })}
+                          className="w-full px-3 py-1.5 border border-slate-300 rounded text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Username / API Key</label>
+                      <input
+                        type="text"
+                        placeholder="apikey"
+                        value={newConnFields.username || ""}
+                        onChange={(e) => setNewConnFields({ ...newConnFields, username: e.target.value })}
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded text-xs font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Password / Secret</label>
+                      <input
+                        type="password"
+                        placeholder="••••••••"
+                        value={newConnFields.password || ""}
+                        onChange={(e) => setNewConnFields({ ...newConnFields, password: e.target.value })}
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {newConnConnectorId === "slack-webhook" && (
+                  <div className="space-y-3 bg-slate-50 p-3 rounded border border-slate-200">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Incoming Webhook URL</label>
+                      <input
+                        type="url"
+                        placeholder="https://hooks.slack.com/services/..."
+                        value={newConnFields.webhookUrl || ""}
+                        onChange={(e) => setNewConnFields({ ...newConnFields, webhookUrl: e.target.value })}
+                        required
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded text-xs font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Default Channel (Optional)</label>
+                      <input
+                        type="text"
+                        placeholder="#general"
+                        value={newConnFields.defaultChannel || ""}
+                        onChange={(e) => setNewConnFields({ ...newConnFields, defaultChannel: e.target.value })}
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded text-xs"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between pt-2">
+                  <button
+                    type="button"
+                    onClick={handleTestDraft}
+                    disabled={testingConnectionId === "draft"}
+                    className="px-3 py-2 border border-slate-300 text-slate-700 text-xs font-semibold rounded hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    {testingConnectionId === "draft" ? "Testing..." : "Test Connection"}
+                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddConnModal(false)}
+                      className="px-4 py-2 border border-slate-300 text-slate-700 text-sm font-medium rounded hover:bg-slate-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded"
+                    >
+                      Save Connection
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: ROTATE CREDENTIALS */}
+        {showRotateModal && selectedConnForRotate && (
+          <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl space-y-4">
+              <h3 className="text-lg font-bold text-slate-900">Rotate Connection Credentials</h3>
+              <p className="text-xs text-slate-600">
+                Replace credentials for <span className="font-semibold">{selectedConnForRotate.name}</span>. Existing credentials will be overwritten immediately.
+              </p>
+
+              <form onSubmit={handleRotateConnection} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold uppercase text-slate-700 mb-1">
+                    New Secret / API Key / Token
+                  </label>
+                  <input
+                    type="password"
+                    value={rotateCredentialValue}
+                    onChange={(e) => setRotateCredentialValue(e.target.value)}
+                    required
+                    placeholder="Enter new credential value..."
+                    className="w-full px-3 py-2 border border-slate-300 rounded text-sm text-slate-900 font-mono"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowRotateModal(false);
+                      setSelectedConnForRotate(null);
+                    }}
+                    className="px-4 py-2 border border-slate-300 text-slate-700 text-sm font-medium rounded hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded"
+                  >
+                    Rotate Credentials
                   </button>
                 </div>
               </form>

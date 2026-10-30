@@ -36,7 +36,9 @@ export type Permission =
   | "api-keys:write"
   | "invitation:read"
   | "invitation:write"
-  | "retention:write";
+  | "retention:write"
+  | "connections:read"
+  | "connections:write";
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   OWNER: [
@@ -70,6 +72,8 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "invitation:read",
     "invitation:write",
     "retention:write",
+    "connections:read",
+    "connections:write",
   ],
   ADMIN: [
     "org:read",
@@ -99,6 +103,8 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "api-keys:write",
     "invitation:read",
     "invitation:write",
+    "connections:read",
+    "connections:write",
   ],
   MEMBER: [
     "org:read",
@@ -110,6 +116,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "schedule:read",
     "credentials:read",
     "analytics:read",
+    "connections:read",
   ],
   VIEWER: [
     "org:read",
@@ -118,6 +125,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "approval:read",
     "analytics:read",
     "audit:read",
+    "connections:read",
   ],
 };
 
@@ -136,6 +144,7 @@ export const NodeTypeEnum = z.enum([
   "APPROVAL",
   "DELAY",
   "END",
+  "CONNECTOR_ACTION",
 ]);
 export type NodeType = z.infer<typeof NodeTypeEnum>;
 
@@ -160,6 +169,7 @@ export const HttpRequestNodeConfigSchema = z.object({
   body: z.string().optional(),
   timeoutMs: z.number().int().positive().max(60000).default(10000),
   credentialId: z.string().optional(),
+  connectionId: z.string().optional(),
   maxRetries: z.number().int().min(0).max(5).default(2),
   idempotentRetry: z.boolean().default(false),
 });
@@ -168,7 +178,19 @@ export const EmailNodeConfigSchema = z.object({
   to: z.string().min(1, "Recipient expression or email is required"),
   subject: z.string().min(1, "Subject is required"),
   template: z.string().min(1, "Email body template is required"),
+  connectionId: z.string().optional(),
 });
+
+export const ConnectorActionNodeConfigSchema = z.object({
+  connectorId: z.string().min(1, "Connector ID is required"),
+  operationId: z.string().min(1, "Operation ID is required"),
+  connectionId: z.string().min(1, "Connection ID is required"),
+  parameters: z.record(z.unknown()).default({}),
+  timeoutMs: z.number().int().positive().max(60000).default(10000),
+  maxRetries: z.number().int().min(0).max(5).default(2),
+  idempotentRetry: z.boolean().default(false),
+});
+export type ConnectorActionNodeConfig = z.infer<typeof ConnectorActionNodeConfigSchema>;
 
 export const ApprovalNodeConfigSchema = z.object({
   title: z.string().min(1, "Approval title is required"),
@@ -559,4 +581,120 @@ export const ResolveAlertSchema = z.object({
   resolutionNote: z.string().optional(),
 });
 export type ResolveAlertRequest = z.infer<typeof ResolveAlertSchema>;
+
+// ==========================================
+// CONNECTORS & INTEGRATION CONNECTIONS
+// ==========================================
+export const ConnectorCategoryEnum = z.enum([
+  "HTTP",
+  "NOTIFICATION",
+  "DATABASE",
+  "AI",
+  "CUSTOM",
+]);
+export type ConnectorCategory = z.infer<typeof ConnectorCategoryEnum>;
+
+export const ConnectionStatusEnum = z.enum([
+  "ACTIVE",
+  "DISABLED",
+  "REVOKED",
+]);
+export type ConnectionStatus = z.infer<typeof ConnectionStatusEnum>;
+
+export const AuthTypeEnum = z.enum([
+  "NONE",
+  "API_KEY",
+  "BEARER_TOKEN",
+  "BASIC_AUTH",
+  "OAUTH2",
+  "CUSTOM",
+]);
+export type AuthType = z.infer<typeof AuthTypeEnum>;
+
+export const ConnectorParameterSchema = z.object({
+  name: z.string(),
+  label: z.string(),
+  type: z.enum(["string", "number", "boolean", "json", "secret"]),
+  required: z.boolean().default(false),
+  description: z.string().optional(),
+  defaultValue: z.unknown().optional(),
+});
+export type ConnectorParameter = z.infer<typeof ConnectorParameterSchema>;
+
+export const ConnectorOperationSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  parameters: z.array(ConnectorParameterSchema).default([]),
+  outputSchema: z.record(z.unknown()).optional(),
+  isIdempotent: z.boolean().default(false),
+});
+export type ConnectorOperation = z.infer<typeof ConnectorOperationSchema>;
+
+export const ConnectorDefinitionSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  version: z.string(),
+  category: ConnectorCategoryEnum,
+  authType: AuthTypeEnum,
+  authConfigFields: z.array(ConnectorParameterSchema).default([]),
+  operations: z.array(ConnectorOperationSchema).default([]),
+  icon: z.string().optional(),
+  documentationUrl: z.string().optional(),
+});
+export type ConnectorDefinition = z.infer<typeof ConnectorDefinitionSchema>;
+
+export const CreateConnectionSchema = z.object({
+  connectorId: z.string().min(1, "Connector ID is required"),
+  name: z.string().min(1, "Connection name is required").max(100),
+  authType: AuthTypeEnum.default("API_KEY"),
+  credentialData: z.record(z.unknown()), // plaintext in request, encrypted at rest
+  metadata: z.record(z.unknown()).optional(),
+});
+export type CreateConnectionRequest = z.infer<typeof CreateConnectionSchema>;
+
+export const UpdateConnectionSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  status: ConnectionStatusEnum.optional(),
+  metadata: z.record(z.unknown()).optional(),
+});
+export type UpdateConnectionRequest = z.infer<typeof UpdateConnectionSchema>;
+
+export const RotateConnectionCredentialSchema = z.object({
+  credentialData: z.record(z.unknown()),
+});
+export type RotateConnectionCredentialRequest = z.infer<typeof RotateConnectionCredentialSchema>;
+
+export const TestConnectionSchema = z.object({
+  credentialData: z.record(z.unknown()).optional(),
+  config: z.record(z.unknown()).optional(),
+});
+export type TestConnectionRequest = z.infer<typeof TestConnectionSchema>;
+
+export const ConnectionTestResultSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+  latencyMs: z.number().int().nonnegative().optional(),
+  errorCategory: z.string().optional(),
+  testedAt: z.string().datetime(),
+});
+export type ConnectionTestResult = z.infer<typeof ConnectionTestResultSchema>;
+
+export const IntegrationConnectionResponseSchema = z.object({
+  id: z.string(),
+  organizationId: z.string(),
+  connectorId: z.string(),
+  name: z.string(),
+  status: ConnectionStatusEnum,
+  authType: AuthTypeEnum,
+  maskedSummary: z.record(z.string()).optional(),
+  lastTestedAt: z.string().datetime().nullable().optional(),
+  lastTestStatus: z.string().nullable().optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+  createdById: z.string().optional(),
+});
+export type IntegrationConnectionResponse = z.infer<typeof IntegrationConnectionResponseSchema>;
+
 

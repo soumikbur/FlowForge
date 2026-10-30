@@ -9,6 +9,7 @@ import {
   Flag,
   Search,
   Plus,
+  Plug,
 } from "lucide-react";
 import {
   NODE_REGISTRY,
@@ -25,6 +26,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   UserCheck,
   Hourglass,
   Flag,
+  Plug,
 };
 
 interface NodePaletteProps {

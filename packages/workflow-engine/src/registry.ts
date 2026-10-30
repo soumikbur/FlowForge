@@ -209,6 +209,22 @@ export class NodeHandlerRegistry {
       },
       { label: "End Terminal", isTerminal: true, inputs: 1, outputs: 0 },
     );
+
+    // 8. CONNECTOR_ACTION
+    this.register(
+      "CONNECTOR_ACTION",
+      (node) => {
+        return {
+          status: "COMPLETED",
+          output: {
+            connectorId: node.config.connectorId,
+            operationId: node.config.operationId,
+            executedAt: new Date().toISOString(),
+          },
+        };
+      },
+      { label: "Connector Action", inputs: 1, outputs: 1 },
+    );
   }
 }
 

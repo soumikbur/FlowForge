@@ -256,6 +256,22 @@ export interface ApiKeyRecord {
   createdAt: Date;
 }
 
+export interface IntegrationConnectionRecord {
+  id: string;
+  organizationId: string;
+  connectorId: string;
+  name: string;
+  status: "ACTIVE" | "DISABLED" | "REVOKED";
+  authType: string;
+  encryptedData: string;
+  metadata?: Record<string, unknown>;
+  lastTestedAt?: Date;
+  lastTestStatus?: string;
+  createdById?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export class InMemoryDatabase {
   public users = new Map<string, UserRecord>();
   public organizations = new Map<string, OrganizationRecord>();
@@ -275,6 +291,7 @@ export class InMemoryDatabase {
   public alerts = new Map<string, OperationalAlertRecord>();
   public invitations = new Map<string, OrganizationInvitationRecord>();
   public apiKeys = new Map<string, ApiKeyRecord>();
+  public connections = new Map<string, IntegrationConnectionRecord>();
   public auditLogs: Array<AuditLogRecord> = [];
 
   public recordAudit(record: Omit<AuditLogRecord, "id" | "createdAt">): AuditLogRecord {
@@ -306,6 +323,7 @@ export class InMemoryDatabase {
     this.alerts.clear();
     this.invitations.clear();
     this.apiKeys.clear();
+    this.connections.clear();
     this.auditLogs = [];
   }
 }

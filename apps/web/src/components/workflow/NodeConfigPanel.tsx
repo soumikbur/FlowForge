@@ -12,6 +12,7 @@ import {
   UserCheck,
   Hourglass,
   Flag,
+  Plug,
 } from "lucide-react";
 import { getNodeRegistryItem } from "../../lib/node-registry";
 import { NodeType, Role } from "@flowforge/shared";
@@ -24,6 +25,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   UserCheck,
   Hourglass,
   Flag,
+  Plug,
 };
 
 interface NodeConfigPanelProps {
@@ -271,6 +273,22 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
                 className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100 font-mono text-[11px]"
               />
             </div>
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                Connection Reference (Optional)
+              </label>
+              <input
+                type="text"
+                placeholder="conn_12345678"
+                value={currentConfig.connectionId || ""}
+                disabled={readOnly}
+                onChange={(e) => handleConfigChange("connectionId", e.target.value)}
+                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100 font-mono text-[11px]"
+              />
+              <p className="text-[10px] text-slate-500 mt-0.5">
+                Configured Integration Connection ID from Settings.
+              </p>
+            </div>
           </div>
         )}
 
@@ -425,6 +443,109 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
               <p className="text-[10px] text-slate-500 mt-1">
                 Terminal node. Cannot have outgoing connections.
               </p>
+            </div>
+          </div>
+        )}
+
+        {/* CONNECTOR_ACTION Config */}
+        {nodeType === "CONNECTOR_ACTION" && (
+          <div className="space-y-3">
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                Connector Service
+              </label>
+              <select
+                value={currentConfig.connectorId || "http-api"}
+                disabled={readOnly}
+                onChange={(e) => handleConfigChange("connectorId", e.target.value)}
+                className="w-full border border-slate-300 rounded px-2 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100 text-xs font-semibold"
+              >
+                <option value="http-api">HTTP & REST API (http-api)</option>
+                <option value="smtp-email">SMTP / Email Notifications (smtp-email)</option>
+                <option value="slack-webhook">Slack Incoming Webhook (slack-webhook)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                Operation ID
+              </label>
+              <input
+                type="text"
+                placeholder="request, sendEmail, or sendMessage"
+                value={currentConfig.operationId || "request"}
+                disabled={readOnly}
+                onChange={(e) => handleConfigChange("operationId", e.target.value)}
+                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100 font-mono text-[11px]"
+              />
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                Connection Reference ID
+              </label>
+              <input
+                type="text"
+                placeholder="conn_12345678"
+                value={currentConfig.connectionId || ""}
+                disabled={readOnly}
+                onChange={(e) => handleConfigChange("connectionId", e.target.value)}
+                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100 font-mono text-[11px]"
+              />
+              <p className="text-[10px] text-slate-500 mt-0.5">
+                Saved Connection ID from Organization Settings. Never store credentials directly in workflows.
+              </p>
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                Parameters (JSON)
+              </label>
+              <textarea
+                rows={3}
+                placeholder='{"url": "https://api.stripe.com/v1/charges", "method": "GET"}'
+                value={
+                  typeof currentConfig.parameters === "object"
+                    ? JSON.stringify(currentConfig.parameters, null, 2)
+                    : currentConfig.parameters || "{}"
+                }
+                disabled={readOnly}
+                onChange={(e) => {
+                  try {
+                    handleConfigChange("parameters", JSON.parse(e.target.value));
+                  } catch {
+                    handleConfigChange("parameters", e.target.value);
+                  }
+                }}
+                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100 font-mono text-[11px]"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Timeout (ms)
+                </label>
+                <input
+                  type="number"
+                  value={currentConfig.timeoutMs ?? 10000}
+                  disabled={readOnly}
+                  onChange={(e) => handleConfigChange("timeoutMs", Number(e.target.value))}
+                  className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100"
+                />
+              </div>
+              <div className="flex items-center pt-5">
+                <label className="flex items-center gap-1.5 cursor-pointer text-slate-700 select-none">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(currentConfig.idempotentRetry)}
+                    disabled={readOnly}
+                    onChange={(e) => handleConfigChange("idempotentRetry", e.target.checked)}
+                    className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                  />
+                  <span className="text-[11px] font-semibold">Idempotent Retry</span>
+                </label>
+              </div>
             </div>
           </div>
         )}

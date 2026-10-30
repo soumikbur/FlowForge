@@ -162,6 +162,28 @@ export const NODE_REGISTRY: Record<NodeType, NodeRegistryItem> = {
       badge: "bg-slate-200 text-slate-800",
     },
   },
+  CONNECTOR_ACTION: {
+    type: "CONNECTOR_ACTION",
+    label: "Connector Action",
+    category: "Actions",
+    description: "Invokes an external connector operation (HTTP, Email, Slack) via secure connection.",
+    icon: "Plug",
+    defaultConfig: {
+      connectorId: "http-api",
+      operationId: "request",
+      connectionId: "",
+      parameters: {},
+    },
+    hasInput: true,
+    outputs: [{ id: "output" }],
+    isSupported: true,
+    colors: {
+      bg: "bg-teal-50",
+      border: "border-teal-500",
+      text: "text-teal-900",
+      badge: "bg-teal-100 text-teal-800",
+    },
+  },
 };
 
 export const PALETTE_CATEGORIES: NodeCategory[] = [
