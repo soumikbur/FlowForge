@@ -89,3 +89,61 @@ To guarantee reproducible identity and detect true semantic modifications withou
 - Deployments tracked via `WorkflowDeployment` with statuses `ACTIVE`, `SUPERSEDED`, and `ROLLED_BACK`.
 - **Production Safeguards**: Non-admin members (`MEMBER`) are restricted from deploying or rolling back production (`403 PRODUCTION_DEPLOY_UNAUTHORIZED`); `ADMIN` and `OWNER` privileges are enforced.
 - **Rollback Guarantee**: Restores traffic to a prior immutable version without deleting deployment logs or altering in-flight workflow executions. Running executions remain bound to the version snapshot recorded at trigger acceptance time.
+
+
+## 7. Observability, Telemetry, Failure Analysis, and Operational Intelligence Architecture
+
+FlowForge provides a native, multi-tenant analytics and operational intelligence subsystem built directly into the engine, API, and frontend:
+
+```mermaid
+flowchart TD
+    Execs[(Workflow Executions & Steps)] --> Aggregator[Analytics Calculator Package]
+    
+    subgraph Observability Engine
+        Aggregator --> Metrics[KPI & Percentile Engine: Median, P95, P99]
+        Aggregator --> Bottlenecks[Node-Level Latency & Bottleneck Detection]
+        Aggregator --> Classifier[Structured Failure Classifier]
+        Classifier --> Sanitizer[Credential & Token Redaction Guard]
+    end
+
+    Metrics --> APIEndpoint[REST API: /api/v1/analytics/*]
+    Bottlenecks --> APIEndpoint
+    Sanitizer --> APIEndpoint
+    
+    subgraph Operational Telemetry
+        QueueDepth[In-Flight Queue Backlog] --> OpMonitor[Operational Telemetry Service]
+        SchedulerLag[Cron Overdue & Delay Lag] --> OpMonitor
+        WorkerHeartbeat[Worker Liveness Probe] --> OpMonitor
+    end
+    
+    OpMonitor --> APIEndpoint
+    
+    subgraph Alerting Subsystem
+        OpMonitor --> RuleEvaluator[Alert Rule Evaluator]
+        Metrics --> RuleEvaluator
+        RuleEvaluator --> Cooldown[15-Minute Deduplication Cooldown]
+        Cooldown --> AlertStore[(OperationalAlert Records)]
+    end
+    
+    APIEndpoint --> DashboardUI[Interactive Next.js Analytics Dashboard]
+```
+
+### 7.1 Statistical Aggregation & Percentile Precision
+- **Half-Open Time Boundaries**: Queries use `[from, to)` intervals, guaranteeing that metric queries across contiguous windows neither omit nor double-count executions.
+- **Percentile Calculation**: Uses linear interpolation across sorted duration arrays of completed executions, accurately representing `medianMs` (P50), `p95Ms`, and `p99Ms` without sampling bias.
+- **Retry Invariants**: Retries are tracked as execution iterations (`retryCount`) and do not inflate root execution counts or skew success rates.
+- **Comparison Windows**: Computes automatic period-over-period comparisons against prior equivalent windows for execution volume and success rate deltas.
+
+### 7.2 Graph Bottleneck Identification
+- Evaluates individual node execution duration and error distributions across workflow execution steps.
+- Flags nodes as bottlenecks when their average step duration exceeds 40% of overall workflow runtime or when failure rates deviate significantly from baseline.
+
+### 7.3 Structured Failure Classification & Security Redaction
+- Evaluates unstructured error details, status codes, and node contexts into discrete domain failure categories:
+  - `VALIDATION_ERROR`, `AUTH_ERROR`, `INTEGRATION_ERROR`, `HTTP_TIMEOUT`, `SERVICE_ERROR`, `RATE_LIMITED`, `NODE_CONFIG_ERROR`, `RUNTIME_ERROR`, `QUEUE_ERROR`, `CANCELLATION`, `UNKNOWN_ERROR`.
+- **Zero-Leakage Sanitization**: Before persistence or serialization over the analytics API, all raw error strings are filtered through `sanitizeErrorMessage`, which strips passwords, secrets, Bearer tokens, and JWT strings (`[REDACTED]`).
+
+### 7.4 Operational Alerts & 15-Minute Cooldown Deduplication
+- Rules evaluate high failure rates (>= 25% failure over last hour with >= 4 executions), consecutive workflow failures (>= 3 failures), queue backlog thresholds (> 15 queued executions), and scheduler lag (> 2 minutes overdue).
+- Enforces an automated 15-minute cooldown per rule and entity (`${orgId}_${ruleType}_${target}`) preventing notification flooding during sustained outages.
+- Provides manual resolution workflow (`POST /alerts/:id/resolve`) requiring `analytics:write` with mandatory audit trail capture.

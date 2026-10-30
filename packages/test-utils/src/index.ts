@@ -203,6 +203,23 @@ export interface DelayRecord {
   createdAt: Date;
 }
 
+export interface OperationalAlertRecord {
+  id: string;
+  organizationId: string;
+  workflowId?: string;
+  ruleType: string;
+  severity: "INFO" | "WARNING" | "CRITICAL";
+  status: "ACTIVE" | "RESOLVED";
+  title: string;
+  message: string;
+  contextJson?: Record<string, unknown>;
+  triggeredAt: Date;
+  resolvedAt?: Date;
+  resolvedById?: string;
+  resolutionNote?: string;
+  dedupKey?: string;
+}
+
 export class InMemoryDatabase {
   public users = new Map<string, UserRecord>();
   public organizations = new Map<string, OrganizationRecord>();
@@ -219,6 +236,7 @@ export class InMemoryDatabase {
   public credentials = new Map<string, CredentialRecord>();
   public delays = new Map<string, DelayRecord>();
   public deployments = new Map<string, WorkflowDeploymentRecord>();
+  public alerts = new Map<string, OperationalAlertRecord>();
   public auditLogs: Array<AuditLogRecord> = [];
 
   public recordAudit(record: Omit<AuditLogRecord, "id" | "createdAt">): AuditLogRecord {
@@ -247,6 +265,7 @@ export class InMemoryDatabase {
     this.credentials.clear();
     this.delays.clear();
     this.deployments.clear();
+    this.alerts.clear();
     this.auditLogs = [];
   }
 }

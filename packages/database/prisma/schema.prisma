@@ -76,6 +76,7 @@ model Organization {
   schedules      WorkflowSchedule[]
   deployments    WorkflowDeployment[]
   auditLogs      AuditLog[]
+  alerts         OperationalAlert[]
 
   @@map("organizations")
 }
@@ -97,6 +98,7 @@ model User {
   assignedApprovals Approval[]              @relation("ApprovalAssignee")
   deployments       WorkflowDeployment[]    @relation("DeploymentDeployer")
   auditLogs         AuditLog[]
+  resolvedAlerts    OperationalAlert[]      @relation("AlertResolver")
 
   @@map("users")
 }
@@ -155,6 +157,7 @@ model Workflow {
   webhookConfigs     WebhookConfig[]
   schedules          WorkflowSchedule[]
   deployments        WorkflowDeployment[]
+  alerts             OperationalAlert[]
 
   @@index([organizationId])
   @@index([status])
@@ -210,6 +213,9 @@ model WorkflowExecution {
   @@index([workflowId])
   @@index([status])
   @@index([createdAt])
+  @@index([organizationId, createdAt])
+  @@index([organizationId, status, createdAt])
+  @@index([organizationId, workflowId, createdAt])
   @@map("workflow_executions")
 }
 
@@ -257,6 +263,8 @@ model ExecutionStep {
 
   @@index([executionId])
   @@index([nodeId])
+  @@index([executionId, status])
+  @@index([nodeType])
   @@map("execution_steps")
 }
 
@@ -384,4 +392,30 @@ model AuditLog {
   @@index([organizationId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+model OperationalAlert {
+  id             String    @id @default(uuid())
+  organizationId String
+  workflowId     String?
+  ruleType       String    // HIGH_FAILURE_RATE | CONSECUTIVE_FAILURES | QUEUE_BACKLOG | SCHEDULER_LAG | WORKER_UNAVAILABLE | APPROVAL_TIMEOUT_SURGE
+  severity       String    @default("WARNING") // INFO | WARNING | CRITICAL
+  status         String    @default("ACTIVE")  // ACTIVE | RESOLVED
+  title          String
+  message        String
+  contextJson    Json?
+  triggeredAt    DateTime  @default(now())
+  resolvedAt     DateTime?
+  resolvedById   String?
+  resolutionNote String?
+  dedupKey       String?
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workflow       Workflow?    @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  resolvedBy     User?        @relation("AlertResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([organizationId, triggeredAt])
+  @@index([dedupKey])
+  @@map("operational_alerts")
 }

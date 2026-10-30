@@ -22,6 +22,7 @@
 | TASK-024 | Durable Triggers, Scheduling, Webhooks & Integrations  | TASK-008..TASK-023           | Integration Engineer      | DONE   | Inbound webhooks, timezone cron & SSRF protection             |
 | TASK-025 | Human-in-the-Loop Approvals & Execution Controls       | TASK-008..TASK-024           | Reliability Engineer      | DONE   | Approval Inbox, step retry & cancellation                     |
 | TASK-026 | Workflow Versioning, Publishing & Environment Promotion| TASK-006..TASK-025           | Lifecycle Lead Engineer   | DONE   | Content hashing, promotions, rollbacks & comparison           |
+| TASK-027 | Analytics, Monitoring, and Operational Intelligence    | TASK-008..TASK-026           | Lead Observability Eng    | DONE   | Real-time KPIs, latency percentiles, bottlenecks & alerts     |
 
 ---
 
@@ -293,4 +294,50 @@
 - **REQUIRED TESTS**: `tests/integration/workflow-versioning-promotion.test.ts`
 - **VERIFICATION COMMANDS**: `pnpm test; pnpm typecheck; pnpm lint; pnpm build`
 - **ACTUAL RESULTS**: All 23/23 Prompt 9 integration tests passing; 209/209 total tests passing across 19 test suites; full monorepo build and Next.js 14 production build succeed with 0 errors.
+- **STATUS**: DONE
+
+
+---
+
+### TASK-027: Analytics, Monitoring, and Operational Intelligence (Prompt 10)
+
+- **OBJECTIVE**: Design, implement, and verify a complete, multi-tenant analytics, operational monitoring, failure classification, and automated alerting layer across `@flowforge/shared`, `@flowforge/workflow-engine`, `@flowforge/database`, `@flowforge/api`, `@flowforge/web`, and `@flowforge/test-utils` within `C:\Users\soumi\OneDrive\Documents\Antigravity\FlowForge`.
+- **DEPENDENCIES**: TASK-008, TASK-009, TASK-024, TASK-025, TASK-026
+- **ALLOWED FILES**: `packages/shared/src/*`, `packages/workflow-engine/src/*`, `packages/database/prisma/*`, `packages/test-utils/src/*`, `apps/api/src/*`, `apps/web/src/*`, `tests/integration/analytics-monitoring-alerts.test.ts`, `docs/*`
+- **REQUIREMENTS**:
+  1. Shared Contracts & RBAC (`packages/shared/src/index.ts`):
+     - Permissions: `analytics:read` (granted to `OWNER`, `ADMIN`, `MEMBER`), `analytics:write` (granted to `OWNER`, `ADMIN`).
+     - Enums & Schemas: `AnalyticsTimeRangeEnum` (`1h`, `24h`, `7d`, `30d`, `custom`), `AnalyticsFilterSchema`, `FailureCategoryEnum`, `AlertSeverityEnum`, `AlertStatusEnum`, `AlertRuleTypeEnum`, and `ResolveAlertSchema`.
+  2. Analytics Engine & Calculator (`packages/workflow-engine/src/analytics-calculator.ts`):
+     - `calculatePercentile`: Linear interpolation over sorted duration samples.
+     - `calculateExecutionStats`: Duration stats (`medianMs`, `p95Ms`, `p99Ms`, `averageMs`), status counts, success/failure rate calculations over terminal executions, and retry tracking.
+     - `calculateNodePerformance`: Evaluates step durations, execution counts, failure rates, and flags graph bottlenecks (`isBottleneck = true`).
+     - `classifyFailure`: Semantic error classification into `VALIDATION_ERROR`, `AUTH_ERROR`, `INTEGRATION_ERROR`, `HTTP_TIMEOUT`, `SERVICE_ERROR`, `RATE_LIMITED`, `NODE_CONFIG_ERROR`, `RUNTIME_ERROR`, `QUEUE_ERROR`, `CANCELLATION`, `UNKNOWN_ERROR`.
+     - `sanitizeErrorMessage`: Redaction guard replacing Bearer tokens, secrets, passwords, API keys, and JWT strings with `[REDACTED]`.
+     - `groupExecutionsByTimeBucket`: Time-series bucket grouping across half-open `[from, to)` windows.
+  3. Database Schema & Composite Indexes (`packages/database/prisma/schema.prisma`):
+     - Added `OperationalAlert` entity linked to `Organization`, `Workflow`, and resolving `User`.
+     - Added performance composite indexes on `WorkflowExecution` (`[organizationId, createdAt]`, `[organizationId, status, createdAt]`, `[organizationId, workflowId, createdAt]`) and `ExecutionStep` (`[executionId, status]`, `[nodeType]`).
+     - Migration: `20261031050000_analytics_and_monitoring`.
+  4. Test Database Store (`packages/test-utils/src/index.ts`):
+     - Added `OperationalAlertRecord` and in-memory alert repository `InMemoryDatabase.alerts`.
+  5. Analytics & Monitoring REST APIs (`apps/api/src/routes/analytics.routes.ts`):
+     - `GET /api/v1/analytics/overview`: High-level KPIs, duration percentiles, retry stats, and prior period delta trends.
+     - `GET /api/v1/analytics/trends`: Chronological time series execution buckets.
+     - `GET /api/v1/analytics/workflows`: Workflow latency, volume, and failure rate ranking with sorting.
+     - `GET /api/v1/analytics/workflows/:id/nodes`: Node latency and bottleneck analysis for individual workflow graphs.
+     - `GET /api/v1/analytics/failures`: Structured failure categories, top failing nodes/workflows, and sanitized recent failure details.
+     - `GET /api/v1/analytics/usage`: Organization resource usage summary.
+     - `GET /api/v1/analytics/operational`: Queue depth, worker liveness/heartbeat, scheduler lag, delay lag.
+     - `GET /api/v1/analytics/alerts`: Filterable active and historical operational alerts.
+     - `POST /api/v1/analytics/alerts/:id/resolve`: Resolve an active alert with resolution note and audit trail (`alert.resolved`).
+     - `POST /api/v1/analytics/alerts/evaluate`: Rule evaluation with 15-minute cooldown deduplication.
+  6. Operational Intelligence Dashboard UI (`apps/web/src/app/dashboard/page.tsx`):
+     - Production-ready Next.js 14 client component dashboard with time filter toggles (`1h`, `24h`, `7d`, `30d`), auto-refresh interval (30s toggle), high-level KPI cards with delta indicators, operational telemetry status banner, time series trends graph, failure classification breakdown, ranked workflows table with bottleneck drawer, and operational alert banner with one-click resolution.
+  7. Automated Integration Tests (`tests/integration/analytics-monitoring-alerts.test.ts`):
+     - Comprehensive suite with 18 tests covering overview KPIs, time filters, retry metrics, time trends, workflow rankings, node bottlenecks, failure classifications, credential redaction, operational telemetry, alert evaluation, 15-minute cooldown deduplication, alert resolution, and strict multi-tenant isolation.
+- **ACCEPTANCE CRITERIA**: 100% test pass rate across new and existing integration test suites (227/227 tests passing); zero TypeScript, lint, or build errors; Next.js 14 compiles with zero errors.
+- **REQUIRED TESTS**: `tests/integration/analytics-monitoring-alerts.test.ts`
+- **VERIFICATION COMMANDS**: `pnpm test; pnpm typecheck; pnpm build`
+- **ACTUAL RESULTS**: All 18/18 Prompt 10 integration tests passing; 227/227 total tests passing across 20 test suites; full monorepo build and Next.js 14 production build succeed with 0 errors.
 - **STATUS**: DONE

@@ -170,3 +170,75 @@ When validating a workflow draft via `POST /api/v1/workflows/:id/validate`, the 
   - Accepts `x-environment` header or `environment` in body (defaulting to `development` for manual builder triggers).
   - Webhooks and schedules default to active `production` deployment.
   - Resolves active `workflowVersionId` and permanently records it on `WorkflowExecutionRecord`, guaranteeing execution immutability.
+
+
+## 10. Analytics, Monitoring, and Operational Intelligence Endpoints
+
+All analytics endpoints strictly enforce multi-tenant organization isolation (`req.organizationId`) and Role-Based Access Control (`analytics:read` for inspection, `analytics:write` for mutation/alerts).
+
+### 10.1 Execution Analytics Overview
+- `GET /api/v1/analytics/overview`:
+  - **Query Parameters**: `range` (`1h`, `24h`, `7d`, `30d`, `custom`), `from` (ISO string), `to` (ISO string), `workflowId`, `environment` (`development`, `staging`, `production`).
+  - **Interval Semantics**: Half-open intervals `[from, to)` preventing duplicate counting across window boundaries.
+  - **Metrics Returned**:
+    - `total`: Total executions within time window.
+    - `statusBreakdown`: Counts for `succeeded`, `failed`, `cancelled`, `running`, `waitingApproval`, `waitingDelay`.
+    - `successRate`: Percentage of terminal executions that succeeded: `successful / (successful + failed) * 100`.
+    - `failureRate`: Percentage of terminal executions that failed: `failed / (successful + failed) * 100`.
+    - `durationPercentiles`: Linear-interpolated `medianMs` (P50), `p95Ms`, `p99Ms`, and `averageMs` computed over terminal completed runs.
+    - `retryStats`: Total retries and retry rate (`retries / totalExecutions`). Retries do not inflate base execution counts.
+    - `trends`: Comparison against the prior equivalent duration window (`totalExecutionsChangePercent`, `successRateChangePercent`).
+
+### 10.2 Time-Series Execution Trends
+- `GET /api/v1/analytics/trends`:
+  - **Query Parameters**: `range` (`1h`, `24h`, `7d`, `30d`, `custom`), `bucketSize` (`hour` or `day`), `workflowId`.
+  - **Response**: Array of chronological buckets `{ timestamp, total, successful, failed, cancelled, avgDurationMs }`.
+
+### 10.3 Workflow Performance & Ranking
+- `GET /api/v1/analytics/workflows`:
+  - **Query Parameters**: `range`, `sortBy` (`executionCount`, `successRate`, `avgDurationMs`, `failureRate`), `order` (`asc`, `desc`).
+  - **Response**: Ranked list of organization workflows with execution totals, success/failure rates, duration percentiles, retry counts, `lastExecutedAt`, `lastFailedAt`, and `commonFailureCategory`.
+
+### 10.4 Node-Level Performance & Bottleneck Analysis
+- `GET /api/v1/analytics/workflows/:id/nodes`:
+  - **Path Parameter**: `id` (Workflow ID).
+  - **Response**:
+    - `nodes`: Array of node performance summaries `{ nodeId, nodeName, nodeType, executionCount, failureCount, failureRate, retryCount, avgDurationMs, medianDurationMs, p95DurationMs, percentageOfTotalDuration, isBottleneck }`.
+    - `bottlenecks`: Filtered array of nodes marked `isBottleneck = true` (highest latency contributors and elevated failure points).
+
+### 10.5 Structured Failure Analysis & Credential Sanitization
+- `GET /api/v1/analytics/failures`:
+  - **Query Parameters**: `range`, `workflowId`.
+  - **Classification Categories**: `VALIDATION_ERROR`, `AUTH_ERROR`, `INTEGRATION_ERROR`, `HTTP_TIMEOUT`, `SERVICE_ERROR`, `RATE_LIMITED`, `NODE_CONFIG_ERROR`, `RUNTIME_ERROR`, `QUEUE_ERROR`, `CANCELLATION`, `UNKNOWN_ERROR`.
+  - **Sanitization Guarantee**: Redacts sensitive passwords, secrets, Bearer tokens (`Bearer <token>`), and JWTs (`eyJ...`) with `[REDACTED]`.
+  - **Response**: `totalFailures`, `categories` breakdown map, `topFailingNodes` frequency map, `topFailingWorkflows` frequency map, and list of `recentFailures` with sanitized messages and error details.
+
+### 10.6 Organization Resource & Usage Analytics
+- `GET /api/v1/analytics/usage`:
+  - **Response**: Tenant resource utilization summary: `totalWorkflows`, `activeWorkflows`, `publishedVersions`, `totalExecutions`, `totalStepsExecuted`, `triggerVolume` (by `MANUAL`, `WEBHOOK`, `SCHEDULE`), `approvals` (`total`, `pending`, `decided`), `activeSchedules`, and `activeWebhooks`.
+
+### 10.7 Operational Infrastructure Telemetry
+- `GET /api/v1/analytics/operational`:
+  - **Response**:
+    - `queue`: `queuedJobs`, `runningJobs`, `waitingApprovalJobs`, `waitingDelayJobs`, `totalInFlight`.
+    - `scheduler`: `activeSchedules`, `overdueCount`, `maxLagSeconds`, `status` (`HEALTHY` or `DEGRADED`).
+    - `delays`: `pendingDelays`, `overdueCount`, `maxLagSeconds`.
+    - `worker`: `status` (`ONLINE`), `heartbeatTimestamp`.
+    - `alertsCount`: Count of currently active operational alerts.
+
+### 10.8 Operational Alerts, Deduplication & Resolution
+- `GET /api/v1/analytics/alerts`:
+  - **Query Parameters**: `status` (`ACTIVE`, `RESOLVED`), `severity` (`INFO`, `WARNING`, `CRITICAL`).
+  - **Response**: Array of operational alerts sorted by `triggeredAt` descending.
+- `POST /api/v1/analytics/alerts/evaluate`:
+  - **Permissions**: Requires `analytics:write` (`OWNER`, `ADMIN`).
+  - **Evaluation Rules**:
+    - `HIGH_FAILURE_RATE`: Triggers CRITICAL alert when 1-hour failure rate exceeds 25% with >= 4 executions.
+    - `CONSECUTIVE_FAILURES`: Triggers WARNING alert when last 3 executions of any workflow terminate in `FAILED`.
+    - `QUEUE_BACKLOG`: Triggers WARNING alert when queued executions exceed 15.
+    - `SCHEDULER_LAG`: Triggers WARNING alert when enabled schedules are overdue by > 2 minutes.
+  - **Deduplication Cooldown**: 15-minute cooldown per `dedupKey` (`${orgId}_${ruleType}_${target}`) preventing alert spam.
+- `POST /api/v1/analytics/alerts/:id/resolve`:
+  - **Permissions**: Requires `analytics:write` (`OWNER`, `ADMIN`).
+  - **Body**: `{ resolutionNote?: string }`.
+  - **Response**: Updates alert `status` to `RESOLVED`, sets `resolvedAt`, `resolvedById`, records `resolutionNote`, and emits an audit log `alert.resolved`.

@@ -29,7 +29,9 @@ export type Permission =
   | "schedule:read"
   | "schedule:write"
   | "workflow:deploy"
-  | "workflow:deploy:prod";
+  | "workflow:deploy:prod"
+  | "analytics:read"
+  | "analytics:write";
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   OWNER: [
@@ -56,6 +58,8 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "schedule:write",
     "workflow:deploy",
     "workflow:deploy:prod",
+    "analytics:read",
+    "analytics:write",
   ],
   ADMIN: [
     "org:read",
@@ -79,6 +83,8 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "schedule:write",
     "workflow:deploy",
     "workflow:deploy:prod",
+    "analytics:read",
+    "analytics:write",
   ],
   MEMBER: [
     "org:read",
@@ -89,6 +95,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "webhook:read",
     "schedule:read",
     "credentials:read",
+    "analytics:read",
   ],
 };
 
@@ -427,3 +434,55 @@ export const CreateCredentialSchema = z.object({
   data: z.record(z.unknown()),
 });
 export type CreateCredentialRequest = z.infer<typeof CreateCredentialSchema>;
+
+// ==========================================
+// ANALYTICS & OPERATIONAL SCHEMAS
+// ==========================================
+export const AnalyticsTimeRangeEnum = z.enum(["1h", "24h", "7d", "30d", "custom"]);
+export type AnalyticsTimeRange = z.infer<typeof AnalyticsTimeRangeEnum>;
+
+export const AnalyticsFilterSchema = z.object({
+  range: AnalyticsTimeRangeEnum.default("24h"),
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+  workflowId: z.string().optional(),
+  environment: WorkflowEnvironmentEnum.optional(),
+});
+export type AnalyticsFilterQuery = z.infer<typeof AnalyticsFilterSchema>;
+
+export const FailureCategoryEnum = z.enum([
+  "VALIDATION_ERROR",
+  "AUTH_ERROR",
+  "INTEGRATION_ERROR",
+  "HTTP_TIMEOUT",
+  "SERVICE_ERROR",
+  "RATE_LIMITED",
+  "NODE_CONFIG_ERROR",
+  "RUNTIME_ERROR",
+  "QUEUE_ERROR",
+  "CANCELLATION",
+  "UNKNOWN_ERROR",
+]);
+export type FailureCategory = z.infer<typeof FailureCategoryEnum>;
+
+export const AlertSeverityEnum = z.enum(["INFO", "WARNING", "CRITICAL"]);
+export type AlertSeverity = z.infer<typeof AlertSeverityEnum>;
+
+export const AlertStatusEnum = z.enum(["ACTIVE", "RESOLVED"]);
+export type AlertStatus = z.infer<typeof AlertStatusEnum>;
+
+export const AlertRuleTypeEnum = z.enum([
+  "HIGH_FAILURE_RATE",
+  "CONSECUTIVE_FAILURES",
+  "QUEUE_BACKLOG",
+  "SCHEDULER_LAG",
+  "WORKER_UNAVAILABLE",
+  "APPROVAL_TIMEOUT_SURGE",
+]);
+export type AlertRuleType = z.infer<typeof AlertRuleTypeEnum>;
+
+export const ResolveAlertSchema = z.object({
+  resolutionNote: z.string().optional(),
+});
+export type ResolveAlertRequest = z.infer<typeof ResolveAlertSchema>;
+
