@@ -43,7 +43,9 @@ export type Permission =
   | "templates:write"
   | "templates:publish"
   | "notifications:read"
-  | "notifications:write";
+  | "notifications:write"
+  | "workflow:export"
+  | "workflow:import";
 
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   OWNER: [
@@ -84,6 +86,8 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "templates:publish",
     "notifications:read",
     "notifications:write",
+    "workflow:export",
+    "workflow:import",
   ],
   ADMIN: [
     "org:read",
@@ -120,6 +124,8 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "templates:publish",
     "notifications:read",
     "notifications:write",
+    "workflow:export",
+    "workflow:import",
   ],
   MEMBER: [
     "org:read",
@@ -135,6 +141,8 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     "templates:read",
     "notifications:read",
     "notifications:write",
+    "workflow:export",
+    "workflow:import",
   ],
   VIEWER: [
     "org:read",
@@ -1154,6 +1162,170 @@ export const WebhookDeliveryResponseSchema = z.object({
   completedAt: z.string().datetime().nullable().optional(),
 });
 export type WebhookDeliveryResponse = z.infer<typeof WebhookDeliveryResponseSchema>;
+
+// ==========================================
+// WORKFLOW PORTABILITY, IMPORT & EXPORT
+// ==========================================
+
+export const ConflictStrategyEnum = z.enum([
+  "CREATE_NEW",
+  "RENAME",
+  "REPLACE_DRAFT",
+]);
+export type ConflictStrategy = z.infer<typeof ConflictStrategyEnum>;
+
+export const CompatibilityStatusEnum = z.enum([
+  "COMPATIBLE",
+  "COMPATIBLE_WITH_WARNINGS",
+  "REQUIRES_MAPPING",
+  "UNSUPPORTED",
+  "INVALID_PACKAGE",
+]);
+export type CompatibilityStatus = z.infer<typeof CompatibilityStatusEnum>;
+
+export const FlowForgePackageMetadataSchema = z.object({
+  name: z.string().min(1, "Workflow name is required").max(100),
+  description: z.string().max(2000).optional(),
+  category: z.string().max(50).optional(),
+  tags: z.array(z.string().max(30)).default([]),
+  sourceWorkflowId: z.string().optional(),
+  sourceRevision: z.number().int().nonnegative().optional(),
+  sourceVersionNumber: z.number().int().nonnegative().optional(),
+  sourceAppVersion: z.string().default("1.0.0"),
+  exportedAt: z.string().datetime(),
+});
+export type FlowForgePackageMetadata = z.infer<typeof FlowForgePackageMetadataSchema>;
+
+export const WorkflowDependencyManifestSchema = z.object({
+  nodeTypes: z.array(z.string()).default([]),
+  connectors: z
+    .array(
+      z.object({
+        connectorId: z.string(),
+        operationIds: z.array(z.string()).default([]),
+        sourceConnectionId: z.string().optional(),
+      }),
+    )
+    .default([]),
+  triggers: z
+    .array(
+      z.object({
+        type: TriggerTypeEnum,
+        cronExpression: z.string().optional(),
+        webhookPath: z.string().optional(),
+      }),
+    )
+    .default([]),
+  environmentVariables: z.array(z.string()).default([]),
+});
+export type WorkflowDependencyManifest = z.infer<typeof WorkflowDependencyManifestSchema>;
+
+export const FlowForgePackageIntegritySchema = z.object({
+  algorithm: z.enum(["sha256"]).default("sha256"),
+  hash: z.string().min(64).max(64),
+});
+export type FlowForgePackageIntegrity = z.infer<typeof FlowForgePackageIntegritySchema>;
+
+export const FlowForgeWorkflowPackageSchema = z.object({
+  formatVersion: z.literal("flowforge.package/v1"),
+  metadata: FlowForgePackageMetadataSchema,
+  definition: WorkflowDefinitionSchema,
+  dependencies: WorkflowDependencyManifestSchema,
+  integrity: FlowForgePackageIntegritySchema,
+});
+export type FlowForgeWorkflowPackage = z.infer<typeof FlowForgeWorkflowPackageSchema>;
+
+export const FlowForgeBackupPackageSchema = z.object({
+  formatVersion: z.literal("flowforge.backup/v1"),
+  exportedAt: z.string().datetime(),
+  sourceOrganizationId: z.string().optional(),
+  workflows: z.array(FlowForgeWorkflowPackageSchema),
+  integrity: FlowForgePackageIntegritySchema,
+});
+export type FlowForgeBackupPackage = z.infer<typeof FlowForgeBackupPackageSchema>;
+
+export const ImportPreviewResponseSchema = z.object({
+  workflowName: z.string(),
+  description: z.string().optional(),
+  packageFormatVersion: z.string(),
+  sourceAppVersion: z.string().optional(),
+  status: CompatibilityStatusEnum,
+  canImport: z.boolean(),
+  summary: z.string(),
+  integrityVerified: z.boolean(),
+  nodeSummary: z.object({
+    totalNodes: z.number().int().nonnegative(),
+    nodeTypes: z.array(z.string()),
+    unsupportedNodeTypes: z.array(z.string()),
+  }),
+  connectorRequirements: z.array(
+    z.object({
+      connectorId: z.string(),
+      supportedByRegistry: z.boolean(),
+      sourceConnectionId: z.string().optional(),
+      matchingOrgConnections: z.array(
+        z.object({
+          id: z.string(),
+          name: z.string(),
+        }),
+      ),
+      isResolved: z.boolean(),
+    }),
+  ),
+  conflict: z.object({
+    hasConflict: z.boolean(),
+    conflictingWorkflowId: z.string().optional(),
+    conflictingWorkflowName: z.string().optional(),
+    currentDraftRevision: z.number().int().optional(),
+  }),
+  suggestedName: z.string(),
+  availableConflictStrategies: z.array(ConflictStrategyEnum),
+  warnings: z.array(z.string()),
+  blockingErrors: z.array(z.string()),
+  validationErrors: z
+    .array(
+      z.object({
+        path: z.string(),
+        message: z.string(),
+      }),
+    )
+    .optional(),
+});
+export type ImportPreviewResponse = z.infer<typeof ImportPreviewResponseSchema>;
+
+export const ConfirmImportWorkflowSchema = z
+  .object({
+    package: FlowForgeWorkflowPackageSchema,
+    conflictStrategy: ConflictStrategyEnum.optional(),
+    strategy: ConflictStrategyEnum.optional(),
+    targetWorkflowName: z.string().min(1).max(100).optional(),
+    targetWorkflowId: z.string().optional(),
+    connectorMappings: z.record(z.string()).default({}),
+    environmentVariables: z.record(z.string()).default({}),
+  })
+  .transform((data) => ({
+    ...data,
+    conflictStrategy: data.conflictStrategy || data.strategy || "CREATE_NEW",
+  }));
+export type ConfirmImportWorkflowRequest = z.infer<typeof ConfirmImportWorkflowSchema>;
+
+export const WorkflowImportProvenanceSchema = z.object({
+  id: z.string(),
+  organizationId: z.string(),
+  workflowId: z.string(),
+  sourceWorkflowId: z.string().nullable().optional(),
+  sourceRevision: z.number().int().nullable().optional(),
+  packageHash: z.string(),
+  packageFormatVersion: z.string(),
+  conflictStrategy: ConflictStrategyEnum,
+  strategy: ConflictStrategyEnum.optional(),
+  connectorMappings: z.record(z.string()).default({}),
+  compatibilityStatus: CompatibilityStatusEnum,
+  importedById: z.string().nullable().optional(),
+  createdAt: z.string().datetime(),
+});
+export type WorkflowImportProvenance = z.infer<typeof WorkflowImportProvenanceSchema>;
+
 
 
 

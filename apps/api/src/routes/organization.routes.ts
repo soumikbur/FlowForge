@@ -19,8 +19,16 @@ import {
   apiStore,
   OrganizationInvitationRecord,
   ApiKeyRecord,
+  WorkflowRecord,
 } from "../store.js";
 import { requireAuth } from "../middleware/auth.js";
+import {
+  createWorkflowExportPackage,
+  createOrganizationBackupPackage,
+  applyImportConnectorMappings,
+  verifyPackageIntegrity,
+} from "@flowforge/workflow-engine";
+import { FlowForgeBackupPackageSchema } from "@flowforge/shared";
 import { connectionRouter } from "./connection.routes.js";
 
 export const organizationRouter = Router();
@@ -1786,6 +1794,256 @@ organizationRouter.get("/:organizationId/activities", (req: Request, res: Respon
       pageSize,
       total,
       totalPages: Math.ceil(total / pageSize) || 1,
+    },
+    error: null,
+  });
+});
+
+/**
+ * GET /api/v1/organizations/:organizationId/imports
+ * Organization-wide workflow import history.
+ */
+organizationRouter.get("/:organizationId/imports", (req: Request, res: Response) => {
+  const orgId = req.params.organizationId;
+  if (req.organizationId !== orgId) {
+    res.status(403).json({
+      success: false,
+      data: null,
+      error: { code: "FORBIDDEN", message: "Cross-organization import history access is forbidden." },
+    });
+    return;
+  }
+
+  const queryParse = PaginationQuerySchema.safeParse(req.query);
+  const { page, pageSize } = queryParse.success ? queryParse.data : { page: 1, pageSize: 20 };
+
+  const imports = Array.from(apiStore.workflowImports.values())
+    .filter((i) => i.organizationId === orgId)
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+  const total = imports.length;
+  const startIndex = (page - 1) * pageSize;
+  const paginated = imports.slice(startIndex, startIndex + pageSize).map((i) => {
+    const u = i.importedById ? apiStore.users.get(i.importedById) : null;
+    const wf = apiStore.workflows.get(i.workflowId);
+    return {
+      ...i,
+      workflowName: wf?.name || "Unknown Workflow",
+      importedBy: u
+        ? { id: u.id, email: u.email, firstName: u.firstName, lastName: u.lastName }
+        : null,
+    };
+  });
+
+  res.json({
+    success: true,
+    data: paginated,
+    meta: {
+      page,
+      pageSize,
+      total,
+      totalPages: Math.ceil(total / pageSize) || 1,
+    },
+    error: null,
+  });
+});
+
+/**
+ * POST /api/v1/organizations/:organizationId/export-backup
+ * Bulk export of all organization workflows into a portable backup package.
+ */
+organizationRouter.post("/:organizationId/export-backup", (req: Request, res: Response) => {
+  const orgId = req.params.organizationId;
+  if (req.organizationId !== orgId) {
+    res.status(403).json({
+      success: false,
+      data: null,
+      error: { code: "FORBIDDEN", message: "Cross-organization backup export is forbidden." },
+    });
+    return;
+  }
+
+  if (req.role !== "OWNER" && req.role !== "ADMIN") {
+    res.status(403).json({
+      success: false,
+      data: null,
+      error: { code: "FORBIDDEN", message: "Requires OWNER or ADMIN role to export backups." },
+    });
+    return;
+  }
+
+  const orgWorkflows = Array.from(apiStore.workflows.values()).filter(
+    (w) => w.organizationId === orgId && !w.deletedAt,
+  );
+
+  const workflowPackages = orgWorkflows.map((w) => {
+    let def = w.draftDefinition;
+    let rev = w.draftRevision || 1;
+    let vNum: number | undefined;
+
+    if (w.publishedVersionId) {
+      const v = apiStore.versions.get(w.publishedVersionId);
+      if (v) {
+        def = v.definition;
+        rev = v.versionNumber;
+        vNum = v.versionNumber;
+      }
+    }
+
+    return createWorkflowExportPackage({
+      name: w.name,
+      description: w.description,
+      sourceWorkflowId: w.id,
+      sourceRevision: rev,
+      sourceVersionNumber: vNum,
+      definition: def,
+      sourceAppVersion: "1.0.0",
+    });
+  });
+
+  const backupPackage = createOrganizationBackupPackage({
+    workflows: workflowPackages,
+    sourceOrganizationId: orgId,
+  });
+
+  const org = apiStore.organizations.get(orgId);
+  const orgSlug = org?.slug || "org";
+  const filename = `flowforge-backup-${orgSlug}-${new Date().toISOString().slice(0, 10)}.json`;
+
+  apiStore.recordAudit({
+    organizationId: orgId,
+    userId: req.user?.id,
+    action: "organization.backup_exported",
+    resourceType: "organization_backup",
+    resourceId: orgId,
+    metadata: {
+      workflowCount: workflowPackages.length,
+      backupHash: backupPackage.integrity.hash,
+    },
+    ipAddress: req.ip,
+  });
+
+  res.setHeader("Content-Type", "application/json");
+  res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(filename)}"`);
+  res.json(backupPackage);
+});
+
+/**
+ * POST /api/v1/organizations/:organizationId/restore-backup
+ * Bulk restore of workflows from a portable backup package.
+ */
+organizationRouter.post("/:organizationId/restore-backup", (req: Request, res: Response) => {
+  const orgId = req.params.organizationId;
+  if (req.organizationId !== orgId) {
+    res.status(403).json({
+      success: false,
+      data: null,
+      error: { code: "FORBIDDEN", message: "Cross-organization backup restore is forbidden." },
+    });
+    return;
+  }
+
+  if (req.role !== "OWNER" && req.role !== "ADMIN") {
+    res.status(403).json({
+      success: false,
+      data: null,
+      error: { code: "FORBIDDEN", message: "Requires OWNER or ADMIN role to restore backups." },
+    });
+    return;
+  }
+
+  const rawPayload = req.body && req.body.backupPackage ? req.body.backupPackage : req.body;
+  const parseResult = FlowForgeBackupPackageSchema.safeParse(rawPayload);
+  if (!parseResult.success) {
+    res.status(400).json({
+      success: false,
+      data: null,
+      error: {
+        code: "INVALID_BACKUP_PACKAGE",
+        message: "Invalid backup package schema.",
+        details: parseResult.error.issues,
+      },
+    });
+    return;
+  }
+
+  const backup = parseResult.data;
+  const now = new Date();
+  const restoredWorkflows = [];
+
+  for (const pkg of backup.workflows) {
+    const isIntegrityValid = verifyPackageIntegrity(pkg);
+    if (!isIntegrityValid) {
+      continue; // Skip corrupted items in bulk restore
+    }
+
+    let workflowName = pkg.metadata.name;
+    let suffix = 1;
+    while (
+      Array.from(apiStore.workflows.values()).some(
+        (w) =>
+          w.organizationId === orgId &&
+          !w.deletedAt &&
+          w.name.toLowerCase() === workflowName.toLowerCase(),
+      )
+    ) {
+      workflowName = `${pkg.metadata.name} (Restored ${suffix++})`;
+    }
+
+    const newWfId = `wf_${crypto.randomUUID()}`;
+    const newWf: WorkflowRecord = {
+      id: newWfId,
+      organizationId: orgId,
+      name: workflowName,
+      description: pkg.metadata.description,
+      status: "DRAFT",
+      draftRevision: 1,
+      createdById: req.user?.id,
+      lastUpdatedById: req.user?.id,
+      draftDefinition: pkg.definition,
+      createdAt: now,
+      updatedAt: now,
+    };
+    apiStore.workflows.set(newWfId, newWf);
+
+    const importId = `wfi_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
+    apiStore.workflowImports.set(importId, {
+      id: importId,
+      organizationId: orgId,
+      workflowId: newWfId,
+      sourceWorkflowId: pkg.metadata.sourceWorkflowId || null,
+      sourceRevision: pkg.metadata.sourceRevision || null,
+      packageHash: pkg.integrity.hash,
+      packageFormatVersion: pkg.formatVersion,
+      conflictStrategy: "CREATE_NEW",
+      connectorMappings: {},
+      compatibilityStatus: "COMPATIBLE",
+      importedById: req.user?.id || null,
+      createdAt: now,
+    });
+
+    restoredWorkflows.push(newWf);
+  }
+
+  apiStore.recordAudit({
+    organizationId: orgId,
+    userId: req.user?.id,
+    action: "organization.backup_restored",
+    resourceType: "organization_backup",
+    resourceId: orgId,
+    metadata: {
+      restoredCount: restoredWorkflows.length,
+      backupHash: backup.integrity.hash,
+    },
+    ipAddress: req.ip,
+  });
+
+  res.status(201).json({
+    success: true,
+    data: {
+      restoredCount: restoredWorkflows.length,
+      workflows: restoredWorkflows,
+      errors: [],
     },
     error: null,
   });

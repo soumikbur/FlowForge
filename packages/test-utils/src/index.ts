@@ -434,6 +434,22 @@ export interface WebhookDeliveryRecord {
   completedAt?: Date | null;
 }
 
+export interface WorkflowImportRecord {
+  id: string;
+  organizationId: string;
+  workflowId: string;
+  sourceWorkflowId?: string | null;
+  sourceRevision?: number | null;
+  packageHash: string;
+  packageFormatVersion: string;
+  conflictStrategy: "CREATE_NEW" | "RENAME" | "REPLACE_DRAFT";
+  strategy?: "CREATE_NEW" | "RENAME" | "REPLACE_DRAFT";
+  connectorMappings: Record<string, string>;
+  compatibilityStatus: string;
+  importedById?: string | null;
+  createdAt: Date;
+}
+
 export class InMemoryDatabase {
   public users = new Map<string, UserRecord>();
   public organizations = new Map<string, OrganizationRecord>();
@@ -465,6 +481,7 @@ export class InMemoryDatabase {
   public notificationPreferences = new Map<string, NotificationPreferenceRecord>();
   public webhookSubscriptions = new Map<string, WebhookSubscriptionRecord>();
   public webhookDeliveries = new Map<string, WebhookDeliveryRecord>();
+  public workflowImports = new Map<string, WorkflowImportRecord>();
 
   public publishOutboxEvent(event: any): OutboxEventRecord {
     const outboxRecord: OutboxEventRecord = {
@@ -546,6 +563,7 @@ export class InMemoryDatabase {
     this.notificationPreferences.clear();
     this.webhookSubscriptions.clear();
     this.webhookDeliveries.clear();
+    this.workflowImports.clear();
     this.activities = [];
     this.auditLogs = [];
   }

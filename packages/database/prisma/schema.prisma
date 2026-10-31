@@ -140,6 +140,7 @@ model Organization {
   notificationPreferences NotificationPreference[]
   webhookSubscriptions    WebhookSubscription[]
   webhookDeliveries       WebhookDelivery[]
+  workflowImports         WorkflowImport[]
 
   @@map("organizations")
 }
@@ -173,6 +174,7 @@ model User {
   activities        WorkflowActivity[]
   notifications     Notification[]
   notificationPreferences NotificationPreference[]
+  workflowImports   WorkflowImport[]         @relation("ImportedByUser")
 
   @@map("users")
 }
@@ -239,6 +241,7 @@ model Workflow {
   collaborators      WorkflowCollaborator[]
   comments           WorkflowComment[]
   activities         WorkflowActivity[]
+  imports            WorkflowImport[]
 
   @@index([organizationId])
   @@index([status])
@@ -798,5 +801,30 @@ model WebhookDelivery {
   @@index([status, nextRetryAt])
   @@map("webhook_deliveries")
 }
+
+model WorkflowImport {
+  id                   String   @id @default(uuid())
+  organizationId       String
+  workflowId           String
+  sourceWorkflowId     String?
+  sourceRevision       Int?
+  packageHash          String
+  packageFormatVersion String
+  conflictStrategy     String
+  connectorMappings    Json     @default("{}")
+  compatibilityStatus  String
+  importedById         String?
+  createdAt            DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workflow     Workflow     @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  importedBy   User?        @relation("ImportedByUser", fields: [importedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([workflowId])
+  @@index([packageHash])
+  @@map("workflow_imports")
+}
+
 
 

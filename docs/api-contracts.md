@@ -546,7 +546,116 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
 - `GET /api/v1/notifications/metrics`:
   - **Permissions**: `notifications:read`
   - **Response**: `{ pendingOutboxCount: number, deliveries: { total, succeeded, failedPermanently, retryScheduled, deadLettered, pending } }`
+---
 
+## 16. Workflow Import, Export, Portability, and Backup/Restore API
 
+### 16.1 Package Format (`flowforge.package/v1`)
+All exported workflows adhere to the canonical schema:
+```json
+{
+  "formatVersion": "flowforge.package/v1",
+  "metadata": {
+    "name": "Invoice Dispatch Pipeline",
+    "description": "Production billing automation",
+    "sourceWorkflowId": "wf_123",
+    "sourceRevision": 3,
+    "sourceVersionNumber": 2,
+    "sourceAppVersion": "1.0.0",
+    "exportedAt": "2026-10-31T05:00:00.000Z"
+  },
+  "definition": {
+    "nodes": [ ... ],
+    "edges": [ ... ]
+  },
+  "dependencies": {
+    "nodeTypes": ["TRIGGER", "CONNECTOR_ACTION", "END"],
+    "connectors": [
+      {
+        "connectorId": "slack-webhook",
+        "operationIds": ["send_message"],
+        "sourceConnectionId": "conn_ref_1"
+      }
+    ],
+    "triggers": [
+      { "type": "WEBHOOK" }
+    ],
+    "environmentVariables": ["STRIPE_API_KEY"]
+  },
+  "integrity": {
+    "algorithm": "sha256",
+    "hash": "64_character_hex_hash"
+  }
+}
+```
 
+### 16.2 Export Endpoints
+- `GET /api/v1/workflows/:id/export?target={draft|published|version}&versionNumber={n}&versionId={id}`:
+  - **Permissions**: `workflow:export` or `workflow:read`
+  - **Headers**: `Content-Disposition: attachment; filename="workflow-<slug>-<target>.flowforge.json"`
+  - **Behavior**: Deeply scrubs credentials, passwords, tokens, and authorization headers; abstracts tenant database connection IDs into portable references (`conn_ref_1`); disables triggers for activation safety; computes canonical SHA-256 integrity hash.
+
+### 16.3 Import & Compatibility Endpoints
+- `POST /api/v1/workflows/import/preview`:
+  - **Permissions**: `workflow:import` or `workflow:write`
+  - **Payload**: `{ package: FlowForgeWorkflowPackage }` (Guarded: 5MB maximum size limit)
+  - **Response (200)**: `ImportPreviewResponse`
+    ```json
+    {
+      "workflowName": "Invoice Dispatch Pipeline",
+      "status": "COMPATIBLE" | "COMPATIBLE_WITH_WARNINGS" | "REQUIRES_MAPPING" | "UNSUPPORTED",
+      "canImport": true,
+      "summary": "Workflow is fully compatible with this environment.",
+      "integrityVerified": true,
+      "nodeSummary": { "totalNodes": 4, "nodeTypes": ["..."], "unsupportedNodeTypes": [] },
+      "connectorRequirements": [
+        {
+          "connectorId": "slack-webhook",
+          "supportedByRegistry": true,
+          "matchingOrgConnections": [{ "id": "conn_456", "name": "Team Slack Alerts" }],
+          "isResolved": true
+        }
+      ],
+      "conflict": { "hasConflict": true, "conflictingWorkflowName": "..." },
+      "suggestedName": "Invoice Dispatch Pipeline (Imported 1)",
+      "availableConflictStrategies": ["CREATE_NEW", "RENAME", "REPLACE_DRAFT"],
+      "warnings": [],
+      "blockingErrors": []
+    }
+    ```
+
+- `POST /api/v1/workflows/import`:
+  - **Permissions**: `workflow:import` or `workflow:write`
+  - **Payload**:
+    ```json
+    {
+      "package": FlowForgeWorkflowPackage,
+      "conflictStrategy": "CREATE_NEW" | "RENAME" | "REPLACE_DRAFT",
+      "targetWorkflowName": "Custom Name",
+      "targetWorkflowId": "wf_target",
+      "connectorMappings": { "conn_ref_1": "conn_dest_org_uuid" }
+    }
+    ```
+  - **Security Rules**:
+    1. Cryptographic SHA-256 package integrity verification. Tampered payloads return 400 `INTEGRITY_VERIFICATION_FAILED`.
+    2. Cross-tenant connector mapping strictly forbidden. Mapping to a connection owned by another organization returns 403 `CROSS_TENANT_MAPPING_FORBIDDEN`.
+    3. Mapped connections must be active (`conn.status === "ACTIVE"`). Inactive mappings return 400 `INACTIVE_CONNECTION`.
+    4. Imported workflows always start in `DRAFT` status with triggers disabled. Never auto-activates or auto-publishes.
+    5. `REPLACE_DRAFT` safely replaces only the editable draft definition and increments `draftRevision`. Existing immutable published version snapshots are preserved untouched.
+  - **Response (201 or 200)**: `{ success: true, data: { ...targetWorkflow, importId, packageHash, provenance } }`
+
+### 16.4 Provenance & Import History Endpoints
+- `GET /api/v1/workflows/:id/imports`:
+  - Returns chronological import provenance records for a specific workflow.
+- `GET /api/v1/organizations/:organizationId/imports`:
+  - Returns all workflow imports within the organization.
+
+### 16.5 Organization Bulk Backup & Restore
+- `POST /api/v1/organizations/:organizationId/export-backup`:
+  - **Permissions**: `OWNER` or `ADMIN` role.
+  - **Response (200)**: `FlowForgeBackupPackage` (`flowforge.backup/v1`) containing full sanitized export of all active organization workflows with master SHA-256 package hash.
+- `POST /api/v1/organizations/:organizationId/restore-backup`:
+  - **Permissions**: `OWNER` or `ADMIN` role.
+  - **Payload**: `{ backupPackage: FlowForgeBackupPackage, conflictStrategy: "CREATE_NEW" }`
+  - **Response (201)**: `{ success: true, data: { restoredCount: number, workflows: [...], errors: [] } }`
 

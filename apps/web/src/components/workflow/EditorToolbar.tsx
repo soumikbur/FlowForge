@@ -17,6 +17,7 @@ import {
   Users,
   MessageSquare,
   History,
+  Download,
 } from "lucide-react";
 import { CollaborationModal } from "./CollaborationModal";
 import { CommentsDrawer } from "./CommentsDrawer";
@@ -78,6 +79,14 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   const [templateVisibility, setTemplateVisibility] = useState<"PRIVATE" | "ORGANIZATION">("PRIVATE");
   const [isSavingTemplate, setIsSavingTemplate] = useState(false);
   const [templateSuccess, setTemplateSuccess] = useState(false);
+
+  const handleExport = (target: "draft" | "published") => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+    const url = target === "published" && versionNumber
+      ? `${apiUrl}/api/v1/workflows/${workflowId}/export?target=version&versionNumber=${versionNumber}`
+      : `${apiUrl}/api/v1/workflows/${workflowId}/export?target=${target}`;
+    window.open(url, "_blank");
+  };
 
   const handleSaveAsTemplate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -304,6 +313,15 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             </button>
           </>
         )}
+
+        <button
+          onClick={() => handleExport(isReadOnly ? "published" : "draft")}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 border border-slate-300 rounded-md text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 transition"
+          title={`Export ${isReadOnly ? 'Version ' + (versionNumber ?? 1) : 'Draft'} Package`}
+        >
+          <Download className="w-3.5 h-3.5 text-slate-600" />
+          <span>Export</span>
+        </button>
 
         {/* Collaboration, Discussions & Activity Controls */}
         <div className="h-4 w-px bg-slate-200 mx-1" />

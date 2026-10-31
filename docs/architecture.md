@@ -467,6 +467,38 @@ flowchart TD
 - **HMAC Signatures**: Every outbound request carries `X-FlowForge-Signature: t=${timestamp},v1=${signature}`, computed via HMAC-SHA256 over `${timestamp}.${rawJsonPayload}`.
 - **Secret Lifecycle**: Webhook secrets are prefixed with `whsec_`, masked in all list/read endpoints, and support zero-downtime rotation via `POST /subscriptions/:id/rotate-secret`.
 - **Delivery State Machine**: Tracks status (`PENDING` -> `PROCESSING` -> `SUCCEEDED` / `FAILED_PERMANENTLY` / `RETRY_SCHEDULED` / `DEAD_LETTERED`). Retries use bounded exponential backoff with jitter up to 5 attempts, with manual replay support via `POST /deliveries/:id/retry`.
+---
 
+## 13. Workflow Import, Export, Portability, and Backup/Restore Architecture
 
+### 13.1 Package Design & Deterministic Integrity Hashing
+The FlowForge portability specification (`flowforge.package/v1`) standardizes workflow interchange across tenants and environments without leaking infrastructure details or runtime state.
+
+1. **Deterministic Canonical Hashing**:
+   - The SHA-256 package hash is computed by recursively sorting all dictionary keys in canonical order (`canonicalizeJson`) across the definition, metadata, and dependencies before feeding UTF-8 bytes to `crypto.createHash("sha256")`.
+   - Any manual or hostile modification to graph structure, node configs, metadata, or dependency declarations immediately invalidates the hash.
+   - Verification uses constant-time comparison (`crypto.timingSafeEqual`) to mitigate side-channel timing attacks.
+
+2. **Secret Scrubbing & Abstraction Boundary**:
+   - `deepScrubSecrets` traverses all configuration objects, redacting authorization headers, bearer tokens, API keys, passwords, and webhook secrets.
+   - Tenant database connection UUIDs are abstracted into portable connection references (`conn_ref_1`, `conn_ref_2`), ensuring zero leakage of database identifiers or credentials across organization boundaries.
+   - Execution artifacts (`executionId`, `lastRun`, `runCount`, `testResult`) are purged.
+   - Trigger configurations have their `enabled` and `active` flags forced to `false`, preventing accidental automated execution upon import.
+
+### 13.2 Multi-Tenant Isolation & Mapping Enforcement
+When importing a workflow package:
+- Target connector mappings (`connectorMappings: { conn_ref_1: "conn_dest_uuid" }`) are strictly evaluated against the destination organization's active connection inventory.
+- Cross-tenant mapping is blocked with a 403 `CROSS_TENANT_MAPPING_FORBIDDEN` response.
+- Inactive or revoked connections are rejected with a 400 `INACTIVE_CONNECTION` error.
+- Conflict strategies guarantee safe coexistence:
+  - `CREATE_NEW`: Auto-resolves name collisions with an incremented suffix (`... (Imported 1)`).
+  - `RENAME`: Customizes workflow title cleanly.
+  - `REPLACE_DRAFT`: Updates only the mutable draft definition and increments `draftRevision`, leaving published immutable historical versions strictly untouched.
+
+### 13.3 Provenance & Audit Ledger
+Every import generates a permanent `WorkflowImport` record in the database tracking:
+- `sourceWorkflowId`, `sourceRevision`, and originating package format version.
+- Cryptographic `packageHash`.
+- Destination `workflowId`, `conflictStrategy`, applied `connectorMappings`, and `importedById`.
+- Audit logs (`workflow.exported`, `workflow.imported`) and workflow activity entries (`WORKFLOW_CREATED` / `DRAFT_UPDATED`) are recorded synchronously.
 

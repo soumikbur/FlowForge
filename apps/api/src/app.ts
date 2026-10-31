@@ -18,6 +18,7 @@ import { connectorRouter } from "./routes/connection.routes.js";
 import { templateRouter } from "./routes/template.routes.js";
 import { notificationRouter } from "./routes/notification.routes.js";
 import { webhookSubscriptionRouter } from "./routes/webhook-subscription.routes.js";
+import { portabilityRouter } from "./routes/portability.routes.js";
 import { apiStore } from "./store.js";
 
 export const app = express();
@@ -98,6 +99,7 @@ app.get("/ready", async (req, res) => {
 // Mount API v1 Routers
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/organizations", organizationRouter);
+app.use("/api/v1/workflows", portabilityRouter);
 app.use("/api/v1/workflows", workflowRouter);
 app.use("/api/v1/executions", executionRouter);
 app.use("/api/v1/approvals", approvalRouter);

@@ -574,6 +574,56 @@
 - **VERIFICATION COMMANDS**: `pnpm test; pnpm typecheck; pnpm build`
 - **ACTUAL RESULTS**: All 26/26 Prompt 15 integration tests passing; 350/350 total tests passing across 25 test suites; full monorepo build and Next.js 14 production build succeed with 0 errors.
 - **STATUS**: DONE
+---
 
-
-
+## TASK-033: Workflow Import, Export, Portability, and Backup/Restore (Prompt 16)
+- **TASK ID**: TASK-033
+- **TITLE**: Workflow Import, Export, Portability, and Backup/Restore
+- **DESCRIPTION**: Implement an enterprise workflow portability subsystem allowing authorized users to export workflows, transfer them between environments or organizations, import workflow packages, inspect dependencies, resolve configuration differences, and validate imported workflows before activation, with deterministic cryptographic package integrity, deep credential sanitization, tenant-safe connector mapping, conflict resolution strategies, provenance tracking, and organization bulk backup/restore.
+- **SUCCESS METRICS**:
+  1. Versioned portable package format (FlowForgeWorkflowPackageSchema, flowforge.package/v1, deterministic integrity hashing, zero secret leakage).
+  2. Authorized workflow export (GET /api/v1/workflows/:id/export for draft, version, or published states).
+  3. Dependency discovery and compatibility analysis (extractWorkflowDependencies, analyzeWorkflowPackageCompatibility).
+  4. Staged secure import pipeline (POST /api/v1/workflows/import/preview and POST /api/v1/workflows/import).
+  5. Import preview and conflict resolution strategies (CREATE_NEW, RENAME, REPLACE_DRAFT).
+  6. Tenant-safe connector mapping and environment configuration (strict org checks, cross-tenant mapping forbidden).
+  7. Package integrity verification (SHA-256 canonical hashing) and hostile-input protection (size/node guards).
+  8. Import provenance tracking (WorkflowImport model, history endpoint, audit and activity logging).
+  9. Organization-wide backup and restore (POST /export-backup and POST /restore-backup).
+  10. Frontend UI integration (ImportWorkflowModal.tsx, export action in builder, workflows list import button).
+  11. Automated test suite (tests/integration/workflow-portability-import-export.test.ts), documentation update, and clean Git commit.
+- **IMPLEMENTATION PLAN**:
+  1. Shared Contracts (packages/shared/src/index.ts):
+     - Added permissions: workflow:export, workflow:import to Permission and ROLE_PERMISSIONS (OWNER, ADMIN, MEMBER).
+     - Zod schemas: ConflictStrategyEnum, CompatibilityStatusEnum, FlowForgePackageMetadataSchema, WorkflowDependencyManifestSchema, FlowForgePackageIntegritySchema, FlowForgeWorkflowPackageSchema, FlowForgeBackupPackageSchema, ImportPreviewResponseSchema, ConfirmImportWorkflowSchema, WorkflowImportProvenanceSchema.
+  2. Database Layer (packages/database):
+     - Added WorkflowImport model in packages/database/prisma/schema.prisma with relations to Organization, Workflow, and User.
+     - Migration: 20261031110000_workflow_portability.
+  3. In-Memory Store (packages/test-utils/src/index.ts):
+     - Added WorkflowImportRecord interface with strategy alias.
+     - Added workflowImports map to InMemoryDatabase with reset support.
+  4. Workflow Engine Portability Services (packages/workflow-engine/src/portability.ts):
+     - computePackageIntegrityHash: Deterministic SHA-256 calculation after recursive key canonicalization.
+     - verifyPackageIntegrity: Cryptographically safe timing-safe verification.
+     - extractWorkflowDependencies: Extracts node types, connector requirements, triggers, and environment variables.
+     - sanitizeWorkflowDefinitionForExport: Strips sensitive credentials, maps database connection IDs to portable references, deactivates triggers, and cleans runtime artifacts.
+     - createWorkflowExportPackage: Assembles complete portable package with canonical metadata and hash.
+     - createOrganizationBackupPackage: Aggregates organization workflows into backup package.
+     - analyzeWorkflowPackageCompatibility: Dry-run compatibility analysis with collision detection and mapping suggestions.
+     - applyImportConnectorMappings: Injects target tenant connection IDs into the imported graph.
+     - deepScrubSecrets: Recursively strips passwords, API keys, bearer tokens, and secrets.
+  5. API Routes (apps/api):
+     - apps/api/src/routes/portability.routes.ts: POST /import/preview, POST /import, GET /:id/export, GET /:id/imports.
+     - apps/api/src/routes/organization.routes.ts: GET /:organizationId/imports, POST /:organizationId/export-backup, POST /:organizationId/restore-backup.
+     - Mounted in apps/api/src/app.ts at /api/v1/workflows.
+  6. Frontend UI (apps/web):
+     - apps/web/src/components/workflow/ImportWorkflowModal.tsx: Drag-and-drop file upload, JSON parsing, dry-run compatibility preview badge, connector mapping dropdowns, conflict resolution radio buttons, and import execution.
+     - apps/web/src/app/workflows/page.tsx: Added "Import Workflow" button and modal trigger.
+     - apps/web/src/components/workflow/EditorToolbar.tsx: Added "Export" button for draft/published package download.
+  7. Automated Integration Tests (tests/integration/workflow-portability-import-export.test.ts):
+     - 26 tests verifying canonical integrity hashing, draft/version/published exports, sensitive field non-leakage, dry-run preview, cross-tenant isolation, inactive connection rejection, conflict resolution (CREATE_NEW, RENAME, REPLACE_DRAFT), trigger deactivation defaults, import provenance records, tampered package rejection, and organization bulk backup/restore.
+- **ACCEPTANCE CRITERIA**: 100% test pass rate across all 26 test suites (376/376 tests passing); zero TypeScript errors; Next.js 14 production build succeeds with 0 errors.
+- **REQUIRED TESTS**: tests/integration/workflow-portability-import-export.test.ts
+- **VERIFICATION COMMANDS**: pnpm test; pnpm typecheck; pnpm build
+- **ACTUAL RESULTS**: All 26/26 Prompt 16 integration tests passing; 376/376 total tests passing across 26 test suites; full monorepo build and Next.js 14 production build succeed with 0 errors.
+- **STATUS**: DONE

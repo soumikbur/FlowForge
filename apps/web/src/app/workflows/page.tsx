@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Workflow, ExternalLink, History, Users, User, Share2 } from "lucide-react";
+import { Plus, Workflow, ExternalLink, History, Users, User, Share2, Upload } from "lucide-react";
+import { ImportWorkflowModal } from "@/components/workflow/ImportWorkflowModal";
 
 interface WorkflowItem {
   id: string;
@@ -49,10 +50,11 @@ export default function WorkflowsPage() {
   ]);
   const [filter, setFilter] = useState<"all" | "created_by_me" | "shared_with_me">("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newDesc, setNewDesc] = useState("");
 
-  useEffect(() => {
+  const fetchWorkflows = () => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
     fetch(`${apiUrl}/api/v1/workflows?filter=${filter}`, { credentials: "include" })
       .then((res) => (res.ok ? res.json() : null))
@@ -62,6 +64,10 @@ export default function WorkflowsPage() {
         }
       })
       .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchWorkflows();
   }, [filter]);
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -105,13 +111,22 @@ export default function WorkflowsPage() {
             Create, configure, and publish business automations.
           </p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition"
-        >
-          <Plus className="w-4 h-4" />
-          <span>New Workflow</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="inline-flex items-center gap-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition"
+          >
+            <Upload className="w-4 h-4 text-slate-500" />
+            <span>Import Workflow</span>
+          </button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Workflow</span>
+          </button>
+        </div>
       </div>
 
       {/* Collaboration & Team Filters */}
@@ -266,6 +281,13 @@ export default function WorkflowsPage() {
           </div>
         </div>
       )}
+
+      {/* Import Workflow Modal */}
+      <ImportWorkflowModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onSuccess={() => fetchWorkflows()}
+      />
     </div>
   );
 }
