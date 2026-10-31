@@ -30,6 +30,7 @@
 | TASK-032 | Enterprise Notifications & Event Delivery Subsystem    | TASK-008..TASK-031           | Reliability Engineer      | DONE   | Multi-channel notifications, preferences, dispatch & retries  |
 | TASK-033 | Workflow Portability, Import/Export & Backup/Restore   | TASK-006..TASK-032           | Portability Lead Engineer | DONE   | Portable format, dry-run import preview, backup & restore     |
 | TASK-034 | Performance, Scalability, Reliability & Hardening      | TASK-001..TASK-033           | Performance & SRE Lead    | DONE   | Empirical baselines, SLO budgets, LRU cache, circuit breaker  |
+| TASK-035 | E2E Integration Testing, Security Audit & Release QA   | TASK-001..TASK-034           | Lead QA & Security Eng    | DONE   | 431/431 passing tests, release verification report, audit pass|
 
 ---
 
@@ -692,4 +693,51 @@
 - **REQUIRED TESTS**: tests/integration/performance-reliability-resilience.test.ts
 - **VERIFICATION COMMANDS**: pnpm test; pnpm typecheck; pnpm build
 - **ACTUAL RESULTS**: All 17/17 Prompt 17 resilience tests passing; 393/393 total tests passing across all 27 test files; full monorepo build succeeds with 0 errors.
+- **STATUS**: DONE
+
+
+---
+
+### TASK-035: End-to-End Integration Testing, Security Audit, and Release QA
+
+- **TASK ID**: TASK-035
+- **TITLE**: End-to-End Integration Testing, Security Audit, and Release Quality Assurance
+- **DESCRIPTION**: Perform a comprehensive integration, regression, security, and release-readiness audit across the entire codebase. Inspect all 13 platform subsystems, execute static analysis and dependency audits, author an active React Flow visual builder integration test suite, implement an end-to-end release QA test suite covering real-world user journeys, verify multi-tenant boundary isolation, audit network defenses (SSRF, HMAC timing safety), verify canonical package hashing and conflict preview for workflow portability, identify and resolve test/contract discrepancies, and compile a formal release assessment report.
+- **SUCCESS METRICS**:
+  1. Mandatory Ponytail execution verified (check-versions.js pinned at 5.3.3 across all 7 version files).
+  2. Complete verification matrix covering all 13 platform subsystems documented.
+  3. Static analysis and dependency audit recorded (pnpm audit, eslint, tsc).
+  4. Active visual builder test suite (tests/e2e/workflow-builder.spec.ts) covering the full authoring and publishing lifecycle (6 tests).
+  5. Comprehensive end-to-end integration and security test suite (tests/integration/end-to-end-release-qa.test.ts) covering 32 real-world scenarios across 4 journeys.
+  6. Multi-tenant isolation verified with 404/403 guards across all 13 subsystems.
+  7. SSRF protection, HMAC signature verification, and canonical integrity hashing validated.
+  8. Defect register documented with all 5 identified discrepancies remediated.
+  9. 100% test pass rate across all 29 test suites (431/431 tests passing).
+  10. Zero TypeScript errors and clean production build.
+  11. Formal release verification report authored in docs/release-verification-report.md.
+- **IMPLEMENTATION PLAN**:
+  1. Static Analysis & Dependency Audit:
+     - Ran pnpm audit, eslint ., and tsc --noEmit.
+     - Documented Next.js 14 upstream advisories and non-blocking status pending Next.js 15 migration.
+  2. Visual Builder Integration Test Suite:
+     - Updated vitest.config.ts to include tests/**/*.spec.ts.
+     - Re-implemented tests/e2e/workflow-builder.spec.ts to test login, draft creation, node connections, graph persistence, validation, publishing, and read-only locking (6 tests).
+  3. End-to-End Release QA & Security Test Suite:
+     - Authored tests/integration/end-to-end-release-qa.test.ts covering 32 test cases across 4 journeys:
+       - Journey 1: Complete Workflow Authoring & Lifecycle.
+       - Journey 2: Exhaustive Multi-Tenant Isolation Audit.
+       - Journey 3: Workflow Portability, Secret Scrubbing & Integrity.
+       - Journey 4: Network Security, SSRF, Circuit Breakers & Worker Fair Scheduling.
+  4. Defect Remediation:
+     - DEF-01: Re-implemented tests/e2e/workflow-builder.spec.ts into an active Vitest test suite.
+     - DEF-02: Target canonical /api/v1/workflows/:id/promote route with 201 Created.
+     - DEF-03: Aligned inbound webhook status expectation to 202 Accepted.
+     - DEF-04: Fixed signWebhookPayload argument order and signature header format.
+     - DEF-05: Added tests/**/*.spec.ts to vitest.config.ts.
+  5. Formal Reporting:
+     - Created docs/release-verification-report.md with 13-subsystem matrix, threat model review, defect register, and release assessment: READY WITH DOCUMENTED NON-BLOCKING ISSUES.
+- **ACCEPTANCE CRITERIA**: 100% test pass rate across all 29 test suites (431/431 tests passing); zero TypeScript errors; Next.js 14 production build succeeds with 0 errors; clean Git commit.
+- **REQUIRED TESTS**: tests/integration/end-to-end-release-qa.test.ts, tests/e2e/workflow-builder.spec.ts
+- **VERIFICATION COMMANDS**: pnpm test; pnpm typecheck; pnpm build
+- **ACTUAL RESULTS**: All 32/32 release QA tests passing; all 6/6 builder E2E tests passing; 431/431 total tests passing across all 29 test files; full monorepo build succeeds with 0 errors.
 - **STATUS**: DONE
