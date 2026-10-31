@@ -17,16 +17,50 @@ import {
   ValidationResult,
   WorkflowErrorCode,
 } from "./types.js";
+import { computeWorkflowContentHash } from "./hasher.js";
+import { BoundedCache } from "./cache.js";
 
 export type { ValidationError, ValidationWarning, ValidationResult };
+
+export interface ValidationOptions {
+  skipCache?: boolean;
+}
+
+/**
+ * Bounded LRU/TTL validation cache storing results keyed by deterministic graph content hash.
+ */
+export const validationCache = new BoundedCache<string, ValidationResult>(1000, 3600000);
+
+export function getValidationCacheStats() {
+  return validationCache.getStats();
+}
+
+export function resetValidationCache() {
+  validationCache.clear();
+}
 
 /**
  * Validates a workflow definition according to structural, connectivity,
  * schema, and safety constraints. Pure function with zero external side-effects.
+ * Optionally cached by deterministic graph content hash for high-throughput evaluation.
  */
 export function validateWorkflowDefinition(
   definition: WorkflowDefinition,
+  options?: ValidationOptions,
 ): ValidationResult {
+  // Check validation cache if enabled and definition has nodes
+  let contentHash: string | undefined;
+  if (!options?.skipCache && definition && Array.isArray(definition.nodes) && definition.nodes.length > 0) {
+    try {
+      contentHash = computeWorkflowContentHash(definition);
+      const cached = validationCache.get(contentHash);
+      if (cached) {
+        return cached;
+      }
+    } catch {
+      // If content hash calculation fails on malformed input, fall through to raw validation
+    }
+  }
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
 
@@ -376,11 +410,17 @@ export function validateWorkflowDefinition(
     }
   }
 
-  return {
+  const result: ValidationResult = {
     isValid: errors.length === 0,
     errors,
     warnings,
   };
+
+  if (contentHash && !options?.skipCache) {
+    validationCache.set(contentHash, result);
+  }
+
+  return result;
 }
 
 /**

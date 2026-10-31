@@ -27,14 +27,38 @@ import {
   DelayRecord,
 } from "@flowforge/test-utils";
 
+export interface WorkflowExecutionRunnerOptions {
+  maxGlobalConcurrency?: number;
+  maxTenantConcurrency?: number;
+}
+
 export class WorkflowExecutionRunner {
   private activeExecutions = new Map<string, AbortController>();
+  private activeTenantExecutions = new Map<string, number>();
+  private registry: NodeHandlerRegistry;
+  private maxGlobalConcurrency: number;
+  private maxTenantConcurrency: number;
 
   constructor(
     private db: InMemoryDatabase,
-    private registry: NodeHandlerRegistry = defaultRegistry,
+    registryOrOptions?: NodeHandlerRegistry | WorkflowExecutionRunnerOptions,
+    options?: WorkflowExecutionRunnerOptions,
   ) {
-    if (registry === defaultRegistry) {
+    let actualRegistry: NodeHandlerRegistry = defaultRegistry;
+    let actualOptions: WorkflowExecutionRunnerOptions = {};
+
+    if (registryOrOptions && "register" in registryOrOptions) {
+      actualRegistry = registryOrOptions;
+      actualOptions = options || {};
+    } else if (registryOrOptions) {
+      actualOptions = registryOrOptions as WorkflowExecutionRunnerOptions;
+    }
+
+    this.registry = actualRegistry;
+    this.maxGlobalConcurrency = actualOptions.maxGlobalConcurrency ?? 50;
+    this.maxTenantConcurrency = actualOptions.maxTenantConcurrency ?? 10;
+
+    if (this.registry === defaultRegistry) {
       this.registerIntegrationHandlers();
     }
   }
@@ -704,6 +728,102 @@ export class WorkflowExecutionRunner {
   }
 
   /**
+   * Identifies and recovers executions left in RUNNING state beyond the threshold time.
+   */
+  public async recoverStaleExecutions(
+    thresholdMs: number = 300000,
+    now: Date = new Date(),
+  ): Promise<{ recoveredCount: number; executionIds: string[] }> {
+    let recoveredCount = 0;
+    const executionIds: string[] = [];
+
+    for (const execution of this.db.executions.values()) {
+      if (execution.status === "RUNNING") {
+        const lastActivity = execution.updatedAt
+          ? execution.updatedAt.getTime()
+          : execution.startedAt
+            ? execution.startedAt.getTime()
+            : 0;
+
+        if (now.getTime() - lastActivity >= thresholdMs) {
+          recoveredCount++;
+          executionIds.push(execution.id);
+
+          const controller = this.activeExecutions.get(execution.id);
+          if (controller) {
+            controller.abort();
+            this.activeExecutions.delete(execution.id);
+          }
+
+          // Mark in-flight running steps as failed
+          for (const step of this.db.steps.values()) {
+            if (step.executionId === execution.id && step.status === "RUNNING") {
+              step.status = "FAILED";
+              step.errorMessage =
+                "Execution timed out or worker stalled (stale execution recovery)";
+              step.completedAt = now;
+              this.db.steps.set(step.id, step);
+            }
+          }
+
+          execution.status = "FAILED";
+          execution.completedAt = now;
+          execution.updatedAt = now;
+          execution.errorDetails = {
+            message: "Execution timed out (stale running recovery)",
+            staleDurationMs: now.getTime() - lastActivity,
+          };
+          this.db.executions.set(execution.id, execution);
+
+          publishDomainEvent(this.db, {
+            type: "workflow.execution.failed",
+            organizationId: execution.organizationId,
+            resourceType: "execution",
+            resourceId: execution.id,
+            data: {
+              workflowId: execution.workflowId,
+              executionId: execution.id,
+              error: "Execution timed out (stale running recovery)",
+            },
+          });
+        }
+      }
+    }
+
+    return { recoveredCount, executionIds };
+  }
+
+  /**
+   * Gracefully aborts all active in-flight executions.
+   */
+  public async gracefulShutdown(
+    _timeoutMs: number = 5000,
+  ): Promise<{ stoppedCount: number }> {
+    const stoppedCount = this.activeExecutions.size;
+    for (const controller of this.activeExecutions.values()) {
+      controller.abort();
+    }
+    return { stoppedCount };
+  }
+
+  public getActiveExecutionsCount(): number {
+    return this.activeExecutions.size;
+  }
+
+  public getTenantActiveCount(organizationId: string): number {
+    return this.activeTenantExecutions.get(organizationId) || 0;
+  }
+
+  public getConcurrencyMetrics() {
+    return {
+      globalActive: this.activeExecutions.size,
+      maxGlobalConcurrency: this.maxGlobalConcurrency,
+      maxTenantConcurrency: this.maxTenantConcurrency,
+      tenantActive: Object.fromEntries(this.activeTenantExecutions.entries()),
+    };
+  }
+
+  /**
    * Executes a workflow execution until completion or suspension (approval/delay).
    */
   public async processExecution(
@@ -717,6 +837,21 @@ export class WorkflowExecutionRunner {
 
     if (execution.status === "CANCELLED") {
       return execution;
+    }
+
+    // Check global and tenant concurrency limits before running
+    if (this.activeExecutions.size >= this.maxGlobalConcurrency) {
+      throw new Error(
+        `Concurrency limit exceeded: Global worker limit of ${this.maxGlobalConcurrency} reached.`,
+      );
+    }
+
+    const currentTenantActive =
+      this.activeTenantExecutions.get(execution.organizationId) || 0;
+    if (currentTenantActive >= this.maxTenantConcurrency) {
+      throw new Error(
+        `Concurrency limit exceeded: Organization '${execution.organizationId}' limit of ${this.maxTenantConcurrency} reached.`,
+      );
     }
 
     const version = this.db.versions.get(execution.workflowVersionId);
@@ -756,6 +891,10 @@ export class WorkflowExecutionRunner {
 
     const abortController = new AbortController();
     this.activeExecutions.set(executionId, abortController);
+    this.activeTenantExecutions.set(
+      execution.organizationId,
+      currentTenantActive + 1,
+    );
 
     // Determine entry node
     let currentNode = execution.currentNodeId
@@ -1092,6 +1231,13 @@ export class WorkflowExecutionRunner {
       }
     } finally {
       this.activeExecutions.delete(executionId);
+      const current =
+        this.activeTenantExecutions.get(execution.organizationId) || 1;
+      if (current <= 1) {
+        this.activeTenantExecutions.delete(execution.organizationId);
+      } else {
+        this.activeTenantExecutions.set(execution.organizationId, current - 1);
+      }
     }
 
     return execution;

@@ -24,6 +24,12 @@
 | TASK-026 | Workflow Versioning, Publishing & Environment Promotion| TASK-006..TASK-025           | Lifecycle Lead Engineer   | DONE   | Content hashing, promotions, rollbacks & comparison           |
 | TASK-027 | Analytics, Monitoring, and Operational Intelligence    | TASK-008..TASK-026           | Lead Observability Eng    | DONE   | Real-time KPIs, latency percentiles, bottlenecks & alerts     |
 | TASK-028 | Enterprise Security, Governance & Administration       | TASK-005..TASK-027           | Lead Security Engineer    | DONE   | Roles (Viewer), invitations, API keys, retention & audit trail|
+| TASK-029 | Enterprise Integration & Connector Management          | TASK-008..TASK-028           | Lead Integration Eng      | DONE   | Connector registry, credential lifecycle, SSRF & testing      |
+| TASK-030 | Workflow Templates, Reusable Components & Marketplace  | TASK-006..TASK-029           | Systems Architect         | DONE   | Template lifecycle, versioning, instantiation & parameters    |
+| TASK-031 | Workflow Collaboration & Team Productivity             | TASK-006..TASK-030           | Collaboration Engineer    | DONE   | Activity feed, comments, mentions & presence locking          |
+| TASK-032 | Enterprise Notifications & Event Delivery Subsystem    | TASK-008..TASK-031           | Reliability Engineer      | DONE   | Multi-channel notifications, preferences, dispatch & retries  |
+| TASK-033 | Workflow Portability, Import/Export & Backup/Restore   | TASK-006..TASK-032           | Portability Lead Engineer | DONE   | Portable format, dry-run import preview, backup & restore     |
+| TASK-034 | Performance, Scalability, Reliability & Hardening      | TASK-001..TASK-033           | Performance & SRE Lead    | DONE   | Empirical baselines, SLO budgets, LRU cache, circuit breaker  |
 
 ---
 
@@ -626,4 +632,64 @@
 - **REQUIRED TESTS**: tests/integration/workflow-portability-import-export.test.ts
 - **VERIFICATION COMMANDS**: pnpm test; pnpm typecheck; pnpm build
 - **ACTUAL RESULTS**: All 26/26 Prompt 16 integration tests passing; 376/376 total tests passing across 26 test suites; full monorepo build and Next.js 14 production build succeed with 0 errors.
+- **STATUS**: DONE
+
+---
+
+### TASK-034: Performance, Scalability, Reliability, and Production Hardening
+
+- **TASK ID**: TASK-034
+- **TITLE**: Performance, Scalability, Reliability, and Production Hardening
+- **DESCRIPTION**: Improve FlowForge's performance, scalability, fault tolerance, resource efficiency, and operational reliability while preserving all existing functionality across Prompts 1–16. Establish empirical baseline latency and throughput benchmarks across 11 critical platform workloads, formulate performance budgets and SLO definitions, add high-throughput composite indexes in PostgreSQL Prisma schema, implement content-hash-keyed Bounded LRU/TTL caching for workflow validation, configure global and tenant fair worker concurrency limits with graceful shutdown, implement stale execution recovery to reconcile stranded executions, introduce circuit breakers with exponential backoff and jitter for external dependencies, wire correlation ID propagation through Express, and expose Kubernetes-compliant liveness, readiness, and metrics endpoints.
+- **SUCCESS METRICS**:
+  1. Mandatory Ponytail execution verified (check-versions.js pinned at 5.3.3 across all 7 version files).
+  2. Baseline measurement captured across 11 critical workloads (documented in docs/performance-budgets-and-slos.md).
+  3. Performance budgets and SLO definitions established (p95 targets <= 15ms for API reads/mutations, <= 0.1ms for graph validation).
+  4. Composite database indexes on Workflow, WorkflowExecution, ExecutionStep, AuditLog, and OutboxEvent (packages/database/prisma/migrations/20261031120000_performance_and_indexes).
+  5. Content-hash-keyed BoundedCache with LRU eviction and TTL for graph validation.
+  6. Global (50) and per-tenant (10) fair worker execution concurrency bounds, graceful shutdown, and concurrency metrics.
+  7. Automated stale execution recovery (recoverStaleExecutions) reconciling in-flight steps and executions past 5-minute threshold.
+  8. External HTTP circuit breakers (CLOSED -> OPEN -> HALF_OPEN) and full jitter exponential backoff.
+  9. Observability and correlation ID propagation (X-Correlation-Id) with /health, /health/live, /health/ready, and /health/metrics.
+  10. Dedicated integration test suite (tests/integration/performance-reliability-resilience.test.ts) with 100% pass rate.
+  11. Full regression test pass rate (all 27 test files, 393/393 tests passing).
+  12. Zero TypeScript errors and clean production build across the entire monorepo.
+- **IMPLEMENTATION PLAN**:
+  1. Baseline Measurement:
+     - Authored and executed empirical benchmark runner measuring 11 critical workloads (GET /workflows, GET /workflows/:id, validateWorkflowGraph, PATCH /workflows/:id, POST /publish, POST /execute, Runner.processExecution, GET /executions, GET /analytics, publishDomainEvent, POST /import/preview).
+     - Documented in docs/performance-budgets-and-slos.md.
+  2. Database Optimization (packages/database):
+     - Added composite indexes in packages/database/prisma/schema.prisma:
+       Workflow([organizationId, status], [organizationId, updatedAt]),
+       WorkflowExecution([organizationId, status], [workflowId, status], [organizationId, createdAt]),
+       ExecutionStep([executionId, status], [executionId, startedAt]),
+       AuditLog([organizationId, createdAt]),
+       OutboxEvent([status, createdAt]).
+     - Migration: 20261031120000_performance_and_indexes/migration.sql.
+  3. Workflow Validation Caching (packages/workflow-engine):
+     - Created packages/workflow-engine/src/cache.ts: Generic BoundedCache with LRU eviction, TTL, size tracking, hit/miss metrics, and evictions.
+     - Updated packages/workflow-engine/src/validator.ts: Integrated validationCache keyed by deterministic computeWorkflowContentHash(definition).
+     - Exported cache and stats in packages/workflow-engine/src/index.ts.
+  4. External Dependency Resilience (packages/integrations):
+     - Created packages/integrations/src/circuit-breaker.ts: CircuitBreaker, CircuitBreakerError, CircuitBreakerRegistry, defaultCircuitBreakerRegistry.
+     - Updated packages/integrations/src/http.ts: executeSafeHttpRequest now leverages host-keyed circuit breakers for fast-failing during outages and applies exponential backoff with full jitter (0.8x-1.2x).
+     - Exported in packages/integrations/src/index.ts.
+  5. Worker Concurrency & Reliability (apps/worker):
+     - Updated apps/worker/src/runner.ts:
+       - Configurable maxGlobalConcurrency (50) and maxTenantConcurrency (10) in WorkflowExecutionRunnerOptions.
+       - Enforced activeTenantExecutions tracking and fair scheduling rejections.
+       - Added recoverStaleExecutions(thresholdMs, now) reconciling stranded executions and steps into FAILED with staleDurationMs.
+       - Added gracefulShutdown(timeoutMs) signaling abort to all active execution controllers.
+       - Added metrics accessors: getActiveExecutionsCount, getTenantActiveCount, getConcurrencyMetrics.
+  6. API Observability & Diagnostics (apps/api):
+     - apps/api/src/app.ts:
+       - Preserved and verified X-Correlation-Id header middleware.
+       - Added /health/live (alias to /health) and /health/ready (alias to /ready).
+       - Added /health/metrics and /api/v1/metrics exposing uptime, memory, validationCache stats, and circuit breaker metrics.
+  7. Automated Integration Tests (tests/integration/performance-reliability-resilience.test.ts):
+     - 17 test cases covering content-hash caching, LRU eviction, TTL expiry, circuit breaker state transitions, downstream isolation during OPEN state, half-open recovery, worker tenant concurrency limits, fair scheduling, stale execution reconciliation, graceful shutdown, correlation ID propagation, and diagnostic endpoints.
+- **ACCEPTANCE CRITERIA**: 100% test pass rate across all 27 test suites (393/393 tests passing); zero TypeScript errors; clean Git commit.
+- **REQUIRED TESTS**: tests/integration/performance-reliability-resilience.test.ts
+- **VERIFICATION COMMANDS**: pnpm test; pnpm typecheck; pnpm build
+- **ACTUAL RESULTS**: All 17/17 Prompt 17 resilience tests passing; 393/393 total tests passing across all 27 test files; full monorepo build succeeds with 0 errors.
 - **STATUS**: DONE

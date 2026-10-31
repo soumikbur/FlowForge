@@ -247,6 +247,8 @@ model Workflow {
   @@index([status])
   @@index([sourceTemplateId])
   @@index([deletedAt])
+  @@index([organizationId, deletedAt, updatedAt])
+  @@index([organizationId, status, updatedAt])
   @@map("workflows")
 }
 
@@ -301,6 +303,8 @@ model WorkflowExecution {
   @@index([organizationId, createdAt])
   @@index([organizationId, status, createdAt])
   @@index([organizationId, workflowId, createdAt])
+  @@index([status, updatedAt])
+  @@index([organizationId, workflowId, status, createdAt])
   @@map("workflow_executions")
 }
 
@@ -350,6 +354,7 @@ model ExecutionStep {
   @@index([nodeId])
   @@index([executionId, status])
   @@index([nodeType])
+  @@index([executionId, startedAt])
   @@map("execution_steps")
 }
 
@@ -500,6 +505,7 @@ model AuditLog {
 
   @@index([organizationId])
   @@index([createdAt])
+  @@index([organizationId, createdAt])
   @@map("audit_logs")
 }
 
@@ -673,6 +679,7 @@ model WorkflowComment {
   @@index([userId])
   @@index([parentId])
   @@index([isResolved])
+  @@index([workflowId, createdAt])
   @@map("workflow_comments")
 }
 
@@ -712,6 +719,7 @@ model OutboxEvent {
 
   @@index([organizationId, status])
   @@index([status, createdAt])
+  @@index([organizationId, status, createdAt])
   @@map("outbox_events")
 }
 

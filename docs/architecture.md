@@ -502,3 +502,74 @@ Every import generates a permanent `WorkflowImport` record in the database track
 - Destination `workflowId`, `conflictStrategy`, applied `connectorMappings`, and `importedById`.
 - Audit logs (`workflow.exported`, `workflow.imported`) and workflow activity entries (`WORKFLOW_CREATED` / `DRAFT_UPDATED`) are recorded synchronously.
 
+---
+
+## 14. Performance, Scalability, Reliability, and Production Hardening Architecture
+
+```mermaid
+graph TD
+    Client["Client / Web App"] -->|HTTP + X-Correlation-Id| API["Express API Gateway"]
+    API -->|Validation Query| VC["Bounded LRU/TTL Cache (1000 items, 1h TTL)"]
+    API -->|Read/Write| DB[("PostgreSQL (Composite Indexes)")]
+    
+    API -->|Dispatch Execution| Worker["Background Worker Service"]
+    Worker --> FairSched["Multi-Tenant Fair Scheduler (Max 50 Global / 10 Tenant)"]
+    FairSched --> Engine["Workflow Execution Engine"]
+    
+    Engine --> CB["Host Circuit Breakers (Stripe, Slack, External APIs)"]
+    CB -->|Fast-Fail if OPEN| Ext["External HTTP Endpoints"]
+    
+    Worker --> StaleRec["Stale Execution Reconciler (5m threshold)"]
+    StaleRec -->|Mark FAILED| DB
+    Worker --> Shutdown["Graceful Shutdown Handler (AbortController)"]
+```
+
+### 14.1 Empirical Baselines & SLO Enforcement
+All system components enforce strict latency and throughput budgets measured across 11 critical operational workloads:
+- **API Reads (`GET /workflows`, `GET /executions`, `GET /analytics`)**: p95 $\le 15$ms; p99 $\le 50$ms.
+- **API Mutations (`POST /execute`, `POST /publish`, `PATCH /workflows/:id`)**: p95 $\le 20$ms; p99 $\le 50$ms.
+- **Workflow Graph Validation**: p95 $\le 0.1$ms uncached; $\le 0.02$ms cached (>100,000 ops/s).
+- **Step Execution**: p95 $\le 0.1$ms for pure functional transitions.
+- **Availability SLO**: 99.9% uptime over rolling 30-day windows ($\le 43.8$ minutes downtime/month).
+- **Error Budget Multi-Burn-Rate Alerting**: 1h burn rate > 14.4 (Page); 6h burn rate > 6.0 (P2); 36h burn rate > 1.0 (Ticket).
+
+### 14.2 Database Composite Indexing
+Composite indexes are deployed in PostgreSQL to maintain logarithmic search times at scale:
+- `Workflow([organizationId, status])` and `Workflow([organizationId, updatedAt])`
+- `WorkflowExecution([organizationId, status])`, `WorkflowExecution([workflowId, status])`, and `WorkflowExecution([organizationId, createdAt])`
+- `ExecutionStep([executionId, status])` and `ExecutionStep([executionId, startedAt])`
+- `AuditLog([organizationId, createdAt])` and `OutboxEvent([status, createdAt])`
+
+### 14.3 Bounded LRU/TTL Validation Caching
+- Keyed by deterministic SHA-256 hash of the normalized workflow definition (`computeWorkflowContentHash`).
+- Prevents redundant DFS cycle detection and schema traversal on high-frequency validation calls.
+- Configured with bounded capacity (1,000 entries) and 1-hour TTL to guard memory boundaries.
+
+### 14.4 Multi-Tenant Fair Scheduling & Execution Concurrency Bounds
+- **Global Concurrency Ceiling**: 50 concurrent active executions per worker instance.
+- **Tenant Quota Guarantee**: 10 concurrent active executions per organization.
+- **Fair Scheduling**: Busy tenants hitting their limit receive early admission rejection without degrading throughput for neighboring organizations.
+- **Graceful Shutdown**: Traps shutdown signals and aborts in-flight execution pipelines via `AbortController` without leaving dangling socket descriptors.
+
+### 14.5 External Dependency Resilience & Circuit Breakers
+- Outbound HTTP requests to external partner endpoints are governed by host-keyed circuit breakers (`defaultCircuitBreakerRegistry`).
+- State machine:
+  - 5 consecutive network or timeout failures trip breaker from `CLOSED` to `OPEN`.
+  - In `OPEN` state, calls fast-fail immediately (`CircuitBreakerError`) without socket allocation.
+  - After a 30-second cooldown, breaker transitions to `HALF_OPEN` for 1 probe attempt before resetting or tripping.
+- Retries apply exponential backoff with full jitter ($200 \times 2^{\text{attempt}} \times [0.8, 1.2]$).
+
+### 14.6 Stale Execution Recovery & RTO/RPO
+- Executions stranded in `RUNNING` for $\ge 300$ seconds (e.g. following sudden worker node termination) are detected and reconciled by `recoverStaleExecutions`.
+- In-flight running steps are reconciled to `FAILED`, and the execution error details record `staleDurationMs`.
+- **RTO**: $\le 5$ minutes automated recovery.
+- **RPO**: 0 seconds for all committed state through transactional outbox and Prisma operations.
+
+### 14.7 Distributed Tracing & Observability
+- All API requests carry or generate an `X-Correlation-Id` passed through execution logs and event payloads.
+- Kubernetes endpoints:
+  - `/health` & `/health/live`: Process liveness probe.
+  - `/ready` & `/health/ready`: Dependency readiness probe (verifies database store readiness).
+  - `/health/metrics` & `/api/v1/metrics`: Diagnostic runtime metrics exposing memory heap, process uptime, validation cache statistics, and circuit breaker states.
+
+

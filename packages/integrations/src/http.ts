@@ -2,6 +2,10 @@ import {
   isPrivateOrBlockedDestination,
   resolveAndValidateDestination,
 } from "./ssrf.js";
+import {
+  defaultCircuitBreakerRegistry,
+  CircuitBreakerError,
+} from "./circuit-breaker.js";
 
 export interface HttpRequestOptions {
   url: string;
@@ -13,6 +17,8 @@ export interface HttpRequestOptions {
   maxRetries?: number;
   maxResponseBytes?: number;
   idempotentRetry?: boolean;
+  circuitBreaker?: boolean;
+  circuitBreakerName?: string;
 }
 
 export interface HttpResponse {
@@ -98,6 +104,11 @@ export async function executeSafeHttpRequest(
   // Non-idempotent methods (POST, PATCH) should not retry unless explicitly opted in
   const effectiveRetries = isIdempotentMethod || idempotentRetry ? maxRetries : 0;
 
+  const useBreaker = options.circuitBreaker !== false;
+  const breaker = useBreaker
+    ? defaultCircuitBreakerRegistry.getBreaker(options.circuitBreakerName || targetUrl.hostname)
+    : null;
+
   let attempt = 0;
   let lastError: Error | null = null;
 
@@ -107,16 +118,29 @@ export async function executeSafeHttpRequest(
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      const response = await fetch(targetUrl.toString(), {
-        method: upperMethod,
-        headers: {
-          "User-Agent": "FlowForge-Workflow-Engine/1.0",
-          ...headers,
-        },
-        body: ["GET", "HEAD"].includes(upperMethod) ? undefined : body,
-        signal: controller.signal,
-        redirect: "error", // Reject automatic redirect following to prevent redirect-based SSRF
-      });
+      const response = await (breaker
+        ? breaker.execute(() =>
+            fetch(targetUrl.toString(), {
+              method: upperMethod,
+              headers: {
+                "User-Agent": "FlowForge-Workflow-Engine/1.0",
+                ...headers,
+              },
+              body: ["GET", "HEAD"].includes(upperMethod) ? undefined : body,
+              signal: controller.signal,
+              redirect: "error", // Reject automatic redirect following to prevent redirect-based SSRF
+            }),
+          )
+        : fetch(targetUrl.toString(), {
+            method: upperMethod,
+            headers: {
+              "User-Agent": "FlowForge-Workflow-Engine/1.0",
+              ...headers,
+            },
+            body: ["GET", "HEAD"].includes(upperMethod) ? undefined : body,
+            signal: controller.signal,
+            redirect: "error",
+          }));
 
       clearTimeout(timer);
       const durationMs = Date.now() - startTime;
@@ -167,14 +191,22 @@ export async function executeSafeHttpRequest(
     } catch (err: any) {
       clearTimeout(timer);
       lastError = err;
+
+      // Fast-fail immediately without retry if circuit breaker is OPEN
+      if (err instanceof CircuitBreakerError || err?.code === "CIRCUIT_BREAKER_OPEN") {
+        throw err;
+      }
+
       attempt++;
 
       if (attempt > effectiveRetries) {
         break;
       }
 
-      // Exponential backoff
-      await new Promise((res) => setTimeout(res, 200 * Math.pow(2, attempt)));
+      // Exponential backoff with full jitter (0.8x to 1.2x)
+      const jitter = 0.8 + Math.random() * 0.4;
+      const backoffMs = Math.floor(200 * Math.pow(2, attempt) * jitter);
+      await new Promise((res) => setTimeout(res, backoffMs));
     }
   }
 

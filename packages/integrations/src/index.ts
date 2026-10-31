@@ -45,3 +45,4 @@ export * from "./connectors/http-api.js";
 export * from "./connectors/smtp-email.js";
 export * from "./connectors/slack-webhook.js";
 export * from "./event-delivery.js";
+export * from "./circuit-breaker.js";

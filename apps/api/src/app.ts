@@ -20,6 +20,8 @@ import { notificationRouter } from "./routes/notification.routes.js";
 import { webhookSubscriptionRouter } from "./routes/webhook-subscription.routes.js";
 import { portabilityRouter } from "./routes/portability.routes.js";
 import { apiStore } from "./store.js";
+import { getValidationCacheStats } from "@flowforge/workflow-engine";
+import { defaultCircuitBreakerRegistry } from "@flowforge/integrations";
 
 export const app = express();
 
@@ -60,16 +62,18 @@ app.use(express.json({ limit: "1mb" }));
 app.use(rateLimit(60000, 300));
 
 // Process Liveness Check
-app.get("/health", (req, res) => {
+const livenessHandler = (req: Request, res: Response) => {
   res.json({
     status: "healthy",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
   });
-});
+};
+app.get("/health", livenessHandler);
+app.get("/health/live", livenessHandler);
 
 // Dependency Readiness Check (verifies database availability)
-app.get("/ready", async (req, res) => {
+const readinessHandler = async (req: Request, res: Response) => {
   try {
     // Assert database store / client is accessible
     const isDbReady = apiStore !== null && apiStore !== undefined;
@@ -94,7 +98,23 @@ app.get("/ready", async (req, res) => {
       error: err.message,
     });
   }
-});
+};
+app.get("/ready", readinessHandler);
+app.get("/health/ready", readinessHandler);
+
+// Diagnostic Metrics Endpoint
+const metricsHandler = (req: Request, res: Response) => {
+  res.json({
+    status: "healthy",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    validationCache: getValidationCacheStats(),
+    circuitBreakers: defaultCircuitBreakerRegistry.getAllMetrics(),
+  });
+};
+app.get("/health/metrics", metricsHandler);
+app.get("/api/v1/metrics", metricsHandler);
 
 // Mount API v1 Routers
 app.use("/api/v1/auth", authRouter);

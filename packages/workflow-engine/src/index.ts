@@ -10,3 +10,4 @@ export * from "./comparator.js";
 export * from "./analytics-calculator.js";
 export * from "./template-service.js";
 export * from "./portability.js";
+export * from "./cache.js";
