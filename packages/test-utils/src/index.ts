@@ -730,7 +730,7 @@ export class InMemoryDatabase {
   public publishingGateConfigs = new Map<string, PublishingGateConfigRecord>();
 
   constructor() {
-    for (const plan of Object.values(DEFAULT_PLANS)) {
+    for (const plan of Object.values(DEFAULT_PLANS) as any[]) {
       this.plans.set(plan.id, { ...plan });
       this.plans.set(plan.slug, { ...plan });
     }
@@ -922,7 +922,7 @@ export class InMemoryDatabase {
     this.debugSessions.clear();
     this.publishingGateConfigs.clear();
     this.plans.clear();
-    for (const plan of Object.values(DEFAULT_PLANS)) {
+    for (const plan of Object.values(DEFAULT_PLANS) as any[]) {
       this.plans.set(plan.id, { ...plan });
       this.plans.set(plan.slug, { ...plan });
     }

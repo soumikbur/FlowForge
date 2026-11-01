@@ -35,6 +35,9 @@ jobs:
       - name: Generate Prisma Client
         run: pnpm db:generate
 
+      - name: Build Package Types
+        run: pnpm --filter "./packages/*" build
+
       - name: Formatting Check
         run: pnpm format
 
@@ -94,6 +97,9 @@ jobs:
 
       - name: Generate Prisma Client
         run: pnpm db:generate
+
+      - name: Build Package Types
+        run: pnpm --filter "./packages/*" build
 
       - name: Deploy Database Migrations
         run: pnpm db:migrate
