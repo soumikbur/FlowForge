@@ -1,6 +1,8 @@
 # FlowForge — Resilient Multi-Tenant Business Workflow Automation Platform
 
 [![CI Quality Gate](https://github.com/soumikbur/FlowForge/actions/workflows/ci.yml/badge.svg)](https://github.com/soumikbur/FlowForge/actions/workflows/ci.yml)
+[![Live Architecture Portal](https://img.shields.io/badge/Live_Portal-GitHub_Pages-22c55e?logo=github&logoColor=white)](https://soumikbur.github.io/FlowForge/)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/soumikbur/FlowForge)
 [![Node.js](https://img.shields.io/badge/Node.js-22.x%20%7C%2024.x-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![pnpm](https://img.shields.io/badge/pnpm-12.16.1-F69220?logo=pnpm&logoColor=white)](https://pnpm.io/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7.3-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -11,10 +13,13 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)](https://redis.io/)
 [![Tests](https://img.shields.io/badge/Tests-873%20Passing-brightgreen?logo=vitest&logoColor=white)](https://vitest.dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
 FlowForge is an enterprise-grade, resilient, multi-tenant business workflow automation platform built with modern TypeScript across frontend applications, distributed API services, and resilient background execution workers.
 
 It empowers organizations to design, simulate, govern, execute, and monitor critical operational workflows through an intuitive drag-and-drop visual canvas, durable execution state machines, human-in-the-loop approvals, AI-assisted authoring, and secure external connectors.
+
+> 🌐 **Live Portal & Interactive Architecture Explorer:** Explore the live documentation portal and 3D force-directed knowledge graph (3,158 AST nodes, 6,239 connections) at **[https://soumikbur.github.io/FlowForge/](https://soumikbur.github.io/FlowForge/)**.
 
 ---
 
@@ -251,13 +256,45 @@ pnpm build
 
 ---
 
-## Production Deployment Architecture
+## Production Deployment Options
 
-FlowForge provides a hardened, production-grade container topology configured in [`docker-compose.prod.yml`](./docker-compose.prod.yml):
+FlowForge supports several certified production deployment topologies:
+
+### Option 1: 1-Click Cloud Deployment via Render Blueprint
+
+Deploy the complete multi-service architecture (PostgreSQL, Redis, API, Worker, and Web Frontend) with one click using the included [`render.yaml`](./render.yaml):
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/soumikbur/FlowForge)
+
+1. Click the button above or visit [Render Blueprints](https://dashboard.render.com/blueprints).
+2. Connect your GitHub repository: `https://github.com/soumikbur/FlowForge`.
+3. Render automatically provisions the managed PostgreSQL 16 database, Redis queue store, API service, background execution worker, and web frontend.
+
+### Option 2: Production Multi-Container Docker Compose
+
+Deploy the complete hardened container topology configured in [`docker-compose.prod.yml`](./docker-compose.prod.yml):
 
 ```bash
-# Build and run the complete production stack
+# Clone the repository
+git clone https://github.com/soumikbur/FlowForge.git
+cd FlowForge
+
+# Configure production environment variables
+cp .env.example .env.production
+# Edit .env.production with your secure secrets
+
+# Build and start all 5 services with internal network isolation
 docker compose -f docker-compose.prod.yml up -d --build
+```
+
+### Option 3: Pre-Built Containers from GitHub Container Registry (GHCR)
+
+Pull verified multi-stage production container images directly from GitHub Packages:
+
+```bash
+docker pull ghcr.io/soumikbur/flowforge/api:latest
+docker pull ghcr.io/soumikbur/flowforge/worker:latest
+docker pull ghcr.io/soumikbur/flowforge/web:latest
 ```
 
 ### Container Topology & Security Hardening
@@ -303,4 +340,4 @@ We welcome community contributions. Please review [`CONTRIBUTING.md`](./CONTRIBU
 
 ## License
 
-This project is licensed under the terms established in the repository. Unauthorized copying, distribution, or modification is subject to project permissions.
+This project is licensed under the **MIT License**. See the [`LICENSE`](./LICENSE) file for details.

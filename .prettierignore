@@ -9,3 +9,5 @@ audit
 packages/database/prisma/migrations
 *.log
 *.tsbuildinfo
+public_pages/graph.html
+
