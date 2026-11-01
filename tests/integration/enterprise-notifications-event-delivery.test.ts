@@ -458,7 +458,9 @@ describe("Prompt 15: Enterprise Notifications and Event Delivery", () => {
 
       // Second dispatch with same idempotency key is flagged as duplicate
       const duplicateResult = await defaultEmailService.sendEmail({
-        idempotencyKey: emailResult.messageId ? `evt_email_${Date.now()}` : "dup_key",
+        idempotencyKey: emailResult.messageId
+          ? `evt_email_${Date.now()}`
+          : "dup_key",
         to: memberEmailA1,
         subject: "[FlowForge Alert] Execution Failed",
         text: "Duplicate message",
@@ -682,7 +684,9 @@ describe("Prompt 15: Enterprise Notifications and Event Delivery", () => {
       expect(delivery.status).toBe("RETRY_SCHEDULED");
       expect(delivery.statusCode).toBe(503);
       expect(delivery.nextRetryAt).toBeDefined();
-      expect(new Date(delivery.nextRetryAt!).getTime()).toBeGreaterThan(Date.now());
+      expect(new Date(delivery.nextRetryAt!).getTime()).toBeGreaterThan(
+        Date.now(),
+      );
 
       fetchSpy.mockRestore();
     });

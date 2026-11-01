@@ -256,7 +256,7 @@ describe("Prompt 11: Enterprise Security, Governance, and Organization Administr
 
     it("enforces last-owner protection against demoting the sole owner", async () => {
       const ownerMem = Array.from(apiStore.memberships.values()).find(
-        (m) => m.organizationId === orgIdA && m.role === "OWNER"
+        (m) => m.organizationId === orgIdA && m.role === "OWNER",
       );
       expect(ownerMem).toBeDefined();
 
@@ -271,7 +271,7 @@ describe("Prompt 11: Enterprise Security, Governance, and Organization Administr
 
     it("enforces last-owner protection against removing the sole owner", async () => {
       const ownerMem = Array.from(apiStore.memberships.values()).find(
-        (m) => m.organizationId === orgIdA && m.role === "OWNER"
+        (m) => m.organizationId === orgIdA && m.role === "OWNER",
       );
 
       const res = await request(app)
@@ -294,18 +294,20 @@ describe("Prompt 11: Enterprise Security, Governance, and Organization Administr
 
       // Verify roles in store: adminIdA is now OWNER, ownerIdA is now ADMIN
       const newOwnerMem = Array.from(apiStore.memberships.values()).find(
-        (m) => m.organizationId === orgIdA && m.userId === adminIdA
+        (m) => m.organizationId === orgIdA && m.userId === adminIdA,
       );
       expect(newOwnerMem?.role).toBe("OWNER");
 
       const prevOwnerMem = Array.from(apiStore.memberships.values()).find(
-        (m) => m.organizationId === orgIdA && m.userId === ownerIdA
+        (m) => m.organizationId === orgIdA && m.userId === ownerIdA,
       );
       expect(prevOwnerMem?.role).toBe("ADMIN");
 
       // Verify audit event
       const audit = apiStore.auditLogs.find(
-        (l) => l.action === "organization.ownership_transferred" && l.organizationId === orgIdA
+        (l) =>
+          l.action === "organization.ownership_transferred" &&
+          l.organizationId === orgIdA,
       );
       expect(audit).toBeDefined();
 
@@ -349,7 +351,9 @@ describe("Prompt 11: Enterprise Security, Governance, and Organization Administr
 
       // Ensure audit log did NOT record raw token
       const audit = apiStore.auditLogs.find(
-        (l) => l.action === "organization.invitation.created" && l.resourceId === invitationId
+        (l) =>
+          l.action === "organization.invitation.created" &&
+          l.resourceId === invitationId,
       );
       expect(audit).toBeDefined();
       expect(JSON.stringify(audit!.metadata)).not.toContain(invitationToken);
@@ -628,7 +632,7 @@ describe("Prompt 11: Enterprise Security, Governance, and Organization Administr
 
       // Assert that non-terminal running execution was strictly preserved
       const remainingExecs = Array.from(apiStore.executions.values()).filter(
-        (e) => e.organizationId === orgIdA && e.status === "RUNNING"
+        (e) => e.organizationId === orgIdA && e.status === "RUNNING",
       );
       expect(remainingExecs.length).toBeGreaterThanOrEqual(1);
     });

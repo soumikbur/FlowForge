@@ -52,9 +52,10 @@ export function canonicalizeWorkflowDefinition(definition: WorkflowDefinition) {
 /**
  * Computes a deterministic SHA-256 content hash of the execution-relevant workflow definition.
  */
-export function computeWorkflowContentHash(definition: WorkflowDefinition): string {
+export function computeWorkflowContentHash(
+  definition: WorkflowDefinition,
+): string {
   const canonical = canonicalizeWorkflowDefinition(definition);
   const payload = JSON.stringify(canonical);
   return crypto.createHash("sha256").update(payload).digest("hex");
 }
-

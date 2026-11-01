@@ -21,7 +21,9 @@
     "db:down": "docker compose down",
     "db:generate": "pnpm --filter @flowforge/database generate",
     "db:migrate": "pnpm --filter @flowforge/database migrate",
-    "db:seed": "pnpm --filter @flowforge/database seed"
+    "db:migrate:prod": "node scripts/db-migrate.js",
+    "db:seed": "pnpm --filter @flowforge/database seed",
+    "test:deployment": "vitest run tests/integration/production-deployment-readiness.test.ts"
   },
   "devDependencies": {
     "@types/supertest": "^6.0.2",

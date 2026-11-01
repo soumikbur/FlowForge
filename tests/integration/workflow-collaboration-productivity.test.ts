@@ -288,7 +288,9 @@ describe("Prompt 14: Workflow Collaboration and Team Productivity", () => {
         .set("Cookie", memberCookieA1);
 
       expect(collabRes.status).toBe(200);
-      const prevOwnerEntry = collabRes.body.data.find((c: any) => c.userId === ownerIdA);
+      const prevOwnerEntry = collabRes.body.data.find(
+        (c: any) => c.userId === ownerIdA,
+      );
       expect(prevOwnerEntry).toBeDefined();
       expect(prevOwnerEntry.role).toBe("MAINTAINER");
     });
@@ -315,14 +317,17 @@ describe("Prompt 14: Workflow Collaboration and Team Productivity", () => {
         .post(`/api/v1/workflows/${workflowIdA}/comments`)
         .set("Cookie", memberCookieA1)
         .send({
-          content: "Please review the batch timeout parameter on the dispatch node.",
+          content:
+            "Please review the batch timeout parameter on the dispatch node.",
           nodeId: "node_dispatch_1",
           draftRevision: 2,
         });
 
       expect(res.status).toBe(201);
       expect(res.body.success).toBe(true);
-      expect(res.body.data.content).toBe("Please review the batch timeout parameter on the dispatch node.");
+      expect(res.body.data.content).toBe(
+        "Please review the batch timeout parameter on the dispatch node.",
+      );
       expect(res.body.data.nodeId).toBe("node_dispatch_1");
       expect(res.body.data.draftRevision).toBe(2);
       expect(res.body.data.isResolved).toBe(false);
@@ -364,7 +369,9 @@ describe("Prompt 14: Workflow Collaboration and Team Productivity", () => {
     it("should resolve and reopen comments with state tracking", async () => {
       // 1. Resolve comment
       const resolveRes = await request(app)
-        .post(`/api/v1/workflows/${workflowIdA}/comments/${parentCommentId}/resolve`)
+        .post(
+          `/api/v1/workflows/${workflowIdA}/comments/${parentCommentId}/resolve`,
+        )
         .set("Cookie", ownerCookieA)
         .send({ isResolved: true });
 
@@ -377,17 +384,23 @@ describe("Prompt 14: Workflow Collaboration and Team Productivity", () => {
       const openOnlyRes = await request(app)
         .get(`/api/v1/workflows/${workflowIdA}/comments?status=open`)
         .set("Cookie", memberCookieA1);
-      expect(openOnlyRes.body.data.map((c: any) => c.id)).not.toContain(parentCommentId);
+      expect(openOnlyRes.body.data.map((c: any) => c.id)).not.toContain(
+        parentCommentId,
+      );
 
       // Verify filter by resolved includes it
       const resolvedOnlyRes = await request(app)
         .get(`/api/v1/workflows/${workflowIdA}/comments?status=resolved`)
         .set("Cookie", memberCookieA1);
-      expect(resolvedOnlyRes.body.data.map((c: any) => c.id)).toContain(parentCommentId);
+      expect(resolvedOnlyRes.body.data.map((c: any) => c.id)).toContain(
+        parentCommentId,
+      );
 
       // 2. Reopen comment
       const reopenRes = await request(app)
-        .post(`/api/v1/workflows/${workflowIdA}/comments/${parentCommentId}/resolve`)
+        .post(
+          `/api/v1/workflows/${workflowIdA}/comments/${parentCommentId}/resolve`,
+        )
         .set("Cookie", memberCookieA1)
         .send({ isResolved: false });
 
@@ -501,11 +514,17 @@ describe("Prompt 14: Workflow Collaboration and Team Productivity", () => {
 
       // Verify organization filter by type
       const filteredRes = await request(app)
-        .get(`/api/v1/organizations/${orgIdA}/activities?type=OWNERSHIP_TRANSFERRED`)
+        .get(
+          `/api/v1/organizations/${orgIdA}/activities?type=OWNERSHIP_TRANSFERRED`,
+        )
         .set("Cookie", ownerCookieA);
 
       expect(filteredRes.status).toBe(200);
-      expect(filteredRes.body.data.every((a: any) => a.type === "OWNERSHIP_TRANSFERRED")).toBe(true);
+      expect(
+        filteredRes.body.data.every(
+          (a: any) => a.type === "OWNERSHIP_TRANSFERRED",
+        ),
+      ).toBe(true);
     });
   });
 
@@ -568,7 +587,9 @@ describe("Prompt 14: Workflow Collaboration and Team Productivity", () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
-      const leakedWorkflows = res.body.data.filter((a: any) => a.workflowId === workflowIdA);
+      const leakedWorkflows = res.body.data.filter(
+        (a: any) => a.workflowId === workflowIdA,
+      );
       expect(leakedWorkflows).toHaveLength(0);
     });
   });

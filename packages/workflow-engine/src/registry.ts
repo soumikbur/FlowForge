@@ -46,9 +46,9 @@ export class NodeHandlerRegistry {
       const fullMeta: NodeMetadata = {
         type,
         label: meta.label || type,
-        isTrigger: meta.isTrigger ?? (type === "TRIGGER"),
-        isTerminal: meta.isTerminal ?? (type === "END"),
-        isBranching: meta.isBranching ?? (type === "CONDITION"),
+        isTrigger: meta.isTrigger ?? type === "TRIGGER",
+        isTerminal: meta.isTerminal ?? type === "END",
+        isBranching: meta.isBranching ?? type === "CONDITION",
         isExecutable: meta.isExecutable ?? true,
         inputs: meta.inputs ?? (type === "TRIGGER" ? 0 : 1),
         outputs:
@@ -224,6 +224,22 @@ export class NodeHandlerRegistry {
         };
       },
       { label: "Connector Action", inputs: 1, outputs: 1 },
+    );
+
+    // 9. EXTENSION_NODE
+    this.register(
+      "EXTENSION_NODE",
+      (node) => {
+        return {
+          status: "COMPLETED",
+          output: {
+            extensionId: node.config.extensionId,
+            nodeType: node.config.nodeType,
+            executedAt: new Date().toISOString(),
+          },
+        };
+      },
+      { label: "Custom Extension Node", inputs: 1, outputs: 1 },
     );
   }
 }

@@ -16,15 +16,13 @@ describe("E2E User Journey: Visual Workflow Builder Complete Lifecycle", () => {
     resetRateLimits();
 
     // 1. Authenticate & provision organization session
-    const regRes = await request(app)
-      .post("/api/v1/auth/register")
-      .send({
-        email: userEmail,
-        password: "Password123!Secure",
-        firstName: "Visual",
-        lastName: "BuilderQA",
-        organizationName: "Builder QA Enterprise",
-      });
+    const regRes = await request(app).post("/api/v1/auth/register").send({
+      email: userEmail,
+      password: "Password123!Secure",
+      firstName: "Visual",
+      lastName: "BuilderQA",
+      organizationName: "Builder QA Enterprise",
+    });
 
     expect(regRes.status).toBe(201);
     userCookie = regRes.headers["set-cookie"][0];

@@ -1,17 +1,24 @@
 import { Request, Response, NextFunction } from "express";
-import { Permission, hasPermission } from "@flowforge/shared";
+import {
+  Permission,
+  hasPermission,
+  hasScopePermission,
+} from "@flowforge/shared";
 
 export function requirePermission(permission: Permission) {
   return (req: Request, res: Response, next: NextFunction): void => {
-    // If request is authenticated via an API Key, verify explicit scopes
-    if (req.isApiKey) {
-      if (!req.apiKeyScopes || !req.apiKeyScopes.includes(permission)) {
+    // If request is authenticated via an API Key or OAuth client, verify explicit scopes
+    if (req.isApiKey || req.isOAuthClient) {
+      if (
+        !req.apiKeyScopes ||
+        !hasScopePermission(req.apiKeyScopes, permission)
+      ) {
         res.status(403).json({
           success: false,
           data: null,
           error: {
             code: "INSUFFICIENT_SCOPE",
-            message: `API key lacks required scope '${permission}'.`,
+            message: `API client lacks required scope for '${permission}'.`,
           },
         });
         return;

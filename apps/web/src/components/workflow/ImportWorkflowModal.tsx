@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from "react";
 import {
@@ -108,7 +108,9 @@ export function ImportWorkflowModal({
           setConnectorMappings(defaultMappings);
         }
       } catch (err: any) {
-        setPreviewError("Invalid JSON file. Please select a valid FlowForge package.");
+        setPreviewError(
+          "Invalid JSON file. Please select a valid FlowForge package.",
+        );
       } finally {
         setLoadingPreview(false);
       }
@@ -189,25 +191,26 @@ export function ImportWorkflowModal({
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-white rounded-xl max-w-2xl w-full p-6 space-y-5 shadow-2xl border border-slate-200 my-8">
+      <div className="bg-white dark:bg-slate-900 rounded-xl max-w-2xl w-full p-6 space-y-5 shadow-2xl border border-slate-200 dark:border-slate-800 my-8">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-teal-50 text-teal-600 rounded-lg">
+            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
               <Upload className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-900">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
                 Import Workflow Package
               </h3>
-              <p className="text-xs text-slate-500">
-                Upload a portable FlowForge package to inspect and import into your organization.
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Upload a portable FlowForge package to inspect and import into
+                your organization.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-md hover:bg-slate-100 transition"
+            className="p-1.5 text-slate-400 hover:text-slate-600 dark:text-slate-400 rounded-md hover:bg-slate-100 dark:bg-slate-800 transition"
           >
             <X className="w-5 h-5" />
           </button>
@@ -216,13 +219,16 @@ export function ImportWorkflowModal({
         {/* File Upload Stage */}
         {!preview && (
           <div className="space-y-4">
-            <label className="border-2 border-dashed border-slate-300 hover:border-teal-500 rounded-xl p-8 flex flex-col items-center justify-center gap-3 cursor-pointer transition bg-slate-50/50 hover:bg-teal-50/30">
+            <label className="border-2 border-dashed border-slate-300 hover:border-indigo-500 rounded-xl p-8 flex flex-col items-center justify-center gap-3 cursor-pointer transition bg-slate-50/50 hover:bg-indigo-50/30">
               <FileText className="w-10 h-10 text-slate-400" />
               <div className="text-center">
-                <span className="text-sm font-semibold text-teal-600">
+                <span className="text-sm font-semibold text-indigo-600">
                   Click to select package file
                 </span>
-                <span className="text-sm text-slate-500"> or drag and drop</span>
+                <span className="text-sm text-slate-500 dark:text-slate-400">
+                  {" "}
+                  or drag and drop
+                </span>
                 <p className="text-xs text-slate-400 mt-1">
                   Supports *.flowforge.json or *.json packages (max 5MB)
                 </p>
@@ -236,8 +242,8 @@ export function ImportWorkflowModal({
             </label>
 
             {loadingPreview && (
-              <div className="flex items-center justify-center gap-2 py-4 text-sm text-slate-600">
-                <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
+              <div className="flex items-center justify-center gap-2 py-4 text-sm text-slate-600 dark:text-slate-400">
+                <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
                 <span>Validating package structure and dependencies...</span>
               </div>
             )}
@@ -255,14 +261,14 @@ export function ImportWorkflowModal({
         {preview && (
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Package Overview Card */}
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-2.5">
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-lg space-y-2.5">
               <div className="flex items-start justify-between">
                 <div>
-                  <h4 className="text-sm font-bold text-slate-900">
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
                     {preview.workflowName}
                   </h4>
                   {preview.description && (
-                    <p className="text-xs text-slate-600 mt-0.5">
+                    <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
                       {preview.description}
                     </p>
                   )}
@@ -270,7 +276,7 @@ export function ImportWorkflowModal({
                 {getStatusBadge(preview.status)}
               </div>
 
-              <div className="flex items-center gap-4 text-xs text-slate-500 pt-2 border-t border-slate-200">
+              <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-200 dark:border-slate-800">
                 <span className="flex items-center gap-1">
                   <Layers className="w-3.5 h-3.5" />
                   {preview.nodeSummary?.totalNodes || 0} nodes
@@ -316,68 +322,72 @@ export function ImportWorkflowModal({
             {/* Connector Mappings Section */}
             {preview.connectorRequirements?.length > 0 && (
               <div className="space-y-2.5">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                   Required Connector Mappings
                 </label>
-                <div className="space-y-2 border border-slate-200 rounded-lg p-3 bg-white">
-                  {preview.connectorRequirements.map((req: any, idx: number) => {
-                    const key = req.sourceConnectionId || req.connectorId;
-                    return (
-                      <div
-                        key={idx}
-                        className="flex items-center justify-between gap-3 text-xs"
-                      >
-                        <div className="min-w-0">
-                          <span className="font-semibold text-slate-800">
-                            {req.connectorId}
-                          </span>
-                          {req.sourceConnectionId && (
-                            <span className="text-slate-400 ml-1.5">
-                              ({req.sourceConnectionId})
+                <div className="space-y-2 border border-slate-200 dark:border-slate-800 rounded-lg p-3 bg-white dark:bg-slate-900">
+                  {preview.connectorRequirements.map(
+                    (req: any, idx: number) => {
+                      const key = req.sourceConnectionId || req.connectorId;
+                      return (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between gap-3 text-xs"
+                        >
+                          <div className="min-w-0">
+                            <span className="font-semibold text-slate-800 dark:text-slate-200">
+                              {req.connectorId}
                             </span>
-                          )}
-                        </div>
-                        <div className="w-1/2">
-                          {req.matchingOrgConnections?.length > 0 ? (
-                            <select
-                              value={connectorMappings[key] || ""}
-                              onChange={(e) =>
-                                setConnectorMappings({
-                                  ...connectorMappings,
-                                  [key]: e.target.value,
-                                })
-                              }
-                              className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-md focus:ring-1 focus:ring-teal-500 bg-white"
-                            >
-                              <option value="">-- Select Connection --</option>
-                              {req.matchingOrgConnections.map((c: any) => (
-                                <option key={c.id} value={c.id}>
-                                  {c.name}
+                            {req.sourceConnectionId && (
+                              <span className="text-slate-400 ml-1.5">
+                                ({req.sourceConnectionId})
+                              </span>
+                            )}
+                          </div>
+                          <div className="w-1/2">
+                            {req.matchingOrgConnections?.length > 0 ? (
+                              <select
+                                value={connectorMappings[key] || ""}
+                                onChange={(e) =>
+                                  setConnectorMappings({
+                                    ...connectorMappings,
+                                    [key]: e.target.value,
+                                  })
+                                }
+                                className="w-full text-xs px-2.5 py-1.5 border border-slate-300 rounded-md focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-900"
+                              >
+                                <option value="">
+                                  -- Select Connection --
                                 </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <span className="text-rose-600 font-medium italic">
-                              No connections in org
-                            </span>
-                          )}
+                                {req.matchingOrgConnections.map((c: any) => (
+                                  <option key={c.id} value={c.id}>
+                                    {c.name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="text-rose-600 font-medium italic">
+                                No connections in org
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    },
+                  )}
                 </div>
               </div>
             )}
 
             {/* Conflict Strategy & Destination Name */}
             <div className="space-y-3">
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                 Destination Workflow Configuration
               </label>
 
               {preview.conflict?.hasConflict && (
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2 text-xs">
-                  <span className="font-semibold text-slate-700">
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-lg space-y-2 text-xs">
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">
                     Conflict Resolution Strategy:
                   </span>
                   <div className="space-y-1.5">
@@ -388,7 +398,7 @@ export function ImportWorkflowModal({
                         value="RENAME"
                         checked={conflictStrategy === "RENAME"}
                         onChange={() => setConflictStrategy("RENAME")}
-                        className="text-teal-600"
+                        className="text-indigo-600"
                       />
                       <span>Rename imported workflow</span>
                     </label>
@@ -399,7 +409,7 @@ export function ImportWorkflowModal({
                         value="CREATE_NEW"
                         checked={conflictStrategy === "CREATE_NEW"}
                         onChange={() => setConflictStrategy("CREATE_NEW")}
-                        className="text-teal-600"
+                        className="text-indigo-600"
                       />
                       <span>Create as new workflow</span>
                     </label>
@@ -410,10 +420,11 @@ export function ImportWorkflowModal({
                         value="REPLACE_DRAFT"
                         checked={conflictStrategy === "REPLACE_DRAFT"}
                         onChange={() => setConflictStrategy("REPLACE_DRAFT")}
-                        className="text-teal-600"
+                        className="text-indigo-600"
                       />
                       <span>
-                        Replace draft of &apos;{preview.conflict.conflictingWorkflowName}&apos;
+                        Replace draft of &apos;
+                        {preview.conflict.conflictingWorkflowName}&apos;
                       </span>
                     </label>
                   </div>
@@ -422,7 +433,7 @@ export function ImportWorkflowModal({
 
               {conflictStrategy !== "REPLACE_DRAFT" && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
                     Workflow Name
                   </label>
                   <input
@@ -430,7 +441,7 @@ export function ImportWorkflowModal({
                     value={targetName}
                     onChange={(e) => setTargetName(e.target.value)}
                     required
-                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:ring-1 focus:ring-teal-500"
+                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:ring-1 focus:ring-indigo-500"
                   />
                 </div>
               )}
@@ -444,14 +455,14 @@ export function ImportWorkflowModal({
             )}
 
             {/* Actions */}
-            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => {
                   setPreview(null);
                   setSelectedFile(null);
                 }}
-                className="text-xs text-slate-600 hover:text-slate-800 font-medium px-3 py-1.5"
+                className="text-xs text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:text-slate-200 font-medium px-3 py-1.5"
               >
                 Change Package
               </button>
@@ -459,14 +470,14 @@ export function ImportWorkflowModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-50 transition"
+                  className="px-4 py-2 border border-slate-300 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:bg-slate-800/60 transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={!preview.canImport || submitting}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 text-white rounded-lg text-xs font-semibold shadow-xs transition"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-lg text-xs font-semibold shadow-xs transition"
                 >
                   {submitting ? (
                     <>

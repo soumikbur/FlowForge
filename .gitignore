@@ -1,20 +1,32 @@
+# Dependencies
 node_modules/
+.pnpm-store/
+
+# Next.js & Build outputs
 .next/
 dist/
 build/
+out/
 coverage/
-*.log
+
+# TypeScript & Cache
 *.tsbuildinfo
+.turbo/
+graphify-out/cache/
+
+# Logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Environment & Secrets (NEVER commit real credentials)
 .env
-.env.local
-.env.production
+.env.*
+!.env.example
 
+# OS metadata
 .DS_Store
 Thumbs.db
-.turbo
-
+Desktop.ini

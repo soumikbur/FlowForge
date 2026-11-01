@@ -81,8 +81,7 @@ export function buildExecutionPlan(
       isTerminal,
       dependencies: dependencies.get(node.id) || [],
       outgoingEdges: outgoingEdges.get(node.id) || [],
-      branchHandles:
-        node.type === "CONDITION" ? ["true", "false"] : undefined,
+      branchHandles: node.type === "CONDITION" ? ["true", "false"] : undefined,
     };
   }
 
@@ -139,8 +138,12 @@ export function buildExecutionPlan(
 
     if (node.type === "CONDITION") {
       // Split into True and False branches
-      const trueEdges = node.outgoingEdges.filter((e) => e.sourceHandle === "true");
-      const falseEdges = node.outgoingEdges.filter((e) => e.sourceHandle === "false");
+      const trueEdges = node.outgoingEdges.filter(
+        (e) => e.sourceHandle === "true",
+      );
+      const falseEdges = node.outgoingEdges.filter(
+        (e) => e.sourceHandle === "false",
+      );
 
       for (const edge of trueEdges) {
         tracePaths(edge.targetNodeId, newPath, true, "true");

@@ -102,11 +102,14 @@ export async function executeSafeHttpRequest(
   ].includes(upperMethod);
 
   // Non-idempotent methods (POST, PATCH) should not retry unless explicitly opted in
-  const effectiveRetries = isIdempotentMethod || idempotentRetry ? maxRetries : 0;
+  const effectiveRetries =
+    isIdempotentMethod || idempotentRetry ? maxRetries : 0;
 
   const useBreaker = options.circuitBreaker !== false;
   const breaker = useBreaker
-    ? defaultCircuitBreakerRegistry.getBreaker(options.circuitBreakerName || targetUrl.hostname)
+    ? defaultCircuitBreakerRegistry.getBreaker(
+        options.circuitBreakerName || targetUrl.hostname,
+      )
     : null;
 
   let attempt = 0;
@@ -193,7 +196,10 @@ export async function executeSafeHttpRequest(
       lastError = err;
 
       // Fast-fail immediately without retry if circuit breaker is OPEN
-      if (err instanceof CircuitBreakerError || err?.code === "CIRCUIT_BREAKER_OPEN") {
+      if (
+        err instanceof CircuitBreakerError ||
+        err?.code === "CIRCUIT_BREAKER_OPEN"
+      ) {
         throw err;
       }
 

@@ -7,6 +7,8 @@ import {
   AlertSeverity,
   AlertStatus,
   AlertRuleType,
+  RoiAssumptionSchema,
+  CreateSavedReportSchema,
 } from "@flowforge/shared";
 import {
   calculateExecutionStats,
@@ -19,6 +21,7 @@ import {
 import { apiStore, OperationalAlertRecord } from "../store.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
+import { semanticAnalyticsService } from "../services/semantic-analytics.service.js";
 
 export const analyticsRouter = Router();
 
@@ -27,7 +30,13 @@ analyticsRouter.use(requireAuth);
 /**
  * Helper to parse time window from query options.
  */
-function resolveTimeWindow(query: any): { from: Date; to: Date; prevFrom: Date; prevTo: Date; range: string } {
+function resolveTimeWindow(query: any): {
+  from: Date;
+  to: Date;
+  prevFrom: Date;
+  prevTo: Date;
+  range: string;
+} {
   const now = new Date();
   const range = (query.range as string) || "24h";
 
@@ -48,7 +57,9 @@ function resolveTimeWindow(query: any): { from: Date; to: Date; prevFrom: Date; 
       from = new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
       break;
     case "custom": {
-      from = query.from ? new Date(query.from) : new Date(to.getTime() - 24 * 60 * 60 * 1000);
+      from = query.from
+        ? new Date(query.from)
+        : new Date(to.getTime() - 24 * 60 * 60 * 1000);
       // Validate date order
       if (from > to) {
         from = new Date(to.getTime() - 24 * 60 * 60 * 1000);
@@ -89,17 +100,24 @@ analyticsRouter.get(
     );
 
     if (req.query.workflowId) {
-      orgExecutions = orgExecutions.filter((e) => e.workflowId === req.query.workflowId);
+      orgExecutions = orgExecutions.filter(
+        (e) => e.workflowId === req.query.workflowId,
+      );
     }
     if (req.query.environment) {
-      orgExecutions = orgExecutions.filter((e) => e.environment === req.query.environment);
+      orgExecutions = orgExecutions.filter(
+        (e) => e.environment === req.query.environment,
+      );
     }
 
     // Current period metrics
     const currentMetrics = calculateExecutionStats(orgExecutions, { from, to });
 
     // Prior period metrics for trends
-    const priorMetrics = calculateExecutionStats(orgExecutions, { from: prevFrom, to: prevTo });
+    const priorMetrics = calculateExecutionStats(orgExecutions, {
+      from: prevFrom,
+      to: prevTo,
+    });
 
     // Compute trends
     const execDiff = currentMetrics.total - priorMetrics.total;
@@ -107,11 +125,12 @@ analyticsRouter.get(
       priorMetrics.total > 0
         ? Math.round((execDiff / priorMetrics.total) * 1000) / 10
         : currentMetrics.total > 0
-        ? 100
-        : 0;
+          ? 100
+          : 0;
 
     const successRateDiff =
-      Math.round((currentMetrics.successRate - priorMetrics.successRate) * 10) / 10;
+      Math.round((currentMetrics.successRate - priorMetrics.successRate) * 10) /
+      10;
 
     res.json({
       success: true,
@@ -146,11 +165,20 @@ analyticsRouter.get(
       (e) => e.organizationId === orgId,
     );
     if (req.query.workflowId) {
-      orgExecutions = orgExecutions.filter((e) => e.workflowId === req.query.workflowId);
+      orgExecutions = orgExecutions.filter(
+        (e) => e.workflowId === req.query.workflowId,
+      );
     }
 
-    const bucketSize = (req.query.bucketSize as "hour" | "day") || (range === "30d" || range === "7d" ? "day" : "hour");
-    const buckets = groupExecutionsByTimeBucket(orgExecutions, bucketSize, from, to);
+    const bucketSize =
+      (req.query.bucketSize as "hour" | "day") ||
+      (range === "30d" || range === "7d" ? "day" : "hour");
+    const buckets = groupExecutionsByTimeBucket(
+      orgExecutions,
+      bucketSize,
+      from,
+      to,
+    );
 
     res.json({
       success: true,
@@ -183,24 +211,34 @@ analyticsRouter.get(
 
     const workflowSummaries = workflows.map((wf) => {
       const wfExecs = executions.filter(
-        (e) => e.workflowId === wf.id && new Date(e.createdAt) >= from && new Date(e.createdAt) < to,
+        (e) =>
+          e.workflowId === wf.id &&
+          new Date(e.createdAt) >= from &&
+          new Date(e.createdAt) < to,
       );
 
       const stats = calculateExecutionStats(wfExecs);
 
       // Find most recent execution and most recent failure
       const sortedWfExecs = [...wfExecs].sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
 
-      const lastExecutedAt = sortedWfExecs.length > 0 ? sortedWfExecs[0].createdAt : undefined;
+      const lastExecutedAt =
+        sortedWfExecs.length > 0 ? sortedWfExecs[0].createdAt : undefined;
       const lastFailed = sortedWfExecs.find((e) => e.status === "FAILED");
-      const lastFailedAt = lastFailed ? lastFailed.completedAt || lastFailed.createdAt : undefined;
+      const lastFailedAt = lastFailed
+        ? lastFailed.completedAt || lastFailed.createdAt
+        : undefined;
 
       // Common failure category for this workflow
       const failureCounts: Record<string, number> = {};
       for (const f of sortedWfExecs.filter((e) => e.status === "FAILED")) {
-        const cat = classifyFailure(f.errorDetails, (f.errorDetails as any)?.message);
+        const cat = classifyFailure(
+          f.errorDetails,
+          (f.errorDetails as any)?.message,
+        );
         failureCounts[cat] = (failureCounts[cat] || 0) + 1;
       }
       let topFailureCategory: string | undefined;
@@ -275,7 +313,9 @@ analyticsRouter.get(
     // Find all executions for this workflow
     const executionIds = new Set(
       Array.from(apiStore.executions.values())
-        .filter((e) => e.workflowId === workflowId && e.organizationId === orgId)
+        .filter(
+          (e) => e.workflowId === workflowId && e.organizationId === orgId,
+        )
         .map((e) => e.id),
     );
 
@@ -319,7 +359,9 @@ analyticsRouter.get(
     );
 
     if (req.query.workflowId) {
-      failedExecutions = failedExecutions.filter((e) => e.workflowId === req.query.workflowId);
+      failedExecutions = failedExecutions.filter(
+        (e) => e.workflowId === req.query.workflowId,
+      );
     }
 
     const categoriesCount: Record<string, number> = {};
@@ -327,12 +369,16 @@ analyticsRouter.get(
     const failedWorkflowsCount: Record<string, number> = {};
 
     const recentFailures = failedExecutions
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      )
       .slice(0, 15)
       .map((e) => {
         const wf = apiStore.workflows.get(e.workflowId);
         const errDetails = e.errorDetails as any;
-        const rawMessage = errDetails?.message || "Execution encountered an error";
+        const rawMessage =
+          errDetails?.message || "Execution encountered an error";
         const sanitizedMsg = sanitizeErrorMessage(rawMessage);
         const category = classifyFailure(errDetails, rawMessage);
 
@@ -461,8 +507,12 @@ analyticsRouter.get(
       (e) => e.organizationId === orgId,
     );
 
-    const queuedJobs = orgExecutions.filter((e) => e.status === "QUEUED").length;
-    const runningJobs = orgExecutions.filter((e) => e.status === "RUNNING").length;
+    const queuedJobs = orgExecutions.filter(
+      (e) => e.status === "QUEUED",
+    ).length;
+    const runningJobs = orgExecutions.filter(
+      (e) => e.status === "RUNNING",
+    ).length;
     const waitingApprovalJobs = orgExecutions.filter(
       (e) => e.status === "WAITING_APPROVAL",
     ).length;
@@ -479,7 +529,9 @@ analyticsRouter.get(
 
     for (const sch of orgSchedules) {
       if (sch.nextRunAt && sch.nextRunAt.getTime() < now.getTime()) {
-        const lagSec = Math.floor((now.getTime() - sch.nextRunAt.getTime()) / 1000);
+        const lagSec = Math.floor(
+          (now.getTime() - sch.nextRunAt.getTime()) / 1000,
+        );
         if (lagSec > 30) {
           schedulerOverdueCount++;
           if (lagSec > maxSchedulerLagSeconds) maxSchedulerLagSeconds = lagSec;
@@ -497,7 +549,9 @@ analyticsRouter.get(
 
     for (const d of orgDelays) {
       if (d.resumeAt && d.resumeAt.getTime() < now.getTime()) {
-        const lagSec = Math.floor((now.getTime() - d.resumeAt.getTime()) / 1000);
+        const lagSec = Math.floor(
+          (now.getTime() - d.resumeAt.getTime()) / 1000,
+        );
         if (lagSec > 10) {
           delayOverdueCount++;
           if (lagSec > maxDelayLagSeconds) maxDelayLagSeconds = lagSec;
@@ -524,7 +578,8 @@ analyticsRouter.get(
           runningJobs,
           waitingApprovalJobs,
           waitingDelayJobs,
-          totalInFlight: queuedJobs + runningJobs + waitingApprovalJobs + waitingDelayJobs,
+          totalInFlight:
+            queuedJobs + runningJobs + waitingApprovalJobs + waitingDelayJobs,
         },
         scheduler: {
           activeSchedules: orgSchedules.length,
@@ -574,7 +629,8 @@ analyticsRouter.get(
     }
 
     alerts.sort(
-      (a, b) => new Date(b.triggeredAt).getTime() - new Date(a.triggeredAt).getTime(),
+      (a, b) =>
+        new Date(b.triggeredAt).getTime() - new Date(a.triggeredAt).getTime(),
     );
 
     res.json({
@@ -617,7 +673,9 @@ analyticsRouter.post(
     }
 
     const parseResult = ResolveAlertSchema.safeParse(req.body);
-    const note = parseResult.success ? parseResult.data.resolutionNote : undefined;
+    const note = parseResult.success
+      ? parseResult.data.resolutionNote
+      : undefined;
 
     alert.status = "RESOLVED";
     alert.resolvedAt = new Date();
@@ -700,7 +758,10 @@ analyticsRouter.post(
     for (const wf of workflows) {
       const wfExecs = Array.from(apiStore.executions.values())
         .filter((e) => e.workflowId === wf.id && e.organizationId === orgId)
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        .sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        );
 
       if (wfExecs.length >= 3) {
         const last3 = wfExecs.slice(0, 3);
@@ -816,5 +877,263 @@ analyticsRouter.post(
       },
       error: null,
     });
+  },
+);
+
+// ==========================================
+// 8. BUSINESS VALUE & AUTOMATION ROI
+// ==========================================
+analyticsRouter.get(
+  "/roi",
+  requirePermission("analytics:read"),
+  (req: Request, res: Response) => {
+    const orgId = req.organizationId!;
+    const roiData = semanticAnalyticsService.calculateRoi(orgId, req.query);
+    res.json({
+      success: true,
+      data: roiData,
+      error: null,
+    });
+  },
+);
+
+analyticsRouter.get(
+  "/roi/assumptions",
+  requirePermission("analytics:read"),
+  (req: Request, res: Response) => {
+    const orgId = req.organizationId!;
+    const assumption = semanticAnalyticsService.getRoiAssumption(
+      orgId,
+      req.query.workflowId as string,
+    );
+    res.json({
+      success: true,
+      data: assumption,
+      error: null,
+    });
+  },
+);
+
+analyticsRouter.post(
+  "/roi/assumptions",
+  requirePermission("analytics:write"),
+  (req: Request, res: Response) => {
+    const orgId = req.organizationId!;
+    const parsed = RoiAssumptionSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid ROI assumption parameters",
+          details: parsed.error.issues,
+        },
+      });
+    }
+
+    const record = semanticAnalyticsService.upsertRoiAssumption(
+      orgId,
+      parsed.data,
+      req.user?.id,
+    );
+    res.status(201).json({
+      success: true,
+      data: record,
+      error: null,
+    });
+  },
+);
+
+// ==========================================
+// 9. DATA QUALITY HEALTH & DIAGNOSTICS
+// ==========================================
+analyticsRouter.get(
+  "/data-quality",
+  requirePermission("analytics:read"),
+  (req: Request, res: Response) => {
+    const orgId = req.organizationId!;
+    const report = semanticAnalyticsService.auditDataQuality(orgId);
+    res.json({
+      success: true,
+      data: report,
+      error: null,
+    });
+  },
+);
+
+// ==========================================
+// 10. GOVERNANCE ANALYTICS
+// ==========================================
+analyticsRouter.get(
+  "/governance",
+  requirePermission("analytics:read"),
+  (req: Request, res: Response) => {
+    const orgId = req.organizationId!;
+    const summary = semanticAnalyticsService.getGovernanceSummary(
+      orgId,
+      req.query,
+    );
+    res.json({
+      success: true,
+      data: summary,
+      error: null,
+    });
+  },
+);
+
+// ==========================================
+// 11. INTEGRATION & CONNECTOR ANALYTICS
+// ==========================================
+analyticsRouter.get(
+  "/integrations",
+  requirePermission("analytics:read"),
+  (req: Request, res: Response) => {
+    const orgId = req.organizationId!;
+    const summary = semanticAnalyticsService.getIntegrationSummary(
+      orgId,
+      req.query,
+    );
+    res.json({
+      success: true,
+      data: summary,
+      error: null,
+    });
+  },
+);
+
+// ==========================================
+// 12. SAVED REPORTS & EXPORTS
+// ==========================================
+analyticsRouter.get(
+  "/reports",
+  requirePermission("reports:read"),
+  (req: Request, res: Response) => {
+    const orgId = req.organizationId!;
+    const reports = semanticAnalyticsService.listSavedReports(
+      orgId,
+      req.query.workspaceId as string,
+    );
+    res.json({
+      success: true,
+      data: reports,
+      error: null,
+    });
+  },
+);
+
+analyticsRouter.post(
+  "/reports",
+  requirePermission("reports:write"),
+  (req: Request, res: Response) => {
+    const orgId = req.organizationId!;
+    const parsed = CreateSavedReportSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        data: null,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid saved report configuration",
+          details: parsed.error.issues,
+        },
+      });
+    }
+
+    const report = semanticAnalyticsService.createSavedReport(
+      orgId,
+      parsed.data,
+      req.user?.id || "system",
+    );
+    res.status(201).json({
+      success: true,
+      data: report,
+      error: null,
+    });
+  },
+);
+
+analyticsRouter.get(
+  "/reports/:id",
+  requirePermission("reports:read"),
+  (req: Request, res: Response) => {
+    const orgId = req.organizationId!;
+    const report = semanticAnalyticsService.getSavedReport(
+      orgId,
+      req.params.id,
+    );
+    if (!report) {
+      return res.status(404).json({
+        success: false,
+        data: null,
+        error: {
+          code: "NOT_FOUND",
+          message: `Saved report "${req.params.id}" not found.`,
+        },
+      });
+    }
+    res.json({
+      success: true,
+      data: report,
+      error: null,
+    });
+  },
+);
+
+analyticsRouter.delete(
+  "/reports/:id",
+  requirePermission("reports:write"),
+  (req: Request, res: Response) => {
+    const orgId = req.organizationId!;
+    const deleted = semanticAnalyticsService.deleteSavedReport(
+      orgId,
+      req.params.id,
+    );
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        data: null,
+        error: {
+          code: "NOT_FOUND",
+          message: `Saved report "${req.params.id}" not found.`,
+        },
+      });
+    }
+    res.json({
+      success: true,
+      data: { id: req.params.id, deleted: true },
+      error: null,
+    });
+  },
+);
+
+analyticsRouter.get(
+  "/reports/:id/export",
+  requirePermission("reports:read"),
+  (req: Request, res: Response) => {
+    const orgId = req.organizationId!;
+    try {
+      const format = req.query.format as "JSON" | "CSV" | undefined;
+      const exportResult = semanticAnalyticsService.generateReportExport(
+        orgId,
+        req.params.id,
+        format,
+      );
+      res.setHeader("Content-Type", exportResult.mimeType);
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${exportResult.filename}"`,
+      );
+      return res.send(exportResult.data);
+    } catch (err: any) {
+      return res.status(404).json({
+        success: false,
+        data: null,
+        error: {
+          code: "EXPORT_ERROR",
+          message: err.message || "Failed to generate report export",
+        },
+      });
+    }
   },
 );

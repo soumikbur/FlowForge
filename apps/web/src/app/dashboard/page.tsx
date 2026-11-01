@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { getApiBaseUrl } from "@/lib/api-client";
 import {
   Workflow,
   PlayCircle,
@@ -17,14 +18,16 @@ import {
   Layers,
   ChevronRight,
   TrendingUp,
-  TrendingDown,
   Gauge,
-  Filter,
-  Check,
-  X,
+  Plus,
   ExternalLink,
   Zap,
+  Cpu,
+  X,
 } from "lucide-react";
+import { StatCard } from "@/components/ui/StatCard";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 
 interface TimeWindow {
   range: string;
@@ -156,20 +159,27 @@ interface TimeBucket {
 }
 
 export default function AnalyticsDashboardPage() {
-  const [selectedRange, setSelectedRange] = useState<"1h" | "24h" | "7d" | "30d">("24h");
+  const [selectedRange, setSelectedRange] = useState<
+    "1h" | "24h" | "7d" | "30d"
+  >("24h");
   const [loading, setLoading] = useState(true);
 
   // Data states
   const [overview, setOverview] = useState<{
     timeWindow: TimeWindow;
     metrics: OverviewMetrics;
-    trends: { totalExecutionsChangePercent: number; successRateChangePercent: number };
+    trends: {
+      totalExecutionsChangePercent: number;
+      successRateChangePercent: number;
+    };
   } | null>(null);
 
   const [trendsData, setTrendsData] = useState<TimeBucket[]>([]);
   const [workflows, setWorkflows] = useState<WorkflowSummary[]>([]);
   const [failures, setFailures] = useState<FailureReport | null>(null);
-  const [operational, setOperational] = useState<OperationalTelemetry | null>(null);
+  const [operational, setOperational] = useState<OperationalTelemetry | null>(
+    null,
+  );
   const [alerts, setAlerts] = useState<OperationalAlert[]>([]);
 
   // Node drilldown modal state
@@ -180,7 +190,7 @@ export default function AnalyticsDashboardPage() {
   } | null>(null);
   const [nodesLoading, setNodesLoading] = useState(false);
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+  const apiUrl = getApiBaseUrl();
 
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
@@ -235,9 +245,12 @@ export default function AnalyticsDashboardPage() {
       }
 
       // 6. Alerts
-      const alertRes = await fetch(`${apiUrl}/api/v1/analytics/alerts?status=ACTIVE`, {
-        credentials: "include",
-      });
+      const alertRes = await fetch(
+        `${apiUrl}/api/v1/analytics/alerts?status=ACTIVE`,
+        {
+          credentials: "include",
+        },
+      );
       if (alertRes.ok) {
         const json = await alertRes.json();
         if (json.success) setAlerts(json.data || []);
@@ -253,28 +266,37 @@ export default function AnalyticsDashboardPage() {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-  // Handle manual resolve alert
   const handleResolveAlert = async (alertId: string) => {
     try {
-      const res = await fetch(`${apiUrl}/api/v1/analytics/alerts/${alertId}/resolve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ resolutionNote: "Resolved via dashboard" }),
-      });
+      const res = await fetch(
+        `${apiUrl}/api/v1/analytics/alerts/${alertId}/resolve`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            resolutionNote: "Resolved via Control Plane dashboard",
+          }),
+        },
+      );
       if (res.ok) {
         setAlerts((prev) => prev.filter((a) => a.id !== alertId));
       }
     } catch {}
   };
 
-  // Inspect node performance for a workflow
-  const handleInspectNodes = async (workflowId: string, workflowName: string) => {
+  const handleInspectNodes = async (
+    workflowId: string,
+    workflowName: string,
+  ) => {
     setNodesLoading(true);
     try {
-      const res = await fetch(`${apiUrl}/api/v1/analytics/workflows/${workflowId}/nodes`, {
-        credentials: "include",
-      });
+      const res = await fetch(
+        `${apiUrl}/api/v1/analytics/workflows/${workflowId}/nodes`,
+        {
+          credentials: "include",
+        },
+      );
       if (res.ok) {
         const json = await res.json();
         if (json.success) {
@@ -293,30 +315,35 @@ export default function AnalyticsDashboardPage() {
   const metrics = overview?.metrics;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
-      {/* Top Header & Range Controls */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6">
+    <div className="max-w-7xl mx-auto w-full space-y-6">
+      {/* Control Plane Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <Activity className="w-6 h-6 text-teal-600" />
-            <span>Analytics & Operational Intelligence</span>
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Authoritative workflow execution health, operational telemetry, failure analytics, and bottleneck diagnostics.
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+              Operations Control Plane
+            </h1>
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200/80">
+              Live Telemetry
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+            Real-time execution throughput, queue latencies, failure
+            classification, and bottleneck analysis.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 self-start md:self-auto">
           {/* Time Window Buttons */}
-          <div className="inline-flex bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs font-semibold">
+          <div className="inline-flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200/90 dark:border-slate-800 text-xs font-semibold">
             {(["1h", "24h", "7d", "30d"] as const).map((rng) => (
               <button
                 key={rng}
                 onClick={() => setSelectedRange(rng)}
-                className={`px-3 py-1.5 rounded-md transition ${
+                className={`px-3 py-1 rounded-md transition-all ${
                   selectedRange === rng
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-500 hover:text-slate-900"
+                    ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs font-bold"
+                    : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100"
                 }`}
               >
                 {rng.toUpperCase()}
@@ -326,273 +353,409 @@ export default function AnalyticsDashboardPage() {
 
           <button
             onClick={() => fetchDashboardData()}
-            className="p-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition"
-            title="Refresh analytics data"
+            className="p-2 border border-slate-300/80 bg-white dark:bg-slate-900 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:bg-slate-800/50 transition shadow-xs focus-ring"
+            title="Refresh analytics telemetry"
+            aria-label="Refresh analytics data"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-teal-600" : ""}`} />
+            <RefreshCw
+              className={`w-4 h-4 ${loading ? "animate-spin text-indigo-600" : ""}`}
+            />
           </button>
+
+          <Link href="/workflows">
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<Plus className="w-3.5 h-3.5" />}
+            >
+              New Workflow
+            </Button>
+          </Link>
         </div>
       </div>
 
-      {/* Active Operational Alerts Banner */}
+      {/* Operational Alerts Banner */}
       {alerts.length > 0 && (
-        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg space-y-2">
+        <div className="bg-amber-50/90 border border-amber-300 rounded-xl p-4 shadow-xs space-y-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-amber-900 font-bold text-sm">
+            <div className="flex items-center gap-2 text-amber-900 font-bold text-xs uppercase tracking-wider">
               <ShieldAlert className="w-4 h-4 text-amber-600" />
-              <span>{alerts.length} Active Operational Incident Alert{alerts.length > 1 ? "s" : ""}</span>
+              <span>
+                {alerts.length} Active Operational Incident Alert
+                {alerts.length > 1 ? "s" : ""}
+              </span>
             </div>
-            <span className="text-xs text-amber-700 font-medium">Requires Attention</span>
+            <span className="text-[11px] text-amber-800 font-semibold bg-amber-200/60 px-2 py-0.5 rounded-full">
+              Action Required
+            </span>
           </div>
 
-          <div className="divide-y divide-amber-100">
+          <div className="divide-y divide-amber-200/60">
             {alerts.map((alt) => (
-              <div key={alt.id} className="py-2 flex items-center justify-between text-xs text-amber-900">
-                <div className="space-y-0.5">
+              <div
+                key={alt.id}
+                className="py-2 flex items-center justify-between text-xs text-amber-900 gap-3"
+              >
+                <div className="space-y-0.5 min-w-0">
                   <div className="font-semibold flex items-center gap-2">
-                    <span className="px-1.5 py-0.5 rounded bg-amber-200 text-amber-900 text-[10px] uppercase font-bold">
+                    <span className="px-1.5 py-0.2 rounded bg-amber-200 text-amber-900 text-[10px] uppercase font-bold">
                       {alt.severity}
                     </span>
-                    <span>{alt.title}</span>
+                    <span className="truncate">{alt.title}</span>
                   </div>
-                  <p className="text-amber-800">{alt.message}</p>
+                  <p className="text-amber-800 text-[11px] line-clamp-1">
+                    {alt.message}
+                  </p>
                 </div>
-                <button
+                <Button
+                  variant="outline"
+                  size="xs"
                   onClick={() => handleResolveAlert(alt.id)}
-                  className="px-2.5 py-1 bg-white hover:bg-amber-100 border border-amber-300 rounded text-amber-800 font-medium transition"
+                  className="bg-white dark:bg-slate-900 hover:bg-amber-100 text-amber-900 border-amber-300 shrink-0"
                 >
                   Resolve
-                </button>
+                </Button>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Core KPI Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
-        {/* Total Executions */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-semibold uppercase">
-            <span>Total Executions</span>
-            <PlayCircle className="w-4 h-4 text-teal-600" />
-          </div>
-          <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-bold text-slate-900">{metrics?.total || 0}</span>
-            {overview?.trends && (
-              <span
-                className={`text-xs font-semibold flex items-center ${
-                  overview.trends.totalExecutionsChangePercent >= 0
-                    ? "text-emerald-600"
-                    : "text-red-600"
-                }`}
-              >
-                {overview.trends.totalExecutionsChangePercent >= 0 ? "+" : ""}
-                {overview.trends.totalExecutionsChangePercent}%
+      {/* Primary KPI Metric Cards (Control Plane Grid) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <StatCard
+          label="Total Runs"
+          value={metrics?.total ?? 0}
+          subtext={`Executions in ${selectedRange}`}
+          icon={<PlayCircle className="w-4 h-4" />}
+          iconBg="bg-indigo-50 text-indigo-600"
+          trend={
+            overview?.trends
+              ? { value: overview.trends.totalExecutionsChangePercent }
+              : undefined
+          }
+        />
+
+        <StatCard
+          label="Success Rate"
+          value={`${metrics?.successRate ?? 100}%`}
+          subtext={`${metrics?.successful ?? 0} terminal successful`}
+          icon={<CheckCircle2 className="w-4 h-4" />}
+          iconBg="bg-emerald-50 text-emerald-600"
+          badge={
+            <Badge
+              status={
+                (metrics?.successRate ?? 100) >= 95 ? "SUCCEEDED" : "WARNING"
+              }
+              label={
+                (metrics?.successRate ?? 100) >= 95 ? "Optimal" : "Degraded"
+              }
+              size="xs"
+              showDot
+            />
+          }
+        />
+
+        <StatCard
+          label="Failure Rate"
+          value={`${metrics?.failureRate ?? 0}%`}
+          subtext={`${metrics?.failed ?? 0} runs failed (${metrics?.retryCount ?? 0} retries)`}
+          icon={<XCircle className="w-4 h-4" />}
+          iconBg="bg-rose-50 text-rose-600"
+          badge={
+            (metrics?.failed ?? 0) > 0 ? (
+              <Badge
+                status="FAILED"
+                label={`${metrics?.failed} failed`}
+                size="xs"
+              />
+            ) : (
+              <Badge status="SUCCEEDED" label="Zero failures" size="xs" />
+            )
+          }
+        />
+
+        <StatCard
+          label="Median Duration"
+          value={
+            metrics?.durations
+              ? `${(metrics.durations.medianMs / 1000).toFixed(2)}s`
+              : "0s"
+          }
+          subtext={`P95: ${metrics?.durations ? `${(metrics.durations.p95Ms / 1000).toFixed(2)}s` : "0s"} • Avg: ${metrics?.durations ? `${(metrics.durations.averageMs / 1000).toFixed(2)}s` : "0s"}`}
+          icon={<Clock className="w-4 h-4" />}
+          iconBg="bg-blue-50 text-blue-600"
+        />
+
+        <StatCard
+          label="In-Flight Load"
+          value={
+            (metrics?.running ?? 0) +
+            (metrics?.waitingApproval ?? 0) +
+            (metrics?.waitingDelay ?? 0)
+          }
+          subtext={`${metrics?.running ?? 0} running • ${metrics?.waitingApproval ?? 0} waiting`}
+          icon={<Gauge className="w-4 h-4" />}
+          iconBg="bg-amber-50 text-amber-600"
+          badge={
+            <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
+              {metrics?.running ?? 0} active
+            </span>
+          }
+        />
+      </div>
+
+      {/* Main Execution Trend Visualization & Subsystem Telemetry */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left (2 cols): Execution Trends Time Series */}
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-indigo-600" />
+                <span>Execution Throughput & Completion Ratio</span>
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Time-series distribution across terminal execution states
+              </p>
+            </div>
+            <div className="flex items-center gap-3 text-xs font-medium text-slate-600 dark:text-slate-400">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
+                <span>Success</span>
               </span>
-            )}
-          </div>
-          <p className="text-[11px] text-slate-400">Total runs started in {selectedRange}</p>
-        </div>
-
-        {/* Success Rate */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-semibold uppercase">
-            <span>Success Rate</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-          </div>
-          <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-bold text-emerald-600">{metrics?.successRate || 100}%</span>
-            <span className="text-xs text-slate-500">
-              {metrics?.successful || 0} success
-            </span>
-          </div>
-          <p className="text-[11px] text-slate-400">Terminal eligible success %</p>
-        </div>
-
-        {/* Failure Rate */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-semibold uppercase">
-            <span>Failure Rate</span>
-            <XCircle className="w-4 h-4 text-red-600" />
-          </div>
-          <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-bold text-red-600">{metrics?.failureRate || 0}%</span>
-            <span className="text-xs text-slate-500">
-              {metrics?.failed || 0} failed
-            </span>
-          </div>
-          <p className="text-[11px] text-slate-400">Retries: {metrics?.retryCount || 0}</p>
-        </div>
-
-        {/* Median Duration */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-semibold uppercase">
-            <span>Median Duration</span>
-            <Clock className="w-4 h-4 text-blue-600" />
-          </div>
-          <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-bold text-slate-900">
-              {metrics?.durations ? `${(metrics.durations.medianMs / 1000).toFixed(2)}s` : "0s"}
-            </span>
-            <span className="text-[11px] text-slate-500">
-              P95: {metrics?.durations ? `${(metrics.durations.p95Ms / 1000).toFixed(2)}s` : "0s"}
-            </span>
-          </div>
-          <p className="text-[11px] text-slate-400">Avg: {metrics?.durations ? `${(metrics.durations.averageMs / 1000).toFixed(2)}s` : "0s"}</p>
-        </div>
-
-        {/* Active & In-Flight */}
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-2">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-semibold uppercase">
-            <span>Active & Waiting</span>
-            <Gauge className="w-4 h-4 text-amber-600" />
-          </div>
-          <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-bold text-slate-900">
-              {(metrics?.running || 0) + (metrics?.waitingApproval || 0) + (metrics?.waitingDelay || 0)}
-            </span>
-            <span className="text-xs text-slate-500 font-medium">
-              {metrics?.running || 0} running
-            </span>
-          </div>
-          <p className="text-[11px] text-slate-400">
-            {metrics?.waitingApproval || 0} approvals • {metrics?.waitingDelay || 0} delays
-          </p>
-        </div>
-      </div>
-
-      {/* Execution Time-Series Chart */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-teal-600" />
-              <span>Execution Volume & Health Trends</span>
-            </h2>
-            <p className="text-xs text-slate-400">Hourly/daily distribution of completed executions</p>
-          </div>
-          <div className="flex items-center gap-4 text-xs font-medium text-slate-600">
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm bg-emerald-500" />
-              <span>Succeeded</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm bg-red-500" />
-              <span>Failed</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm bg-slate-300" />
-              <span>Cancelled</span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-sm bg-rose-500" />
+                <span>Failed</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-sm bg-slate-300" />
+                <span>Cancelled</span>
+              </span>
             </div>
           </div>
-        </div>
 
-        {trendsData.length > 0 ? (
-          <div className="space-y-2">
-            <div className="h-40 flex items-end gap-1.5 pt-6 border-b border-slate-100">
-              {trendsData.map((b) => {
-                const maxInSeries = Math.max(1, ...trendsData.map((t) => t.total));
-                const heightPct = Math.min(100, Math.max(8, (b.total / maxInSeries) * 100));
+          {trendsData.length > 0 ? (
+            <div className="space-y-2">
+              <div className="h-44 flex items-end gap-1 pt-6 border-b border-slate-100 dark:border-slate-800">
+                {trendsData.map((b) => {
+                  const maxInSeries = Math.max(
+                    1,
+                    ...trendsData.map((t) => t.total),
+                  );
+                  const heightPct = Math.min(
+                    100,
+                    Math.max(8, (b.total / maxInSeries) * 100),
+                  );
 
-                const succPct = b.total > 0 ? (b.successful / b.total) * 100 : 0;
-                const failPct = b.total > 0 ? (b.failed / b.total) * 100 : 0;
-                const cancPct = b.total > 0 ? (b.cancelled / b.total) * 100 : 0;
+                  const succPct =
+                    b.total > 0 ? (b.successful / b.total) * 100 : 0;
+                  const failPct = b.total > 0 ? (b.failed / b.total) * 100 : 0;
+                  const cancPct =
+                    b.total > 0 ? (b.cancelled / b.total) * 100 : 0;
 
-                const dateObj = new Date(b.timestamp);
-                const timeLabel =
-                  selectedRange === "30d" || selectedRange === "7d"
-                    ? dateObj.toLocaleDateString(undefined, { month: "short", day: "numeric" })
-                    : dateObj.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                  const dateObj = new Date(b.timestamp);
+                  const timeLabel =
+                    selectedRange === "30d" || selectedRange === "7d"
+                      ? dateObj.toLocaleDateString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                        })
+                      : dateObj.toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        });
 
-                return (
-                  <div key={b.timestamp} className="flex-1 flex flex-col items-center group relative h-full justify-end">
-                    {/* Tooltip on hover */}
-                    <div className="absolute -top-12 hidden group-hover:flex flex-col items-center z-20 bg-slate-900 text-white text-[10px] px-2 py-1 rounded shadow pointer-events-none whitespace-nowrap">
-                      <span>{timeLabel}: {b.total} total</span>
-                      <span className="text-emerald-400">{b.successful} ok, {b.failed} err</span>
-                    </div>
-
+                  return (
                     <div
-                      style={{ height: `${heightPct}%` }}
-                      className="w-full max-w-[28px] rounded-t flex flex-col overflow-hidden bg-slate-100"
+                      key={b.timestamp}
+                      className="flex-1 flex flex-col items-center group relative h-full justify-end"
                     >
-                      <div style={{ height: `${cancPct}%` }} className="bg-slate-300 w-full" />
-                      <div style={{ height: `${failPct}%` }} className="bg-red-500 w-full" />
-                      <div style={{ height: `${succPct}%` }} className="bg-emerald-500 w-full" />
+                      {/* Hover Tooltip */}
+                      <div className="absolute -top-12 hidden group-hover:flex flex-col items-center z-20 bg-slate-900 text-white text-[10px] px-2.5 py-1 rounded shadow-lg pointer-events-none whitespace-nowrap">
+                        <span className="font-semibold">
+                          {timeLabel}: {b.total} runs
+                        </span>
+                        <span className="text-emerald-400">
+                          {b.successful} succeeded ({succPct.toFixed(0)}%)
+                        </span>
+                      </div>
+
+                      <div
+                        style={{ height: `${heightPct}%` }}
+                        className="w-full max-w-[24px] rounded-t flex flex-col overflow-hidden bg-slate-100 dark:bg-slate-800 group-hover:opacity-90 transition-opacity"
+                      >
+                        <div
+                          style={{ height: `${cancPct}%` }}
+                          className="bg-slate-300 w-full"
+                        />
+                        <div
+                          style={{ height: `${failPct}%` }}
+                          className="bg-rose-500 w-full"
+                        />
+                        <div
+                          style={{ height: `${succPct}%` }}
+                          className="bg-emerald-500 w-full"
+                        />
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="py-14 text-center text-xs text-slate-400 bg-slate-50/50 rounded-lg border border-dashed border-slate-200 dark:border-slate-800">
+              No execution telemetry recorded in this time range.
+            </div>
+          )}
+        </div>
+
+        {/* Right (1 col): Subsystem Telemetry & Queue Latencies */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <Server className="w-4 h-4 text-indigo-600" />
+              <span>Engine Infrastructure Health</span>
+            </h2>
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>ONLINE</span>
             </div>
           </div>
-        ) : (
-          <div className="py-12 text-center text-xs text-slate-400 bg-slate-50 rounded-lg">
-            No execution trend data available in this time range.
+
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="p-3 bg-slate-50/80 rounded-lg border border-slate-100 dark:border-slate-800 space-y-1">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold uppercase">
+                Queue Depth
+              </span>
+              <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                {operational?.queue.queuedJobs ?? 0}
+              </p>
+              <p className="text-[10px] text-slate-400">
+                {operational?.queue.runningJobs ?? 0} in runner
+              </p>
+            </div>
+
+            <div className="p-3 bg-slate-50/80 rounded-lg border border-slate-100 dark:border-slate-800 space-y-1">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold uppercase">
+                Scheduler Lag
+              </span>
+              <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                {operational?.scheduler.maxLagSeconds ?? 0}s
+              </p>
+              <p className="text-[10px] text-emerald-600 font-medium">
+                {operational?.scheduler.status ?? "HEALTHY"}
+              </p>
+            </div>
+
+            <div className="p-3 bg-slate-50/80 rounded-lg border border-slate-100 dark:border-slate-800 space-y-1">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold uppercase">
+                Pending Delays
+              </span>
+              <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                {operational?.delays.pendingDelays ?? 0}
+              </p>
+              <p className="text-[10px] text-slate-400">
+                {operational?.delays.overdueCount ?? 0} overdue
+              </p>
+            </div>
+
+            <div className="p-3 bg-slate-50/80 rounded-lg border border-slate-100 dark:border-slate-800 space-y-1">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold uppercase">
+                Approvals
+              </span>
+              <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                {operational?.queue.waitingApprovalJobs ?? 0}
+              </p>
+              <p className="text-[10px] text-slate-400">
+                Awaiting human sign-off
+              </p>
+            </div>
           </div>
-        )}
+
+          <div className="pt-2 text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between border-t border-slate-100 dark:border-slate-800">
+            <span className="text-[11px]">
+              Heartbeat:{" "}
+              {new Date(
+                operational?.timestamp || Date.now(),
+              ).toLocaleTimeString()}
+            </span>
+            <Link
+              href="/approvals"
+              className="text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 text-xs"
+            >
+              <span>Approval Inbox</span>
+              <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+        </div>
       </div>
 
-      {/* Two Column Grid: Failure Analysis & Operational Telemetry */}
+      {/* Failure Classification & Recent Incidents */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left: Structured Failure Analysis */}
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-red-600" />
-              <span>Structured Failure Classification</span>
+        {/* Left: Structured Failure Taxonomy */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 p-5 shadow-xs space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-rose-600" />
+              <span>Failure Taxonomy & Categories</span>
             </h2>
-            <span className="text-xs font-semibold text-slate-500">
-              {failures?.totalFailures || 0} Incident{failures?.totalFailures === 1 ? "" : "s"}
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+              {failures?.totalFailures ?? 0} Recorded Incident
+              {failures?.totalFailures === 1 ? "" : "s"}
             </span>
           </div>
 
-          {/* Categorized Pills */}
-          {failures?.categories && Object.keys(failures.categories).length > 0 ? (
-            <div className="flex flex-wrap gap-2">
+          {failures?.categories &&
+          Object.keys(failures.categories).length > 0 ? (
+            <div className="flex flex-wrap gap-2 pt-1">
               {Object.entries(failures.categories).map(([cat, count]) => (
                 <div
                   key={cat}
-                  className="px-3 py-1.5 rounded-lg bg-red-50 border border-red-200 text-xs font-medium text-red-800 flex items-center gap-2"
+                  className="px-2.5 py-1 rounded-md bg-rose-50 border border-rose-200/80 text-xs font-medium text-rose-800 flex items-center gap-2"
                 >
-                  <span className="font-bold">{cat}</span>
-                  <span className="bg-red-200 text-red-900 px-1.5 py-0.2 rounded-full text-[10px]">
+                  <span className="font-semibold">{cat}</span>
+                  <span className="bg-rose-200 text-rose-900 px-1.5 py-0.2 rounded-full text-[10px] font-bold">
                     {count}
                   </span>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="py-4 text-center text-xs text-emerald-600 bg-emerald-50 rounded-lg border border-emerald-100">
-              ✓ Zero failures reported in the selected time range.
+            <div className="py-4 text-center text-xs text-emerald-700 bg-emerald-50 rounded-lg border border-emerald-100">
+              ✓ Zero failure categorizations detected in this time range.
             </div>
           )}
 
-          {/* Recent Failures List */}
           {failures?.recentFailures && failures.recentFailures.length > 0 && (
             <div className="space-y-2 pt-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600">
+              <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                 Recent Failed Executions (Sanitized)
               </h3>
-              <div className="divide-y divide-slate-100 max-h-56 overflow-y-auto">
+              <div className="divide-y divide-slate-100 max-h-52 overflow-y-auto">
                 {failures.recentFailures.map((rf) => (
-                  <div key={rf.executionId} className="py-2.5 flex items-start justify-between text-xs hover:bg-slate-50 transition">
-                    <div className="space-y-1">
+                  <div
+                    key={rf.executionId}
+                    className="py-2.5 flex items-start justify-between text-xs hover:bg-slate-50 dark:bg-slate-800/50 transition"
+                  >
+                    <div className="space-y-1 min-w-0 pr-3">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-slate-900">{rf.workflowName}</span>
-                        <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-bold">
+                        <span className="font-semibold text-slate-900 dark:text-slate-100 truncate">
+                          {rf.workflowName}
+                        </span>
+                        <span className="px-1.5 py-0.2 rounded bg-rose-100 text-rose-800 text-[10px] font-bold">
                           {rf.category}
                         </span>
                       </div>
-                      <p className="text-slate-500 font-mono text-[11px] line-clamp-1">
+                      <p className="text-slate-500 dark:text-slate-400 font-mono text-[11px] truncate">
                         {rf.sanitizedMessage}
                       </p>
                     </div>
                     <Link
                       href={`/executions/${rf.executionId}`}
-                      className="inline-flex items-center gap-1 text-teal-600 hover:text-teal-800 shrink-0 font-medium pl-2"
+                      className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 font-semibold shrink-0"
                     >
-                      <span>Drill-down</span>
+                      <span>Inspect</span>
                       <ExternalLink className="w-3 h-3" />
                     </Link>
                   </div>
@@ -602,140 +765,182 @@ export default function AnalyticsDashboardPage() {
           )}
         </div>
 
-        {/* Right: Operational Infrastructure Monitoring */}
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Server className="w-4 h-4 text-teal-600" />
-              <span>Operational Subsystem Health</span>
+        {/* Right: Quick Operational Shortcuts & Management */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <Cpu className="w-4 h-4 text-indigo-600" />
+              <span>Platform Quick Actions</span>
             </h2>
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>WORKER ONLINE</span>
-            </div>
+            <span className="text-xs text-slate-400">Active Node Clusters</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-100 space-y-1">
-              <span className="text-xs text-slate-500 font-medium">Queue Backlog</span>
-              <p className="text-xl font-bold text-slate-900">{operational?.queue.queuedJobs || 0}</p>
-              <p className="text-[11px] text-slate-400">{operational?.queue.runningJobs || 0} in active processing</p>
-            </div>
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <Link
+              href="/workflows"
+              prefetch={false}
+              className="p-3.5 rounded-lg border border-slate-200/90 dark:border-slate-800 hover:border-indigo-400 hover:bg-indigo-50/30 transition group flex flex-col justify-between"
+            >
+              <Workflow className="w-5 h-5 text-indigo-600 mb-2 group-hover:scale-105 transition-transform" />
+              <div>
+                <span className="font-bold text-slate-900 dark:text-slate-100 block">
+                  Manage Workflows
+                </span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Configure triggers and draft revisions
+                </span>
+              </div>
+            </Link>
 
-            <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-100 space-y-1">
-              <span className="text-xs text-slate-500 font-medium">Scheduler Health</span>
-              <p className="text-xl font-bold text-slate-900">
-                {operational?.scheduler.status || "HEALTHY"}
-              </p>
-              <p className="text-[11px] text-slate-400">
-                {operational?.scheduler.overdueCount || 0} overdue (max {operational?.scheduler.maxLagSeconds || 0}s lag)
-              </p>
-            </div>
+            <Link
+              href="/executions"
+              prefetch={false}
+              className="p-3.5 rounded-lg border border-slate-200/90 dark:border-slate-800 hover:border-indigo-400 hover:bg-indigo-50/30 transition group flex flex-col justify-between"
+            >
+              <PlayCircle className="w-5 h-5 text-indigo-600 mb-2 group-hover:scale-105 transition-transform" />
+              <div>
+                <span className="font-bold text-slate-900 dark:text-slate-100 block">
+                  Execution Logs
+                </span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Inspect payload and step timelines
+                </span>
+              </div>
+            </Link>
 
-            <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-100 space-y-1">
-              <span className="text-xs text-slate-500 font-medium">Pending Delays</span>
-              <p className="text-xl font-bold text-slate-900">{operational?.delays.pendingDelays || 0}</p>
-              <p className="text-[11px] text-slate-400">
-                {operational?.delays.overdueCount || 0} overdue
-              </p>
-            </div>
+            <Link
+              href="/templates"
+              prefetch={false}
+              className="p-3.5 rounded-lg border border-slate-200/90 dark:border-slate-800 hover:border-indigo-400 hover:bg-indigo-50/30 transition group flex flex-col justify-between"
+            >
+              <Layers className="w-5 h-5 text-indigo-600 mb-2 group-hover:scale-105 transition-transform" />
+              <div>
+                <span className="font-bold text-slate-900 dark:text-slate-100 block">
+                  Templates Library
+                </span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Pre-built business orchestration
+                </span>
+              </div>
+            </Link>
 
-            <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-100 space-y-1">
-              <span className="text-xs text-slate-500 font-medium">Human Approvals</span>
-              <p className="text-xl font-bold text-slate-900">{operational?.queue.waitingApprovalJobs || 0}</p>
-              <p className="text-[11px] text-slate-400">Awaiting user decisions</p>
-            </div>
-          </div>
-
-          <div className="pt-2 text-xs text-slate-500 flex items-center justify-between border-t border-slate-100">
-            <span>Last Heartbeat: {new Date(operational?.timestamp || Date.now()).toLocaleTimeString()}</span>
-            <Link href="/approvals" className="text-teal-600 hover:underline flex items-center gap-1">
-              <span>View approval inbox</span>
-              <ArrowRight className="w-3 h-3" />
+            <Link
+              href="/settings/developer"
+              prefetch={false}
+              className="p-3.5 rounded-lg border border-slate-200/90 dark:border-slate-800 hover:border-indigo-400 hover:bg-indigo-50/30 transition group flex flex-col justify-between"
+            >
+              <Zap className="w-5 h-5 text-indigo-600 mb-2 group-hover:scale-105 transition-transform" />
+              <div>
+                <span className="font-bold text-slate-900 dark:text-slate-100 block">
+                  Developer & APIs
+                </span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  OAuth credentials and webhooks
+                </span>
+              </div>
             </Link>
           </div>
         </div>
       </div>
 
-      {/* Workflow Performance Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden space-y-3">
-        <div className="p-6 border-b border-slate-200 flex items-center justify-between">
+      {/* Workflow Performance & Bottleneck Analysis Table */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs overflow-hidden space-y-3">
+        <div className="p-5 border-b border-slate-200/90 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Workflow className="w-4 h-4 text-teal-600" />
-              <span>Workflow Performance & Bottleneck Analysis</span>
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <Activity className="w-4 h-4 text-indigo-600" />
+              <span>Workflow Operational Performance & Step Bottlenecks</span>
             </h2>
-            <p className="text-xs text-slate-500">Inspect execution counts, durations, and node bottlenecks</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Durations, throughput percentiles, and node-level latency analysis
+            </p>
           </div>
-          <span className="text-xs font-semibold text-slate-600">
-            {workflows.length} Total Workflows
+          <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full self-start sm:self-auto">
+            {workflows.length} Registered Workflows
           </span>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-600">
-            <thead className="bg-slate-50 text-xs font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">
+          <table className="w-full text-left text-xs text-slate-600 dark:text-slate-400">
+            <caption className="sr-only">
+              Workflow operational summary table
+            </caption>
+            <thead className="bg-slate-50 dark:bg-slate-800/50 text-[11px] font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
               <tr>
-                <th className="px-6 py-3.5">Workflow</th>
-                <th className="px-6 py-3.5">Status</th>
-                <th className="px-6 py-3.5 text-right">Runs</th>
-                <th className="px-6 py-3.5 text-right">Success Rate</th>
-                <th className="px-6 py-3.5 text-right">Avg Duration</th>
-                <th className="px-6 py-3.5 text-right">P95 Duration</th>
-                <th className="px-6 py-3.5">Top Failure</th>
-                <th className="px-6 py-3.5 text-right">Actions</th>
+                <th scope="col" className="px-5 py-3">
+                  Workflow Name
+                </th>
+                <th scope="col" className="px-5 py-3">
+                  Status
+                </th>
+                <th scope="col" className="px-5 py-3 text-right">
+                  Runs
+                </th>
+                <th scope="col" className="px-5 py-3 text-right">
+                  Success Rate
+                </th>
+                <th scope="col" className="px-5 py-3 text-right">
+                  Avg Duration
+                </th>
+                <th scope="col" className="px-5 py-3 text-right">
+                  P95 Duration
+                </th>
+                <th scope="col" className="px-5 py-3">
+                  Top Category
+                </th>
+                <th scope="col" className="px-5 py-3 text-right">
+                  Actions
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200 text-xs">
+            <tbody className="divide-y divide-slate-100 text-xs">
               {workflows.map((wf) => (
-                <tr key={wf.id} className="hover:bg-slate-50 transition">
-                  <td className="px-6 py-4 font-bold text-slate-900">
-                    <Link href={`/workflows/${wf.id}`} className="hover:text-teal-600 transition">
+                <tr
+                  key={wf.id}
+                  className="hover:bg-slate-50/80 transition-colors"
+                >
+                  <td className="px-5 py-3.5 font-bold text-slate-900 dark:text-slate-100">
+                    <Link
+                      href={`/workflows/${wf.id}`}
+                      className="hover:text-indigo-600 transition"
+                    >
                       {wf.name}
                     </Link>
                   </td>
 
-                  <td className="px-6 py-4">
-                    <span
-                      className={`px-2 py-0.5 rounded-full font-semibold ${
-                        wf.status === "ACTIVE"
-                          ? "bg-emerald-100 text-emerald-800"
-                          : "bg-slate-100 text-slate-600"
-                      }`}
-                    >
-                      {wf.status}
-                    </span>
+                  <td className="px-5 py-3.5">
+                    <Badge status={wf.status} size="xs" />
                   </td>
 
-                  <td className="px-6 py-4 text-right font-semibold text-slate-900">
+                  <td className="px-5 py-3.5 text-right font-semibold text-slate-900 dark:text-slate-100">
                     {wf.executionCount}
                   </td>
 
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-5 py-3.5 text-right">
                     <span
                       className={`font-semibold ${
                         wf.successRate >= 90
                           ? "text-emerald-600"
                           : wf.successRate >= 75
-                          ? "text-amber-600"
-                          : "text-red-600"
+                            ? "text-amber-600"
+                            : "text-rose-600"
                       }`}
                     >
                       {wf.successRate}%
                     </span>
                   </td>
 
-                  <td className="px-6 py-4 text-right font-mono">
+                  <td className="px-5 py-3.5 text-right font-mono text-[11px]">
                     {(wf.avgDurationMs / 1000).toFixed(2)}s
                   </td>
 
-                  <td className="px-6 py-4 text-right font-mono">
+                  <td className="px-5 py-3.5 text-right font-mono text-[11px]">
                     {(wf.p95DurationMs / 1000).toFixed(2)}s
                   </td>
 
-                  <td className="px-6 py-4">
+                  <td className="px-5 py-3.5">
                     {wf.commonFailureCategory !== "NONE" ? (
-                      <span className="px-2 py-0.5 rounded bg-red-50 text-red-700 font-medium">
+                      <span className="px-2 py-0.5 rounded bg-rose-50 text-rose-700 font-medium">
                         {wf.commonFailureCategory}
                       </span>
                     ) : (
@@ -743,10 +948,10 @@ export default function AnalyticsDashboardPage() {
                     )}
                   </td>
 
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-5 py-3.5 text-right">
                     <button
                       onClick={() => handleInspectNodes(wf.id, wf.name)}
-                      className="inline-flex items-center gap-1 text-teal-600 hover:text-teal-800 font-semibold"
+                      className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 font-semibold focus-ring rounded p-1"
                     >
                       <span>Inspect Nodes</span>
                       <ChevronRight className="w-3.5 h-3.5" />
@@ -757,8 +962,12 @@ export default function AnalyticsDashboardPage() {
 
               {workflows.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-slate-400">
-                    No workflows registered.
+                  <td
+                    colSpan={8}
+                    className="px-6 py-10 text-center text-slate-400"
+                  >
+                    No workflows registered. Create your first workflow to see
+                    operational metrics.
                   </td>
                 </tr>
               )}
@@ -769,19 +978,21 @@ export default function AnalyticsDashboardPage() {
 
       {/* NODE PERFORMANCE & BOTTLENECK MODAL */}
       {selectedWfNodes && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-3xl w-full p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-slate-900 rounded-xl max-w-3xl w-full p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <div>
-                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                   <Zap className="w-5 h-5 text-amber-500" />
                   <span>Node Performance: {selectedWfNodes.workflowName}</span>
                 </h3>
-                <p className="text-xs text-slate-500">Step latency distribution & bottleneck identification</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Step latency distribution & bottleneck identification
+                </p>
               </div>
               <button
                 onClick={() => setSelectedWfNodes(null)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 dark:text-slate-400 p-1 rounded-lg hover:bg-slate-100 dark:bg-slate-800"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -794,72 +1005,86 @@ export default function AnalyticsDashboardPage() {
                   <span>Potential Bottleneck Detected</span>
                 </div>
                 <p>
-                  The following node(s) consume over 40% of cumulative execution duration or experience elevated failure rates:
+                  The following node(s) consume over 40% of cumulative execution
+                  duration or experience elevated failure rates:
                 </p>
-                <ul className="list-disc pl-5">
-                  {selectedWfNodes.bottlenecks.map((b) => (
-                    <li key={b.nodeId}>
-                      <span className="font-semibold">{b.nodeName} ({b.nodeType})</span>: {b.percentageOfTotalDuration}% of runtime, {b.failureRate}% failure rate
+                <ul className="list-disc pl-5 font-semibold space-y-0.5">
+                  {selectedWfNodes.bottlenecks.map((bn) => (
+                    <li key={bn.nodeId}>
+                      {bn.nodeName} ({bn.nodeType}) —{" "}
+                      {bn.percentageOfTotalDuration}% of runtime (P95:{" "}
+                      {(bn.p95DurationMs / 1000).toFixed(2)}s)
                     </li>
                   ))}
                 </ul>
               </div>
             )}
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-slate-600">
-                <thead className="bg-slate-50 font-semibold text-slate-700 uppercase tracking-wider border-b border-slate-200">
-                  <tr>
-                    <th className="px-4 py-3">Node</th>
-                    <th className="px-4 py-3">Type</th>
-                    <th className="px-4 py-3 text-right">Executions</th>
-                    <th className="px-4 py-3 text-right">Failure Rate</th>
-                    <th className="px-4 py-3 text-right">Avg Duration</th>
-                    <th className="px-4 py-3 text-right">P95 Duration</th>
-                    <th className="px-4 py-3 text-right">Share %</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {selectedWfNodes.nodes.map((n) => (
-                    <tr key={n.nodeId} className={n.isBottleneck ? "bg-amber-50/40" : ""}>
-                      <td className="px-4 py-3 font-bold text-slate-900 flex items-center gap-1.5">
-                        {n.isBottleneck && (
-                          <span title="Bottleneck node" className="text-amber-600">⚠️</span>
-                        )}
-                        <span>{n.nodeName}</span>
-                      </td>
-                      <td className="px-4 py-3 font-mono text-[11px]">{n.nodeType}</td>
-                      <td className="px-4 py-3 text-right">{n.executionCount}</td>
-                      <td className="px-4 py-3 text-right font-semibold">
-                        <span className={n.failureRate > 0 ? "text-red-600" : "text-emerald-600"}>
-                          {n.failureRate}%
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono">{(n.avgDurationMs / 1000).toFixed(2)}s</td>
-                      <td className="px-4 py-3 text-right font-mono">{(n.p95DurationMs / 1000).toFixed(2)}s</td>
-                      <td className="px-4 py-3 text-right font-bold text-slate-800">
-                        {n.percentageOfTotalDuration}%
-                      </td>
-                    </tr>
-                  ))}
-                  {selectedWfNodes.nodes.length === 0 && (
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                Detailed Node Telemetry Breakdown
+              </h4>
+              <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-700 dark:text-slate-300 font-semibold border-b border-slate-200 dark:border-slate-800">
                     <tr>
-                      <td colSpan={7} className="px-4 py-6 text-center text-slate-400">
-                        No node execution data recorded for this workflow yet.
-                      </td>
+                      <th className="px-4 py-2.5">Node</th>
+                      <th className="px-4 py-2.5">Type</th>
+                      <th className="px-4 py-2.5 text-right">Runs</th>
+                      <th className="px-4 py-2.5 text-right">Failures</th>
+                      <th className="px-4 py-2.5 text-right">Avg Duration</th>
+                      <th className="px-4 py-2.5 text-right">P95</th>
+                      <th className="px-4 py-2.5 text-right">% Duration</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {selectedWfNodes.nodes.map((n) => (
+                      <tr
+                        key={n.nodeId}
+                        className={
+                          n.isBottleneck
+                            ? "bg-amber-50/50"
+                            : "hover:bg-slate-50 dark:bg-slate-800/50"
+                        }
+                      >
+                        <td className="px-4 py-2 font-semibold text-slate-900 dark:text-slate-100">
+                          {n.nodeName}
+                        </td>
+                        <td className="px-4 py-2">
+                          <span className="font-mono text-[11px] text-slate-600 dark:text-slate-400">
+                            {n.nodeType}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          {n.executionCount}
+                        </td>
+                        <td className="px-4 py-2 text-right text-rose-600 font-semibold">
+                          {n.failureCount}
+                        </td>
+                        <td className="px-4 py-2 text-right font-mono">
+                          {(n.avgDurationMs / 1000).toFixed(2)}s
+                        </td>
+                        <td className="px-4 py-2 text-right font-mono">
+                          {(n.p95DurationMs / 1000).toFixed(2)}s
+                        </td>
+                        <td className="px-4 py-2 text-right font-semibold">
+                          {n.percentageOfTotalDuration}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             <div className="flex justify-end pt-2">
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setSelectedWfNodes(null)}
-                className="px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-semibold hover:bg-slate-800 transition"
               >
-                Close
-              </button>
+                Close Inspector
+              </Button>
             </div>
           </div>
         </div>

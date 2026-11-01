@@ -1,8 +1,5 @@
 import { ConnectorDefinition } from "@flowforge/shared";
-import {
-  ConnectorHandler,
-  ConnectorTester,
-} from "../connector-registry.js";
+import { ConnectorHandler, ConnectorTester } from "../connector-registry.js";
 import { defaultEmailService } from "../email.js";
 import { redactDeep, redactErrorMessage } from "../redaction.js";
 
@@ -53,7 +50,8 @@ export const smtpEmailConnectorDefinition: ConnectorDefinition = {
     {
       id: "sendEmail",
       name: "Send Email Notification",
-      description: "Sends an email message with recipient validation and idempotency safeguard.",
+      description:
+        "Sends an email message with recipient validation and idempotency safeguard.",
       parameters: [
         {
           name: "to",
@@ -93,7 +91,9 @@ export const smtpEmailHandler: ConnectorHandler = async (
   context,
 ) => {
   if (operationId !== "sendEmail") {
-    throw new Error(`Unsupported operation '${operationId}' for smtp-email connector.`);
+    throw new Error(
+      `Unsupported operation '${operationId}' for smtp-email connector.`,
+    );
   }
 
   const to = (parameters.to as string) || "";
@@ -163,7 +163,8 @@ export const smtpEmailTester: ConnectorTester = async (credentials) => {
     if (host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0") {
       return {
         success: false,
-        message: "SSRF Violation: Private localhost SMTP destinations are blocked.",
+        message:
+          "SSRF Violation: Private localhost SMTP destinations are blocked.",
         latencyMs: Date.now() - start,
         errorCategory: "SSRF_BLOCKED",
       };

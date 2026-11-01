@@ -16,9 +16,7 @@ import {
   CircuitBreakerRegistry,
   defaultCircuitBreakerRegistry,
 } from "@flowforge/integrations";
-import {
-  WorkflowExecutionRunner,
-} from "../../apps/worker/src/runner.js";
+import { WorkflowExecutionRunner } from "../../apps/worker/src/runner.js";
 import {
   InMemoryDatabase,
   WorkflowExecutionRecord,
@@ -29,12 +27,15 @@ describe("Prompt 17: Performance, Scalability, Reliability, and Production Harde
   describe("1. Workflow Validation & Bounded LRU Caching", () => {
     const sampleDefinition: WorkflowDefinition = {
       nodes: [
-        { id: "node_1", type: "TRIGGER", name: "Start", config: { triggerType: "MANUAL" } },
+        {
+          id: "node_1",
+          type: "TRIGGER",
+          name: "Start",
+          config: { triggerType: "MANUAL" },
+        },
         { id: "node_2", type: "END", name: "End", config: {} },
       ],
-      edges: [
-        { id: "edge_1", source: "node_1", target: "node_2" },
-      ],
+      edges: [{ id: "edge_1", source: "node_1", target: "node_2" }],
     };
 
     beforeEach(() => {
@@ -46,7 +47,12 @@ describe("Prompt 17: Performance, Scalability, Reliability, and Production Harde
       const hash2 = computeWorkflowContentHash({
         edges: [{ target: "node_2", source: "node_1", id: "edge_1" }],
         nodes: [
-          { name: "Start", type: "TRIGGER", id: "node_1", config: { triggerType: "MANUAL" } },
+          {
+            name: "Start",
+            type: "TRIGGER",
+            id: "node_1",
+            config: { triggerType: "MANUAL" },
+          },
           { id: "node_2", type: "END", name: "End", config: {} },
         ],
       });
@@ -84,8 +90,18 @@ describe("Prompt 17: Performance, Scalability, Reliability, and Production Harde
 
       const modifiedDefinition: WorkflowDefinition = {
         nodes: [
-          { id: "node_1", type: "TRIGGER", name: "Start", config: { triggerType: "MANUAL" } },
-          { id: "node_2", type: "HTTP_REQUEST", name: "Http", config: { url: "https://example.com" } },
+          {
+            id: "node_1",
+            type: "TRIGGER",
+            name: "Start",
+            config: { triggerType: "MANUAL" },
+          },
+          {
+            id: "node_2",
+            type: "HTTP_REQUEST",
+            name: "Http",
+            config: { url: "https://example.com" },
+          },
           { id: "node_3", type: "END", name: "End", config: {} },
         ],
         edges: [
@@ -103,7 +119,10 @@ describe("Prompt 17: Performance, Scalability, Reliability, and Production Harde
     });
 
     it("enforces bounded capacity and evicts least-recently-used entries in BoundedCache", () => {
-      const cache = new BoundedCache<string, number>({ maxEntries: 3, defaultTtlMs: 10000 });
+      const cache = new BoundedCache<string, number>({
+        maxEntries: 3,
+        defaultTtlMs: 10000,
+      });
 
       cache.set("a", 1);
       cache.set("b", 2);
@@ -125,7 +144,10 @@ describe("Prompt 17: Performance, Scalability, Reliability, and Production Harde
     });
 
     it("evicts entries that exceed TTL in BoundedCache", async () => {
-      const cache = new BoundedCache<string, string>({ maxEntries: 10, defaultTtlMs: 20 });
+      const cache = new BoundedCache<string, string>({
+        maxEntries: 10,
+        defaultTtlMs: 20,
+      });
       cache.set("temp", "val");
 
       expect(cache.get("temp")).toBe("val");
@@ -137,7 +159,10 @@ describe("Prompt 17: Performance, Scalability, Reliability, and Production Harde
 
   describe("2. External Dependency Resilience & Circuit Breaker", () => {
     it("operates in CLOSED state and allows normal successful execution", async () => {
-      const breaker = new CircuitBreaker("payment-gateway", { failureThreshold: 3, resetTimeoutMs: 50 });
+      const breaker = new CircuitBreaker("payment-gateway", {
+        failureThreshold: 3,
+        resetTimeoutMs: 50,
+      });
       expect(breaker.getState()).toBe("CLOSED");
 
       const result = await breaker.execute(async () => 42);
@@ -146,7 +171,10 @@ describe("Prompt 17: Performance, Scalability, Reliability, and Production Harde
     });
 
     it("trips to OPEN state when failure threshold is reached and fast-fails without hitting downstream", async () => {
-      const breaker = new CircuitBreaker("slow-api", { failureThreshold: 3, resetTimeoutMs: 100 });
+      const breaker = new CircuitBreaker("slow-api", {
+        failureThreshold: 3,
+        resetTimeoutMs: 100,
+      });
       let downstreamCalls = 0;
 
       const failingCall = async () => {
@@ -170,13 +198,18 @@ describe("Prompt 17: Performance, Scalability, Reliability, and Production Harde
     });
 
     it("transitions from OPEN to HALF_OPEN after cooldown and recovers to CLOSED on success", async () => {
-      const breaker = new CircuitBreaker("flaky-service", { failureThreshold: 2, resetTimeoutMs: 40 });
+      const breaker = new CircuitBreaker("flaky-service", {
+        failureThreshold: 2,
+        resetTimeoutMs: 40,
+      });
 
       // Trip breaker
       for (let i = 0; i < 2; i++) {
-        await breaker.execute(async () => {
-          throw new Error("503 Service Unavailable");
-        }).catch(() => null);
+        await breaker
+          .execute(async () => {
+            throw new Error("503 Service Unavailable");
+          })
+          .catch(() => null);
       }
       expect(breaker.getState()).toBe("OPEN");
 
@@ -200,7 +233,9 @@ describe("Prompt 17: Performance, Scalability, Reliability, and Production Harde
 
       const metrics = registry.getAllMetrics();
       expect(metrics.length).toBe(2);
-      expect(metrics.find((m) => m.name === "api.stripe.com")?.state).toBe("CLOSED");
+      expect(metrics.find((m) => m.name === "api.stripe.com")?.state).toBe(
+        "CLOSED",
+      );
     });
   });
 
@@ -227,12 +262,15 @@ describe("Prompt 17: Performance, Scalability, Reliability, and Production Harde
         version: 1,
         definition: {
           nodes: [
-            { id: "start", type: "TRIGGER", name: "Start", config: { triggerType: "MANUAL" } },
+            {
+              id: "start",
+              type: "TRIGGER",
+              name: "Start",
+              config: { triggerType: "MANUAL" },
+            },
             { id: "end", type: "END", name: "End", config: {} },
           ],
-          edges: [
-            { id: "e1", source: "start", target: "end" },
-          ],
+          edges: [{ id: "e1", source: "start", target: "end" }],
         },
         createdAt: new Date(),
       } as any);
@@ -309,12 +347,15 @@ describe("Prompt 17: Performance, Scalability, Reliability, and Production Harde
         version: 1,
         definition: {
           nodes: [
-            { id: "start", type: "TRIGGER", name: "Start", config: { triggerType: "MANUAL" } },
+            {
+              id: "start",
+              type: "TRIGGER",
+              name: "Start",
+              config: { triggerType: "MANUAL" },
+            },
             { id: "end", type: "END", name: "End", config: {} },
           ],
-          edges: [
-            { id: "e1", source: "start", target: "end" },
-          ],
+          edges: [{ id: "e1", source: "start", target: "end" }],
         },
         createdAt: new Date(),
       } as any);
@@ -417,7 +458,9 @@ describe("Prompt 17: Performance, Scalability, Reliability, and Production Harde
       // Verify stale execution marked FAILED
       const reconciledStale = db.executions.get("exec_stale_1")!;
       expect(reconciledStale.status).toBe("FAILED");
-      expect(reconciledStale.errorDetails?.message).toContain("Execution timed out (stale running recovery)");
+      expect(reconciledStale.errorDetails?.message).toContain(
+        "Execution timed out (stale running recovery)",
+      );
 
       // Verify stale step reconciled
       const reconciledStep = db.steps.get("step_stale_1")!;

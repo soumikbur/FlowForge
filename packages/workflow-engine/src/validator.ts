@@ -9,6 +9,7 @@ import {
   DelayNodeConfigSchema,
   EndNodeConfigSchema,
   ConnectorActionNodeConfigSchema,
+  ExtensionNodeConfigSchema,
 } from "@flowforge/shared";
 import { ENGINE_LIMITS } from "./limits.js";
 import {
@@ -29,7 +30,10 @@ export interface ValidationOptions {
 /**
  * Bounded LRU/TTL validation cache storing results keyed by deterministic graph content hash.
  */
-export const validationCache = new BoundedCache<string, ValidationResult>(1000, 3600000);
+export const validationCache = new BoundedCache<string, ValidationResult>(
+  1000,
+  3600000,
+);
 
 export function getValidationCacheStats() {
   return validationCache.getStats();
@@ -50,7 +54,12 @@ export function validateWorkflowDefinition(
 ): ValidationResult {
   // Check validation cache if enabled and definition has nodes
   let contentHash: string | undefined;
-  if (!options?.skipCache && definition && Array.isArray(definition.nodes) && definition.nodes.length > 0) {
+  if (
+    !options?.skipCache &&
+    definition &&
+    Array.isArray(definition.nodes) &&
+    definition.nodes.length > 0
+  ) {
     try {
       contentHash = computeWorkflowContentHash(definition);
       const cached = validationCache.get(contentHash);
@@ -191,6 +200,9 @@ export function validateWorkflowDefinition(
         break;
       case "CONNECTOR_ACTION":
         schemaResult = ConnectorActionNodeConfigSchema.safeParse(node.config);
+        break;
+      case "EXTENSION_NODE":
+        schemaResult = ExtensionNodeConfigSchema.safeParse(node.config);
         break;
       default:
         errors.push({
@@ -403,7 +415,8 @@ export function validateWorkflowDefinition(
       if (reachableEndNodes.length === 0) {
         errors.push({
           code: WorkflowErrorCode.MISSING_TERMINAL_PATH,
-          message: "Workflow must have at least one reachable terminal (END) node from the trigger.",
+          message:
+            "Workflow must have at least one reachable terminal (END) node from the trigger.",
           field: "nodes",
         });
       }

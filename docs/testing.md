@@ -34,7 +34,6 @@ pnpm lint
 pnpm typecheck
 ```
 
-
 ## 3. Workflow Engine Unit & Graph Tests
 
 Workflow engine validation and deterministic execution planning are tested via:
@@ -45,5 +44,6 @@ pnpm --filter @flowforge/workflow-engine test
 ```
 
 Key suites:
+
 - `packages/workflow-engine/test/workflow-engine.test.ts`: Graph validation, cycle detection, expression evaluation, template interpolation, state machine transitions, and next-node resolution.
 - `packages/workflow-engine/test/workflow-engine-phase4.test.ts`: Resource limits, self-connection blocking, terminal outgoing edge rejection, missing terminal paths, unary/binary condition evaluation (`EXISTS`, `IS_EMPTY`, `CONTAINS`), prototype pollution protection, and deterministic execution plan generation.

@@ -26,13 +26,21 @@ import {
   ApprovalRecord,
   DelayRecord,
 } from "@flowforge/test-utils";
+import {
+  ExecutionLeaseRecord,
+  StepReconciliationRecord,
+} from "@flowforge/shared";
 
 export interface WorkflowExecutionRunnerOptions {
   maxGlobalConcurrency?: number;
   maxTenantConcurrency?: number;
+  workerId?: string;
+  leaseTtlMs?: number;
 }
 
 export class WorkflowExecutionRunner {
+  public readonly workerId: string;
+  private defaultLeaseTtlMs: number;
   private activeExecutions = new Map<string, AbortController>();
   private activeTenantExecutions = new Map<string, number>();
   private registry: NodeHandlerRegistry;
@@ -55,6 +63,8 @@ export class WorkflowExecutionRunner {
     }
 
     this.registry = actualRegistry;
+    this.workerId = actualOptions.workerId || `worker_${crypto.randomUUID()}`;
+    this.defaultLeaseTtlMs = actualOptions.leaseTtlMs ?? 30000;
     this.maxGlobalConcurrency = actualOptions.maxGlobalConcurrency ?? 50;
     this.maxTenantConcurrency = actualOptions.maxTenantConcurrency ?? 10;
 
@@ -74,7 +84,9 @@ export class WorkflowExecutionRunner {
         (node.config.credentialId as string | undefined);
       const maxRetries = (node.config.maxRetries as number) ?? 2;
       const idempotentRetry = (node.config.idempotentRetry as boolean) ?? false;
-      const headers = { ...((node.config.headers as Record<string, string>) || {}) };
+      const headers = {
+        ...((node.config.headers as Record<string, string>) || {}),
+      };
 
       // Resolve connection or legacy credential if configured
       if (connectionId) {
@@ -99,9 +111,12 @@ export class WorkflowExecutionRunner {
               conn.encryptedData,
             ) as Record<string, unknown>;
             if (decrypted.apiKey) {
-              const headerName = (decrypted.authHeaderName as string) || "Authorization";
+              const headerName =
+                (decrypted.authHeaderName as string) || "Authorization";
               const prefix = (decrypted.authPrefix as string) ?? "Bearer";
-              headers[headerName] = prefix ? `${prefix} ${decrypted.apiKey}` : String(decrypted.apiKey);
+              headers[headerName] = prefix
+                ? `${prefix} ${decrypted.apiKey}`
+                : String(decrypted.apiKey);
             } else if (decrypted.token) {
               headers["Authorization"] = `Bearer ${decrypted.token}`;
             } else if (decrypted.username) {
@@ -111,7 +126,9 @@ export class WorkflowExecutionRunner {
               headers["Authorization"] = `Basic ${basic}`;
             }
           } catch (decErr: any) {
-            const err = new Error(`Failed to decrypt connection credentials: ${decErr.message}`);
+            const err = new Error(
+              `Failed to decrypt connection credentials: ${decErr.message}`,
+            );
             (err as any).isNonRetryable = true;
             throw err;
           }
@@ -133,7 +150,8 @@ export class WorkflowExecutionRunner {
             if (cred.type === "BEARER_TOKEN" && decrypted.token) {
               headers["Authorization"] = `Bearer ${decrypted.token}`;
             } else if (cred.type === "API_KEY" && decrypted.apiKey) {
-              const headerName = (decrypted.headerName as string) || "X-API-Key";
+              const headerName =
+                (decrypted.headerName as string) || "X-API-Key";
               headers[headerName] = decrypted.apiKey as string;
             } else if (cred.type === "BASIC_AUTH" && decrypted.username) {
               const basic = Buffer.from(
@@ -142,7 +160,9 @@ export class WorkflowExecutionRunner {
               headers["Authorization"] = `Basic ${basic}`;
             }
           } catch (decErr: any) {
-            const err = new Error(`Failed to decrypt credential: ${decErr.message}`);
+            const err = new Error(
+              `Failed to decrypt credential: ${decErr.message}`,
+            );
             (err as any).isNonRetryable = true;
             throw err;
           }
@@ -216,12 +236,15 @@ export class WorkflowExecutionRunner {
       const connectorId = node.config.connectorId as string;
       const operationId = node.config.operationId as string;
       const connectionId = node.config.connectionId as string;
-      const parameters = (node.config.parameters as Record<string, unknown>) || {};
+      const parameters =
+        (node.config.parameters as Record<string, unknown>) || {};
       const timeoutMs = (node.config.timeoutMs as number) || 10000;
       const idempotentRetry = (node.config.idempotentRetry as boolean) ?? false;
 
       if (!defaultConnectorRegistry.has(connectorId)) {
-        const err = new Error(`Connector '${connectorId}' is not registered in connector catalog.`);
+        const err = new Error(
+          `Connector '${connectorId}' is not registered in connector catalog.`,
+        );
         (err as any).isNonRetryable = true;
         throw err;
       }
@@ -245,7 +268,10 @@ export class WorkflowExecutionRunner {
 
       let credentials: Record<string, unknown> = {};
       try {
-        credentials = decryptCredentialData(conn.encryptedData) as Record<string, unknown>;
+        credentials = decryptCredentialData(conn.encryptedData) as Record<
+          string,
+          unknown
+        >;
       } catch (decErr: any) {
         const err = new Error(
           `Failed to decrypt credentials for connection '${connectionId}': ${decErr.message}`,
@@ -271,7 +297,8 @@ export class WorkflowExecutionRunner {
       } catch (execErr: any) {
         const sanitized = redactErrorMessage(execErr.message);
         const err = new Error(sanitized);
-        (err as any).isNonRetryable = execErr.isNonRetryable ?? (!idempotentRetry);
+        (err as any).isNonRetryable =
+          execErr.isNonRetryable ?? !idempotentRetry;
         (err as any).category = execErr.category || "CONNECTOR_EXECUTION_ERROR";
         throw err;
       }
@@ -654,7 +681,9 @@ export class WorkflowExecutionRunner {
         const execution = this.db.executions.get(delay.executionId);
         if (execution && execution.status === "WAITING_DELAY") {
           try {
-            await this.resumeDelayedExecution(delay.executionId, { force: true });
+            await this.resumeDelayedExecution(delay.executionId, {
+              force: true,
+            });
             resumedCount++;
           } catch {
             // Continue on individual recovery error
@@ -663,6 +692,186 @@ export class WorkflowExecutionRunner {
       }
     }
     return resumedCount;
+  }
+
+  /**
+   * Acquires a distributed execution lease with a fencing token.
+   * If held by another active worker and not expired, returns null.
+   */
+  public acquireExecutionLease(
+    executionId: string,
+    workerId: string = this.workerId,
+    ttlMs: number = this.defaultLeaseTtlMs,
+  ): ExecutionLeaseRecord | null {
+    const now = new Date();
+    const existing = this.db.executionLeases?.get(executionId);
+    if (
+      existing &&
+      existing.expiresAt.getTime() > now.getTime() &&
+      existing.workerId !== workerId
+    ) {
+      return null;
+    }
+
+    const lease: ExecutionLeaseRecord = {
+      id: `lease_${executionId}`,
+      executionId,
+      workerId,
+      leaseToken: crypto.randomUUID(),
+      renewCount: existing ? existing.renewCount + 1 : 0,
+      acquiredAt:
+        existing && existing.workerId === workerId ? existing.acquiredAt : now,
+      heartbeatAt: now,
+      expiresAt: new Date(now.getTime() + ttlMs),
+    };
+
+    this.db.executionLeases?.set(executionId, lease);
+    return lease;
+  }
+
+  /**
+   * Renews an active execution lease using its fencing token.
+   */
+  public renewExecutionLease(
+    executionId: string,
+    workerId: string = this.workerId,
+    leaseToken: string,
+    ttlMs: number = this.defaultLeaseTtlMs,
+  ): boolean {
+    const now = new Date();
+    const lease = this.db.executionLeases?.get(executionId);
+    if (
+      !lease ||
+      lease.workerId !== workerId ||
+      lease.leaseToken !== leaseToken ||
+      lease.expiresAt.getTime() <= now.getTime()
+    ) {
+      return false;
+    }
+
+    lease.heartbeatAt = now;
+    lease.expiresAt = new Date(now.getTime() + ttlMs);
+    lease.renewCount += 1;
+    this.db.executionLeases?.set(executionId, lease);
+    return true;
+  }
+
+  /**
+   * Releases an execution lease upon task completion or pause.
+   */
+  public releaseExecutionLease(
+    executionId: string,
+    workerId: string = this.workerId,
+    leaseToken?: string,
+  ): boolean {
+    const lease = this.db.executionLeases?.get(executionId);
+    if (!lease || lease.workerId !== workerId) {
+      return false;
+    }
+    if (leaseToken && lease.leaseToken !== leaseToken) {
+      return false;
+    }
+
+    this.db.executionLeases?.delete(executionId);
+    return true;
+  }
+
+  /**
+   * Manually reconciles an execution step flagged with REQUIRES_RECONCILIATION.
+   */
+  public async reconcileExecutionStep(
+    stepId: string,
+    action: "RESUME" | "FAIL" | "SKIP",
+    reason: string,
+    resolvedBy: string = "system",
+  ): Promise<{
+    reconciliation: StepReconciliationRecord;
+    execution: WorkflowExecutionRecord;
+  }> {
+    const step = this.db.steps.get(stepId);
+    if (!step) {
+      throw new Error(`Step ${stepId} not found`);
+    }
+    const execution = this.db.executions.get(step.executionId);
+    if (!execution) {
+      throw new Error(`Execution ${step.executionId} not found`);
+    }
+
+    const recId = `rec_${step.id}`;
+    let rec = this.db.stepReconciliations?.get(recId);
+    if (!rec) {
+      for (const r of this.db.stepReconciliations?.values() || []) {
+        if (r.stepId === stepId) {
+          rec = r;
+          break;
+        }
+      }
+    }
+
+    const now = new Date();
+    if (!rec) {
+      rec = {
+        id: recId,
+        executionId: execution.id,
+        stepId: step.id,
+        nodeId: step.nodeId,
+        nodeType: step.nodeType,
+        status: action === "RESUME" ? "RECONCILED" : "MANUALLY_RESOLVED",
+        reason: reason || "Manual operator reconciliation",
+        createdAt: now,
+        updatedAt: now,
+      };
+    } else {
+      rec.status = action === "RESUME" ? "RECONCILED" : "MANUALLY_RESOLVED";
+      rec.reason = reason || rec.reason;
+      rec.updatedAt = now;
+    }
+    rec.resolvedAt = now;
+    rec.resolvedBy = resolvedBy;
+    rec.resolutionAction = action;
+    this.db.stepReconciliations?.set(rec.id, rec);
+
+    (step as any).requiresReconciliation = false;
+
+    if (action === "FAIL") {
+      step.status = "FAILED";
+      step.errorMessage = `Reconciliation rejected: ${reason}`;
+      step.completedAt = now;
+      this.db.steps.set(step.id, step);
+
+      execution.status = "FAILED";
+      execution.errorDetails = {
+        message: `Execution failed via reconciliation: ${reason}`,
+        reconciliationAction: "FAIL",
+      };
+      execution.updatedAt = now;
+      this.db.executions.set(execution.id, execution);
+      return { reconciliation: rec, execution };
+    }
+
+    if (action === "SKIP") {
+      step.status = "COMPLETED";
+      step.outputPayload = { reconciledSkip: true, reason };
+      step.completedAt = now;
+      this.db.steps.set(step.id, step);
+
+      execution.status = "QUEUED";
+      execution.updatedAt = now;
+      this.db.executions.set(execution.id, execution);
+      const resumedExecution = await this.processExecution(execution.id);
+      return { reconciliation: rec, execution: resumedExecution };
+    }
+
+    // RESUME
+    step.status = "PENDING";
+    step.completedAt = undefined;
+    this.db.steps.set(step.id, step);
+
+    execution.status = "QUEUED";
+    execution.updatedAt = now;
+    this.db.executions.set(execution.id, execution);
+    const resumedExecution = await this.processExecution(execution.id);
+    return { reconciliation: rec, execution: resumedExecution };
   }
 
   /**
@@ -689,15 +898,58 @@ export class WorkflowExecutionRunner {
           (s) => s.executionId === execution.id && s.status === "RUNNING",
         );
 
+        let hasSideEffectStep = false;
         for (const step of runningSteps) {
-          step.status = "FAILED";
-          step.errorMessage =
-            "Worker process interrupted during step execution";
-          step.completedAt = new Date();
-          this.db.steps.set(step.id, step);
+          const isSideEffect = [
+            "HTTP_REQUEST",
+            "EMAIL",
+            "CONNECTOR_ACTION",
+            "WEBHOOK",
+          ].includes(step.nodeType);
+          if (isSideEffect) {
+            hasSideEffectStep = true;
+            const recId = `rec_${step.id}`;
+            const rec: StepReconciliationRecord = {
+              id: recId,
+              executionId: execution.id,
+              stepId: step.id,
+              nodeId: step.nodeId,
+              nodeType: step.nodeType,
+              status: "REQUIRES_RECONCILIATION",
+              reason: `Step '${step.nodeName || step.nodeType}' interrupted during execution; outcome uncertain`,
+              sideEffectDetails: { inputPayload: step.inputPayload },
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            };
+            this.db.stepReconciliations?.set(recId, rec);
+
+            step.status = "FAILED";
+            step.errorMessage =
+              "Worker process interrupted during external side-effect (requires reconciliation)";
+            (step as any).requiresReconciliation = true;
+            step.completedAt = new Date();
+            this.db.steps.set(step.id, step);
+          } else {
+            step.status = "FAILED";
+            step.errorMessage =
+              "Worker process interrupted during step execution";
+            step.completedAt = new Date();
+            this.db.steps.set(step.id, step);
+          }
         }
 
-        if (autoResume) {
+        if (hasSideEffectStep) {
+          // Do not auto-resume without reconciliation when external side effect was interrupted
+          execution.status = "FAILED";
+          execution.completedAt = new Date();
+          execution.errorDetails = {
+            message:
+              "Execution interrupted on uncertain external side-effect; requires reconciliation",
+            requiresReconciliation: true,
+          };
+          this.db.executions.set(execution.id, execution);
+          failedCount++;
+        } else if (autoResume) {
           try {
             execution.status = "QUEUED";
             this.db.executions.set(execution.id, execution);
@@ -756,13 +1008,48 @@ export class WorkflowExecutionRunner {
           }
 
           // Mark in-flight running steps as failed
+          let hasSideEffectStep = false;
           for (const step of this.db.steps.values()) {
-            if (step.executionId === execution.id && step.status === "RUNNING") {
-              step.status = "FAILED";
-              step.errorMessage =
-                "Execution timed out or worker stalled (stale execution recovery)";
-              step.completedAt = now;
-              this.db.steps.set(step.id, step);
+            if (
+              step.executionId === execution.id &&
+              step.status === "RUNNING"
+            ) {
+              const isSideEffect = [
+                "HTTP_REQUEST",
+                "EMAIL",
+                "CONNECTOR_ACTION",
+                "WEBHOOK",
+              ].includes(step.nodeType);
+              if (isSideEffect) {
+                hasSideEffectStep = true;
+                const recId = `rec_${step.id}`;
+                const rec: StepReconciliationRecord = {
+                  id: recId,
+                  executionId: execution.id,
+                  stepId: step.id,
+                  nodeId: step.nodeId,
+                  nodeType: step.nodeType,
+                  status: "REQUIRES_RECONCILIATION",
+                  reason: `Step '${step.nodeName || step.nodeType}' timed out; external outcome uncertain`,
+                  sideEffectDetails: { inputPayload: step.inputPayload },
+                  createdAt: now,
+                  updatedAt: now,
+                };
+                this.db.stepReconciliations?.set(recId, rec);
+
+                step.status = "FAILED";
+                step.errorMessage =
+                  "Execution timed out or worker stalled (stale execution recovery: uncertain external side-effect requires reconciliation)";
+                (step as any).requiresReconciliation = true;
+                step.completedAt = now;
+                this.db.steps.set(step.id, step);
+              } else {
+                step.status = "FAILED";
+                step.errorMessage =
+                  "Execution timed out or worker stalled (stale execution recovery)";
+                step.completedAt = now;
+                this.db.steps.set(step.id, step);
+              }
             }
           }
 
@@ -770,8 +1057,11 @@ export class WorkflowExecutionRunner {
           execution.completedAt = now;
           execution.updatedAt = now;
           execution.errorDetails = {
-            message: "Execution timed out (stale running recovery)",
+            message: hasSideEffectStep
+              ? "Execution timed out (stale running recovery: uncertain external side-effect requires reconciliation)"
+              : "Execution timed out (stale running recovery)",
             staleDurationMs: now.getTime() - lastActivity,
+            requiresReconciliation: hasSideEffectStep ? true : undefined,
           };
           this.db.executions.set(execution.id, execution);
 
@@ -824,6 +1114,56 @@ export class WorkflowExecutionRunner {
   }
 
   /**
+   * Schedules a batch of queued executions using tenant-aware fair scheduling
+   * (Weighted Round Robin / Deficit Round Robin) to prevent noisy neighbor starvation.
+   */
+  public scheduleFairBatch(batchSize: number = 10): string[] {
+    const queued = Array.from(this.db.executions.values()).filter(
+      (e) => e.status === "QUEUED",
+    );
+
+    if (queued.length === 0) return [];
+
+    // Group queued executions by tenant
+    const tenantQueues = new Map<string, WorkflowExecutionRecord[]>();
+    for (const exec of queued) {
+      const list = tenantQueues.get(exec.organizationId) || [];
+      list.push(exec);
+      tenantQueues.set(exec.organizationId, list);
+    }
+
+    // Sort each tenant's queue by creation time (FIFO within tenant)
+    for (const list of tenantQueues.values()) {
+      list.sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      );
+    }
+
+    const selectedExecutionIds: string[] = [];
+    const tenantList = Array.from(tenantQueues.keys());
+
+    // Interleave dispatch across tenants according to their weight
+    let index = 0;
+    while (selectedExecutionIds.length < batchSize && tenantQueues.size > 0) {
+      const tenantId = tenantList[index % tenantList.length];
+      const q = tenantQueues.get(tenantId);
+
+      if (q && q.length > 0) {
+        const exec = q.shift()!;
+        selectedExecutionIds.push(exec.id);
+        if (q.length === 0) {
+          tenantQueues.delete(tenantId);
+        }
+      }
+      index++;
+      if (index > 2000) break;
+    }
+
+    return selectedExecutionIds;
+  }
+
+  /**
    * Executes a workflow execution until completion or suspension (approval/delay).
    */
   public async processExecution(
@@ -837,6 +1177,14 @@ export class WorkflowExecutionRunner {
 
     if (execution.status === "CANCELLED") {
       return execution;
+    }
+
+    // Acquire distributed execution lease
+    const lease = this.acquireExecutionLease(executionId);
+    if (!lease) {
+      throw new Error(
+        `Execution lease for ${executionId} is currently held by another worker instance.`,
+      );
     }
 
     // Check global and tenant concurrency limits before running
@@ -912,28 +1260,77 @@ export class WorkflowExecutionRunner {
       return execution;
     }
 
-    const maxSteps = 100;
+    const quota = Array.from(this.db.resourceQuotas?.values() || []).find(
+      (q) =>
+        q.organizationId === execution.organizationId &&
+        (!q.workflowId || q.workflowId === execution.workflowId),
+    );
+
+    const maxExecutionDurationMs = quota?.maxExecutionDurationMs || 300000;
+    const maxSteps = quota?.maxStepCount || 100;
+    const maxConnectorCalls = quota?.maxConnectorCallsPerRun || 50;
+    let connectorCallsCount = 0;
+    let isTimedOut = false;
+
+    const timeoutHandle = setTimeout(() => {
+      isTimedOut = true;
+      abortController.abort("EXECUTION_TIMEOUT");
+    }, maxExecutionDurationMs);
+
     let stepCount = 0;
 
     try {
       while (currentNode && stepCount < maxSteps) {
-        // Check cancellation
+        // Check cancellation or timeout
         const fresh = this.db.executions.get(executionId);
-        if (
-          !fresh ||
-          fresh.status === "CANCELLED" ||
-          abortController.signal.aborted ||
-          signal?.aborted
-        ) {
+        if (isTimedOut || abortController.signal.aborted || signal?.aborted) {
           const finalExec = fresh || execution;
-          finalExec.status = "CANCELLED";
-          finalExec.completedAt = new Date();
+          if (
+            isTimedOut ||
+            abortController.signal.reason === "EXECUTION_TIMEOUT"
+          ) {
+            finalExec.status = "FAILED";
+            finalExec.completedAt = new Date();
+            finalExec.errorDetails = {
+              code: "RESOURCE_BUDGET_EXCEEDED",
+              dimension: "DURATION",
+              message: `Max workflow execution duration budget of ${maxExecutionDurationMs}ms exceeded.`,
+            };
+          } else {
+            finalExec.status = "CANCELLED";
+            finalExec.completedAt = new Date();
+          }
           this.db.executions.set(executionId, finalExec);
           return finalExec;
         }
 
+        if (fresh && fresh.status === "CANCELLED") {
+          fresh.completedAt = new Date();
+          this.db.executions.set(executionId, fresh);
+          return fresh;
+        }
+
         stepCount++;
         execution.currentNodeId = currentNode.id;
+
+        // Check connector operations budget
+        if (
+          currentNode.type.includes("connector") ||
+          currentNode.type === "HTTP_REQUEST"
+        ) {
+          connectorCallsCount++;
+          if (connectorCallsCount > maxConnectorCalls) {
+            execution.status = "FAILED";
+            execution.completedAt = new Date();
+            execution.errorDetails = {
+              code: "RESOURCE_BUDGET_EXCEEDED",
+              dimension: "CONNECTOR_CALLS",
+              message: `Max connector calls budget of ${maxConnectorCalls} exceeded.`,
+            };
+            this.db.executions.set(execution.id, execution);
+            return execution;
+          }
+        }
 
         // Create step execution record
         const stepId = `step_${crypto.randomUUID()}`;
@@ -1212,7 +1609,9 @@ export class WorkflowExecutionRunner {
         execution.status = "FAILED";
         execution.completedAt = new Date();
         execution.errorDetails = {
-          message: "Max workflow execution step limit reached (100).",
+          code: "RESOURCE_BUDGET_EXCEEDED",
+          dimension: "STEPS",
+          message: `Max workflow execution step limit reached (${maxSteps}).`,
         };
         this.db.executions.set(execution.id, execution);
 
@@ -1225,11 +1624,19 @@ export class WorkflowExecutionRunner {
           data: {
             workflowId: execution.workflowId,
             executionId: execution.id,
-            error: "Max workflow execution step limit reached (100).",
+            error: `Max workflow execution step limit reached (${maxSteps}).`,
           },
         });
       }
     } finally {
+      clearTimeout(timeoutHandle);
+      if (lease) {
+        this.releaseExecutionLease(
+          executionId,
+          this.workerId,
+          lease.leaseToken,
+        );
+      }
       this.activeExecutions.delete(executionId);
       const current =
         this.activeTenantExecutions.get(execution.organizationId) || 1;
@@ -1237,6 +1644,18 @@ export class WorkflowExecutionRunner {
         this.activeTenantExecutions.delete(execution.organizationId);
       } else {
         this.activeTenantExecutions.set(execution.organizationId, current - 1);
+      }
+
+      // Release active resource reservation
+      if (this.db.resourceReservations) {
+        const res = Array.from(this.db.resourceReservations.values()).find(
+          (r) => r.executionId === executionId && r.status === "ACTIVE",
+        );
+        if (res) {
+          res.status = "RELEASED";
+          res.releasedAt = new Date();
+          this.db.resourceReservations.set(res.id, res);
+        }
       }
     }
 

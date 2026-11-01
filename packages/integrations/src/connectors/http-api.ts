@@ -1,8 +1,5 @@
 import { ConnectorDefinition } from "@flowforge/shared";
-import {
-  ConnectorHandler,
-  ConnectorTester,
-} from "../connector-registry.js";
+import { ConnectorHandler, ConnectorTester } from "../connector-registry.js";
 import { executeSafeHttpRequest } from "../http.js";
 import { resolveAndValidateDestination } from "../ssrf.js";
 import { redactDeep, redactErrorMessage } from "../redaction.js";
@@ -21,7 +18,8 @@ export const httpApiConnectorDefinition: ConnectorDefinition = {
       label: "Base URL (Optional)",
       type: "string",
       required: false,
-      description: "Default base URL for relative endpoint calls (e.g. https://api.stripe.com)",
+      description:
+        "Default base URL for relative endpoint calls (e.g. https://api.stripe.com)",
     },
     {
       name: "authHeaderName",
@@ -29,7 +27,8 @@ export const httpApiConnectorDefinition: ConnectorDefinition = {
       type: "string",
       required: false,
       defaultValue: "Authorization",
-      description: "Header name to inject credential into (e.g. Authorization or X-API-Key)",
+      description:
+        "Header name to inject credential into (e.g. Authorization or X-API-Key)",
     },
     {
       name: "apiKey",
@@ -51,7 +50,8 @@ export const httpApiConnectorDefinition: ConnectorDefinition = {
     {
       id: "request",
       name: "Execute HTTP Request",
-      description: "Dispatches an HTTP request with SSRF guard and response sanitization.",
+      description:
+        "Dispatches an HTTP request with SSRF guard and response sanitization.",
       parameters: [
         {
           name: "url",
@@ -107,12 +107,18 @@ export const httpApiHandler: ConnectorHandler = async (
   context,
 ) => {
   if (operationId !== "request") {
-    throw new Error(`Unsupported operation '${operationId}' for http-api connector.`);
+    throw new Error(
+      `Unsupported operation '${operationId}' for http-api connector.`,
+    );
   }
 
   let targetUrl = (parameters.url as string) || "";
   const baseUrl = (context.credentials.baseUrl as string) || "";
-  if (baseUrl && !targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
+  if (
+    baseUrl &&
+    !targetUrl.startsWith("http://") &&
+    !targetUrl.startsWith("https://")
+  ) {
     const cleanBase = baseUrl.replace(/\/+$/, "");
     const cleanPath = targetUrl.replace(/^\/+/, "");
     targetUrl = `${cleanBase}/${cleanPath}`;
@@ -123,9 +129,11 @@ export const httpApiHandler: ConnectorHandler = async (
   }
 
   const method = ((parameters.method as string) || "GET").toUpperCase();
-  const timeoutMs = (parameters.timeoutMs as number) || context.timeoutMs || 10000;
+  const timeoutMs =
+    (parameters.timeoutMs as number) || context.timeoutMs || 10000;
   const headers = { ...((parameters.headers as Record<string, string>) || {}) };
-  const queryParams = parameters.queryParams as Record<string, string> | undefined;
+  const queryParams = parameters.queryParams as
+    Record<string, string> | undefined;
   const body =
     typeof parameters.body === "object"
       ? JSON.stringify(parameters.body)
@@ -178,7 +186,8 @@ export const httpApiHandler: ConnectorHandler = async (
 
 export const httpApiTester: ConnectorTester = async (credentials, config) => {
   const start = Date.now();
-  const testUrl = (config?.testUrl as string) || (credentials.baseUrl as string);
+  const testUrl =
+    (config?.testUrl as string) || (credentials.baseUrl as string);
 
   if (!testUrl) {
     // If no URL configured, credentials schema check is sufficient
@@ -191,7 +200,8 @@ export const httpApiTester: ConnectorTester = async (credentials, config) => {
     }
     return {
       success: true,
-      message: "No authentication credentials provided (Anonymous access configured).",
+      message:
+        "No authentication credentials provided (Anonymous access configured).",
       latencyMs: Date.now() - start,
     };
   }
@@ -201,7 +211,8 @@ export const httpApiTester: ConnectorTester = async (credentials, config) => {
   if (!ssrfValidation.isSafe) {
     return {
       success: false,
-      message: `SSRF Violation: Target host '${testUrl}' resolves to blocked private address or forbidden host. ${ssrfValidation.reason || ""}`.trim(),
+      message:
+        `SSRF Violation: Target host '${testUrl}' resolves to blocked private address or forbidden host. ${ssrfValidation.reason || ""}`.trim(),
       latencyMs: Date.now() - start,
       errorCategory: "SSRF_BLOCKED",
     };
@@ -210,9 +221,12 @@ export const httpApiTester: ConnectorTester = async (credentials, config) => {
   try {
     const headers: Record<string, string> = {};
     if (credentials.apiKey) {
-      const headerName = (credentials.authHeaderName as string) || "Authorization";
+      const headerName =
+        (credentials.authHeaderName as string) || "Authorization";
       const prefix = (credentials.authPrefix as string) ?? "Bearer";
-      headers[headerName] = prefix ? `${prefix} ${credentials.apiKey}` : String(credentials.apiKey);
+      headers[headerName] = prefix
+        ? `${prefix} ${credentials.apiKey}`
+        : String(credentials.apiKey);
     }
 
     const res = await executeSafeHttpRequest({
@@ -231,7 +245,9 @@ export const httpApiTester: ConnectorTester = async (credentials, config) => {
   } catch (err: any) {
     return {
       success: false,
-      message: redactErrorMessage(err.message || "Failed to reach endpoint probe"),
+      message: redactErrorMessage(
+        err.message || "Failed to reach endpoint probe",
+      ),
       latencyMs: Date.now() - start,
       errorCategory: err.category || "NETWORK_ERROR",
     };

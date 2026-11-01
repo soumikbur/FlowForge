@@ -208,7 +208,7 @@ describe("Prompt 13: Enterprise Workflow Templates, Reusable Components, and Tem
       expect(template.status).toBe("DRAFT");
       expect(template.usageCount).toBe(0);
       expect(template.requiredConnections).toEqual(
-        expect.arrayContaining(["slack-webhook", "smtp-email"])
+        expect.arrayContaining(["slack-webhook", "smtp-email"]),
       );
 
       // Verify graph sanitization
@@ -239,7 +239,8 @@ describe("Prompt 13: Enterprise Workflow Templates, Reusable Components, and Tem
 
       // 6. Audit log recorded
       const audit = apiStore.auditLogs.find(
-        (a) => a.action === "template:create" && a.resourceId === createdTemplateId
+        (a) =>
+          a.action === "template:create" && a.resourceId === createdTemplateId,
       );
       expect(audit).toBeDefined();
       expect(audit?.organizationId).toBe(orgIdA);
@@ -343,7 +344,7 @@ describe("Prompt 13: Enterprise Workflow Templates, Reusable Components, and Tem
 
       // Verify audit logged
       const audit = apiStore.auditLogs.find(
-        (a) => a.action === "template:publish" && a.resourceId === templateId
+        (a) => a.action === "template:publish" && a.resourceId === templateId,
       );
       expect(audit).toBeDefined();
     });
@@ -351,7 +352,9 @@ describe("Prompt 13: Enterprise Workflow Templates, Reusable Components, and Tem
     it("publishes version 2 with monotonic version increment and updated content hash", async () => {
       // Modify draft definition by adding a node
       const currentTmpl = apiStore.templates.get(templateId)!;
-      const updatedDef = JSON.parse(JSON.stringify(currentTmpl.draftDefinition));
+      const updatedDef = JSON.parse(
+        JSON.stringify(currentTmpl.draftDefinition),
+      );
       updatedDef.nodes.push({
         id: "node_approval_v2",
         type: "APPROVAL",
@@ -374,8 +377,12 @@ describe("Prompt 13: Enterprise Workflow Templates, Reusable Components, and Tem
       version2Id = ver2.id;
 
       expect(ver2.versionNumber).toBe(2);
-      expect(ver2.releaseNotes).toBe("Added mandatory security review approval step");
-      expect(ver2.contentHash).not.toBe(apiStore.templateVersions.get(version1Id)?.contentHash);
+      expect(ver2.releaseNotes).toBe(
+        "Added mandatory security review approval step",
+      );
+      expect(ver2.contentHash).not.toBe(
+        apiStore.templateVersions.get(version1Id)?.contentHash,
+      );
 
       const tmpl = apiStore.templates.get(templateId);
       expect(tmpl?.publishedVersionId).toBe(version2Id);
@@ -437,7 +444,8 @@ describe("Prompt 13: Enterprise Workflow Templates, Reusable Components, and Tem
     });
 
     it("instantiates a new workflow, regenerating all node and edge IDs without collision", async () => {
-      const initialUsage = apiStore.templates.get(publishedTemplateId)!.usageCount;
+      const initialUsage =
+        apiStore.templates.get(publishedTemplateId)!.usageCount;
 
       const res = await request(app)
         .post(`/api/v1/templates/${publishedTemplateId}/instantiate`)
@@ -485,11 +493,15 @@ describe("Prompt 13: Enterprise Workflow Templates, Reusable Components, and Tem
       }
 
       // 4. Connection mapping injected into node config
-      const slackNode = instantiatedNodes.find((n: any) => n.type === "CONNECTOR_ACTION");
+      const slackNode = instantiatedNodes.find(
+        (n: any) => n.type === "CONNECTOR_ACTION",
+      );
       expect(slackNode.config.connectionId).toBe(connIdA);
 
       // 5. Triggers remain inactive
-      const triggerNode = instantiatedNodes.find((n: any) => n.type === "TRIGGER");
+      const triggerNode = instantiatedNodes.find(
+        (n: any) => n.type === "TRIGGER",
+      );
       expect(triggerNode.config.enabled).toBe(false);
       expect(triggerNode.config.active).toBe(false);
 
@@ -499,7 +511,9 @@ describe("Prompt 13: Enterprise Workflow Templates, Reusable Components, and Tem
 
       // 7. Audit logged
       const audit = apiStore.auditLogs.find(
-        (a) => a.action === "workflow:instantiate_from_template" && a.resourceId === wf.id
+        (a) =>
+          a.action === "workflow:instantiate_from_template" &&
+          a.resourceId === wf.id,
       );
       expect(audit).toBeDefined();
       expect(audit?.organizationId).toBe(orgIdA);
@@ -548,7 +562,12 @@ describe("Prompt 13: Enterprise Workflow Templates, Reusable Components, and Tem
       // 3. Platform Template
       const platformDef: WorkflowDefinition = {
         nodes: [
-          { id: "p_trig", type: "TRIGGER", name: "Start", config: { triggerType: "MANUAL" } },
+          {
+            id: "p_trig",
+            type: "TRIGGER",
+            name: "Start",
+            config: { triggerType: "MANUAL" },
+          },
           { id: "p_end", type: "END", name: "Finish", config: {} },
         ],
         edges: [{ id: "pe1", source: "p_trig", target: "p_end" }],
@@ -696,11 +715,15 @@ describe("Prompt 13: Enterprise Workflow Templates, Reusable Components, and Tem
         });
 
       expect(res.status).toBe(200);
-      expect(res.body.data.name).toBe("Automated Enterprise Vulnerability Scanner");
+      expect(res.body.data.name).toBe(
+        "Automated Enterprise Vulnerability Scanner",
+      );
       expect(res.body.data.tags).toContain("automated");
 
       const audit = apiStore.auditLogs.find(
-        (a) => a.action === "template:update" && a.resourceId === lifecycleTemplateId
+        (a) =>
+          a.action === "template:update" &&
+          a.resourceId === lifecycleTemplateId,
       );
       expect(audit).toBeDefined();
     });
@@ -723,7 +746,9 @@ describe("Prompt 13: Enterprise Workflow Templates, Reusable Components, and Tem
         .set("x-organization-id", orgIdA);
 
       expect(resSearch.status).toBe(200);
-      expect(resSearch.body.data.some((i: any) => i.id === lifecycleTemplateId)).toBe(true);
+      expect(
+        resSearch.body.data.some((i: any) => i.id === lifecycleTemplateId),
+      ).toBe(true);
     });
 
     it("archives a template and omits it from default catalog listings", async () => {
@@ -750,7 +775,9 @@ describe("Prompt 13: Enterprise Workflow Templates, Reusable Components, and Tem
 
       // Verify audit recorded
       const audit = apiStore.auditLogs.find(
-        (a) => a.action === "template:archive" && a.resourceId === lifecycleTemplateId
+        (a) =>
+          a.action === "template:archive" &&
+          a.resourceId === lifecycleTemplateId,
       );
       expect(audit).toBeDefined();
     });

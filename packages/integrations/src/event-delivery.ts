@@ -45,7 +45,8 @@ export async function publishDomainEvent(
 ): Promise<FlowForgeEvent> {
   const eventId = `evt_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
   const correlationId =
-    options.correlationId || `corr_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
+    options.correlationId ||
+    `corr_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
 
   const rawEvent: FlowForgeEvent = {
     id: eventId,
@@ -67,7 +68,10 @@ export async function publishDomainEvent(
   // Asynchronously dispatch event delivery
   setImmediate(() => {
     dispatchOutboxEvent(db, outboxRecord.id).catch((err) => {
-      console.error(`[EventDelivery] Error dispatching outbox event ${outboxRecord.id}:`, err);
+      console.error(
+        `[EventDelivery] Error dispatching outbox event ${outboxRecord.id}:`,
+        err,
+      );
     });
   });
 
@@ -327,7 +331,9 @@ export async function dispatchOutboxEvent(
     const pref = db.notificationPreferences.get(prefKey);
 
     const inAppAllowed = pref ? pref.inApp : true;
-    const emailAllowed = pref ? pref.email : formatted.category === "APPROVAL" || formatted.priority === "URGENT";
+    const emailAllowed = pref
+      ? pref.email
+      : formatted.category === "APPROVAL" || formatted.priority === "URGENT";
 
     // 1. In-App Notification
     if (inAppAllowed) {
@@ -349,27 +355,44 @@ export async function dispatchOutboxEvent(
     if (emailAllowed) {
       const user = db.users.get(userId);
       if (user?.email) {
+        const branding = (db as any).brandings?.get(event.organizationId);
+        const productName = branding?.productName || "FlowForge";
+        const primaryColor = branding?.primaryColor || "#0f766e";
+        const senderFrom = branding?.emailSenderAddress
+          ? `${branding.emailSenderName || productName} <${branding.emailSenderAddress}>`
+          : undefined;
+        const footerText =
+          branding?.customFooterText || `Powered by ${productName}`;
+
         try {
           await defaultEmailService.sendEmail({
             idempotencyKey: `${event.id}_${userId}`,
             to: user.email,
-            subject: `[FlowForge] ${formatted.title}`,
-            text: `${formatted.message}\n\nView resource: ${formatted.linkUrl}`,
+            from: senderFrom,
+            subject: `[${productName}] ${formatted.title}`,
+            text: `${formatted.message}\n\nView resource: ${formatted.linkUrl}\n\n${footerText}`,
             html: `<div style="font-family:sans-serif;padding:16px;">
-              <h2 style="color:#0f766e;">${formatted.title}</h2>
+              <h2 style="color:${primaryColor};">${formatted.title}</h2>
               <p>${formatted.message}</p>
-              <p><a href="${formatted.linkUrl}" style="background:#0f766e;color:#fff;padding:8px 16px;text-decoration:none;border-radius:4px;">View in FlowForge</a></p>
+              <p><a href="${formatted.linkUrl}" style="background:${primaryColor};color:#fff;padding:8px 16px;text-decoration:none;border-radius:4px;">View in ${productName}</a></p>
+              <hr style="margin-top:24px;border:none;border-top:1px solid #e2e8f0;" />
+              <p style="font-size:12px;color:#64748b;">${footerText}</p>
             </div>`,
           });
         } catch (emailErr) {
-          console.error(`[EventDelivery] Email dispatch failed for user ${userId}:`, emailErr);
+          console.error(
+            `[EventDelivery] Email dispatch failed for user ${userId}:`,
+            emailErr,
+          );
         }
       }
     }
   }
 
   // B. OUTBOUND WEBHOOK SUBSCRIPTIONS & DELIVERY
-  const matchingSubscriptions = Array.from(db.webhookSubscriptions.values()).filter(
+  const matchingSubscriptions = Array.from(
+    db.webhookSubscriptions.values(),
+  ).filter(
     (s: any) =>
       s.organizationId === event.organizationId &&
       s.enabled &&
@@ -397,7 +420,8 @@ export async function executeWebhookDelivery(
   existingDeliveryId?: string,
 ): Promise<any> {
   const deliveryId =
-    existingDeliveryId || `del_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
+    existingDeliveryId ||
+    `del_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
   const now = new Date();
 
   let delivery = db.webhookDeliveries.get(deliveryId);
@@ -433,7 +457,11 @@ export async function executeWebhookDelivery(
   // 2. Compute HMAC Signature Header
   const timestamp = Date.now();
   const rawPayload = JSON.stringify(event);
-  const { headerValue } = signWebhookPayload(subscription.secret, rawPayload, timestamp);
+  const { headerValue } = signWebhookPayload(
+    subscription.secret,
+    rawPayload,
+    timestamp,
+  );
 
   // 3. Execute HTTP Dispatch
   const startTime = Date.now();
@@ -457,7 +485,9 @@ export async function executeWebhookDelivery(
     delivery.durationMs = Date.now() - startTime;
     delivery.statusCode = res.status;
     delivery.responseBody =
-      typeof res.data === "string" ? res.data.slice(0, 1000) : JSON.stringify(res.data).slice(0, 1000);
+      typeof res.data === "string"
+        ? res.data.slice(0, 1000)
+        : JSON.stringify(res.data).slice(0, 1000);
 
     if (res.status >= 200 && res.status < 300) {
       delivery.status = "SUCCEEDED";
@@ -540,4 +570,30 @@ export async function replayWebhookDelivery(
 
   const event = delivery.requestPayload as unknown as FlowForgeEvent;
   return executeWebhookDelivery(db, subscription, event, delivery.id);
+}
+
+/**
+ * Self-healing outbox recovery: Scans and reprocesses stranded, pending or retryable outbox events.
+ */
+export async function reprocessPendingOutboxEvents(
+  db: IDomainEventDatabase,
+  maxRetries: number = 5,
+): Promise<{ reprocessedCount: number; deadLetterCount: number }> {
+  let reprocessedCount = 0;
+  let deadLetterCount = 0;
+
+  for (const outbox of db.outboxEvents.values()) {
+    if (outbox.status === "PENDING" || outbox.status === "FAILED") {
+      if (outbox.attemptCount >= maxRetries) {
+        outbox.status = "DEAD_LETTER" as any;
+        db.outboxEvents.set(outbox.id, outbox);
+        deadLetterCount++;
+      } else {
+        await dispatchOutboxEvent(db, outbox.id);
+        reprocessedCount++;
+      }
+    }
+  }
+
+  return { reprocessedCount, deadLetterCount };
 }

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import {
   Zap,
   GitBranch,
@@ -63,19 +63,25 @@ export const NodePalette: React.FC<NodePaletteProps> = ({
           <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">
             Node Palette
           </h2>
-          <span className="text-[10px] text-teal-400 font-medium">Drag or Click</span>
+          <span className="text-[10px] text-indigo-400 font-medium">
+            Drag or Click
+          </span>
         </div>
 
         {/* Search Input */}
         <div className="relative">
-          <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
+          <label htmlFor="palette-search" className="sr-only">
+            Search node palette
+          </label>
+          <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5 pointer-events-none" />
           <input
-            type="text"
+            id="palette-search"
+            type="search"
             placeholder="Search nodes..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             disabled={disabled}
-            className="w-full bg-slate-800/80 border border-slate-700 rounded-md pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-teal-500 transition"
+            className="w-full bg-slate-800/80 border border-slate-700 rounded-md pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus-ring transition"
           />
         </div>
       </div>
@@ -83,7 +89,9 @@ export const NodePalette: React.FC<NodePaletteProps> = ({
       {/* Categorized List */}
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
         {PALETTE_CATEGORIES.map((category: NodeCategory) => {
-          const categoryItems = filteredItems.filter((i) => i.category === category);
+          const categoryItems = filteredItems.filter(
+            (i) => i.category === category,
+          );
           if (categoryItems.length === 0) return null;
 
           return (
@@ -98,22 +106,34 @@ export const NodePalette: React.FC<NodePaletteProps> = ({
                   return (
                     <div
                       key={item.type}
+                      tabIndex={disabled ? -1 : 0}
+                      role="button"
+                      aria-label={`Add ${item.label} node to canvas`}
+                      aria-disabled={disabled}
                       draggable={!disabled}
                       onDragStart={(e) => onDragStart(e, item.type)}
                       onClick={() => !disabled && onAddNode(item.type)}
-                      className={`group p-2.5 rounded-lg border border-slate-800 bg-slate-800/60 hover:bg-slate-800 hover:border-slate-700 transition cursor-grab active:cursor-grabbing flex items-start gap-2.5 ${
-                        disabled ? "opacity-50 cursor-not-allowed" : ""
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          if (!disabled) onAddNode(item.type);
+                        }
+                      }}
+                      className={`group p-2.5 rounded-lg border border-slate-800 bg-slate-800/60 hover:bg-slate-800 hover:border-slate-700 transition cursor-grab active:cursor-grabbing flex items-start gap-2.5 focus-ring ${
+                        disabled
+                          ? "opacity-50 cursor-not-allowed pointer-events-none"
+                          : ""
                       }`}
                     >
-                      <div className="p-1.5 rounded-md bg-slate-900 border border-slate-700/80 group-hover:border-teal-500/50 transition">
-                        <Icon className="w-3.5 h-3.5 text-teal-400" />
+                      <div className="p-1.5 rounded-md bg-slate-900 border border-slate-700/80 group-hover:border-indigo-500/50 transition shrink-0">
+                        <Icon className="w-3.5 h-3.5 text-indigo-400" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-slate-100 group-hover:text-teal-300 transition">
+                          <span className="text-xs font-semibold text-slate-100 group-hover:text-indigo-300 transition">
                             {item.label}
                           </span>
-                          <Plus className="w-3.5 h-3.5 text-slate-500 group-hover:text-teal-400 transition" />
+                          <Plus className="w-3.5 h-3.5 text-slate-500 group-hover:text-indigo-400 transition" />
                         </div>
                         <p className="text-[11px] text-slate-400 leading-tight line-clamp-2 mt-0.5">
                           {item.description}
@@ -136,4 +156,3 @@ export const NodePalette: React.FC<NodePaletteProps> = ({
     </div>
   );
 };
-

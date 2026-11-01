@@ -84,6 +84,7 @@ In case of errors:
 ## 6. Webhooks, Schedules & Integration Credentials Endpoints
 
 ### 6.1 Webhook Triggers & Configuration
+
 - `POST /api/v1/webhooks/incoming/:id`: Ingest external webhook targeting a registered webhook or workflow. Verifies constant-time HMAC signature (`X-Signature-256`), enforces replay window (`X-Webhook-Timestamp` max 300s), and deduplicates by event ID (`X-Idempotency-Key`).
 - `GET /api/v1/webhooks`: List webhook configurations for caller's organization (signing secrets redacted).
 - `POST /api/v1/webhooks`: Create webhook configuration for a published workflow (generates `whsec_...` signing secret, returned only upon creation).
@@ -94,6 +95,7 @@ In case of errors:
 - `GET /api/v1/webhooks/config/:id/deliveries`: Query historical delivery events for the webhook.
 
 ### 6.2 Scheduled Triggers
+
 - `GET /api/v1/schedules`: List schedules for caller's organization.
 - `POST /api/v1/schedules`: Create schedule for published workflow (supports recurring 5-field cron, one-time execution, IANA timezones, misfire policies; calculates `nextRunAt` in UTC).
 - `GET /api/v1/schedules/:id`: Retrieve schedule details.
@@ -102,6 +104,7 @@ In case of errors:
 - `POST /api/v1/schedules/:id/run-now`: Immediately trigger manual execution of the scheduled workflow.
 
 ### 6.3 Integration Credentials
+
 - `GET /api/v1/credentials`: List credentials for caller's organization (secrets and encrypted blobs never exposed).
 - `POST /api/v1/credentials`: Register credential (encrypted at rest using AES-256-GCM authenticated encryption).
 - `GET /api/v1/credentials/:id`: Retrieve credential metadata.
@@ -112,46 +115,48 @@ In case of errors:
 - `GET /api/v1/dashboard/stats`: Returns aggregated stats (total workflows, active, success rate, failed count, pending approvals).
 - `GET /api/v1/dashboard/activity`: Recent execution events and alerts.
 
-
 ## 8. Workflow Graph Validation Error Codes
 
 When validating a workflow draft via `POST /api/v1/workflows/:id/validate`, the endpoint returns `{ success: true, data: { isValid: boolean, errors: ValidationError[], warnings: ValidationWarning[] } }`.
 
-| Error Code | Meaning |
-| :--- | :--- |
-| `EMPTY_GRAPH` | Graph contains zero nodes |
-| `RESOURCE_LIMIT_EXCEEDED` | Definition exceeds max nodes (500) or edges (1000) |
-| `MISSING_TRIGGER_NODE` | No `TRIGGER` node present in definition |
-| `MULTIPLE_TRIGGER_NODES` | More than 1 `TRIGGER` node found |
-| `DUPLICATE_NODE_ID` | Multiple nodes share the same identifier |
-| `DUPLICATE_EDGE_ID` | Multiple edges share the same identifier |
-| `UNKNOWN_NODE_TYPE` | Node type is not recognized by engine registry |
-| `INVALID_NODE_CONFIG` | Node config violates Zod schema for its type |
-| `MISSING_SOURCE_NODE` | Edge references nonexistent source node |
-| `MISSING_TARGET_NODE` | Edge references nonexistent target node |
-| `SELF_CONNECTION_NOT_ALLOWED` | Edge has source identical to target |
-| `TERMINAL_HAS_OUTGOING_EDGES` | An `END` terminal node has outgoing edges |
-| `TRIGGER_HAS_INCOMING_EDGES` | A `TRIGGER` node has inward edges |
-| `INVALID_CONDITION_HANDLE` | Condition edge handle is not 'true' or 'false' |
+| Error Code                      | Meaning                                              |
+| :------------------------------ | :--------------------------------------------------- |
+| `EMPTY_GRAPH`                   | Graph contains zero nodes                            |
+| `RESOURCE_LIMIT_EXCEEDED`       | Definition exceeds max nodes (500) or edges (1000)   |
+| `MISSING_TRIGGER_NODE`          | No `TRIGGER` node present in definition              |
+| `MULTIPLE_TRIGGER_NODES`        | More than 1 `TRIGGER` node found                     |
+| `DUPLICATE_NODE_ID`             | Multiple nodes share the same identifier             |
+| `DUPLICATE_EDGE_ID`             | Multiple edges share the same identifier             |
+| `UNKNOWN_NODE_TYPE`             | Node type is not recognized by engine registry       |
+| `INVALID_NODE_CONFIG`           | Node config violates Zod schema for its type         |
+| `MISSING_SOURCE_NODE`           | Edge references nonexistent source node              |
+| `MISSING_TARGET_NODE`           | Edge references nonexistent target node              |
+| `SELF_CONNECTION_NOT_ALLOWED`   | Edge has source identical to target                  |
+| `TERMINAL_HAS_OUTGOING_EDGES`   | An `END` terminal node has outgoing edges            |
+| `TRIGGER_HAS_INCOMING_EDGES`    | A `TRIGGER` node has inward edges                    |
+| `INVALID_CONDITION_HANDLE`      | Condition edge handle is not 'true' or 'false'       |
 | `INCOMPLETE_CONDITION_BRANCHES` | Condition node missing either 'true' or 'false' edge |
-| `UNREACHABLE_NODE` | Node is disconnected/unreachable from trigger |
-| `CYCLE_DETECTED` | Directed cycle detected in workflow graph |
-| `MISSING_TERMINAL_PATH` | No path from trigger reaches an `END` node |
+| `UNREACHABLE_NODE`              | Node is disconnected/unreachable from trigger        |
+| `CYCLE_DETECTED`                | Directed cycle detected in workflow graph            |
+| `MISSING_TERMINAL_PATH`         | No path from trigger reaches an `END` node           |
 
 ## 9. Workflow Versioning, Deployments & Environment Promotion Endpoints
 
 ### 9.1 Immutability Boundary & Draft Management
+
 - `PATCH /api/v1/workflows/:id`: Update workflow draft metadata or definition. Supports `expectedRevision` body parameter and `If-Match` header. Rejects concurrent modifications with `409 DRAFT_CONFLICT`.
 - `POST /api/v1/workflows/:id/publish`: Validate workflow graph, compute canonical content hash (`SHA-256`), prevent duplicate publishing of identical graphs (`409 UNCHANGED_CONTENT`), create immutable `WorkflowVersionRecord`, and automatically deploy to `development`.
 - `PUT|PATCH|DELETE /api/v1/workflows/:id/versions/:versionId`: Always rejected with `405 VERSION_IMMUTABLE`.
 - `POST /api/v1/workflows/:id/versions/:versionId/create-draft`: Restore a historical immutable version snapshot back into the editable draft definition, incrementing `draftRevision`.
 
 ### 9.2 Semantic Version Comparison
+
 - `GET /api/v1/workflows/:id/compare?fromVersionId=:v1&toVersionId=:v2` (alias `baseVersionId`, `targetVersionId`):
   - Returns structured semantic comparison between two published versions or draft (`isIdentical`, `addedNodes`, `removedNodes`, `modifiedNodes`, `addedEdges`, `removedEdges`, `summary`).
   - Automatically redacts sensitive passwords, tokens, API keys, and credential references with `[REDACTED]`.
 
 ### 9.3 Multi-Environment Promotion & Deployments
+
 - `GET /api/v1/workflows/:id/deployments`: List deployment history for workflow across all environments sorted by `deployedAt` descending.
 - `GET /api/v1/workflows/:id/environments/:environment`: Retrieve the currently active deployment for specified environment (`development`, `staging`, `production`).
 - `POST /api/v1/workflows/:id/promote` (alias `POST /:id/deploy`):
@@ -166,17 +171,18 @@ When validating a workflow draft via `POST /api/v1/workflows/:id/validate`, the 
   - Does NOT mutate existing in-flight workflow executions.
 
 ### 9.4 Execution Environment Version Resolution
+
 - `POST /api/v1/workflows/:id/trigger` and `POST /api/v1/workflows/:id/execute`:
   - Accepts `x-environment` header or `environment` in body (defaulting to `development` for manual builder triggers).
   - Webhooks and schedules default to active `production` deployment.
   - Resolves active `workflowVersionId` and permanently records it on `WorkflowExecutionRecord`, guaranteeing execution immutability.
-
 
 ## 10. Analytics, Monitoring, and Operational Intelligence Endpoints
 
 All analytics endpoints strictly enforce multi-tenant organization isolation (`req.organizationId`) and Role-Based Access Control (`analytics:read` for inspection, `analytics:write` for mutation/alerts).
 
 ### 10.1 Execution Analytics Overview
+
 - `GET /api/v1/analytics/overview`:
   - **Query Parameters**: `range` (`1h`, `24h`, `7d`, `30d`, `custom`), `from` (ISO string), `to` (ISO string), `workflowId`, `environment` (`development`, `staging`, `production`).
   - **Interval Semantics**: Half-open intervals `[from, to)` preventing duplicate counting across window boundaries.
@@ -190,16 +196,19 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
     - `trends`: Comparison against the prior equivalent duration window (`totalExecutionsChangePercent`, `successRateChangePercent`).
 
 ### 10.2 Time-Series Execution Trends
+
 - `GET /api/v1/analytics/trends`:
   - **Query Parameters**: `range` (`1h`, `24h`, `7d`, `30d`, `custom`), `bucketSize` (`hour` or `day`), `workflowId`.
   - **Response**: Array of chronological buckets `{ timestamp, total, successful, failed, cancelled, avgDurationMs }`.
 
 ### 10.3 Workflow Performance & Ranking
+
 - `GET /api/v1/analytics/workflows`:
   - **Query Parameters**: `range`, `sortBy` (`executionCount`, `successRate`, `avgDurationMs`, `failureRate`), `order` (`asc`, `desc`).
   - **Response**: Ranked list of organization workflows with execution totals, success/failure rates, duration percentiles, retry counts, `lastExecutedAt`, `lastFailedAt`, and `commonFailureCategory`.
 
 ### 10.4 Node-Level Performance & Bottleneck Analysis
+
 - `GET /api/v1/analytics/workflows/:id/nodes`:
   - **Path Parameter**: `id` (Workflow ID).
   - **Response**:
@@ -207,6 +216,7 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
     - `bottlenecks`: Filtered array of nodes marked `isBottleneck = true` (highest latency contributors and elevated failure points).
 
 ### 10.5 Structured Failure Analysis & Credential Sanitization
+
 - `GET /api/v1/analytics/failures`:
   - **Query Parameters**: `range`, `workflowId`.
   - **Classification Categories**: `VALIDATION_ERROR`, `AUTH_ERROR`, `INTEGRATION_ERROR`, `HTTP_TIMEOUT`, `SERVICE_ERROR`, `RATE_LIMITED`, `NODE_CONFIG_ERROR`, `RUNTIME_ERROR`, `QUEUE_ERROR`, `CANCELLATION`, `UNKNOWN_ERROR`.
@@ -214,10 +224,12 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
   - **Response**: `totalFailures`, `categories` breakdown map, `topFailingNodes` frequency map, `topFailingWorkflows` frequency map, and list of `recentFailures` with sanitized messages and error details.
 
 ### 10.6 Organization Resource & Usage Analytics
+
 - `GET /api/v1/analytics/usage`:
   - **Response**: Tenant resource utilization summary: `totalWorkflows`, `activeWorkflows`, `publishedVersions`, `totalExecutions`, `totalStepsExecuted`, `triggerVolume` (by `MANUAL`, `WEBHOOK`, `SCHEDULE`), `approvals` (`total`, `pending`, `decided`), `activeSchedules`, and `activeWebhooks`.
 
 ### 10.7 Operational Infrastructure Telemetry
+
 - `GET /api/v1/analytics/operational`:
   - **Response**:
     - `queue`: `queuedJobs`, `runningJobs`, `waitingApprovalJobs`, `waitingDelayJobs`, `totalInFlight`.
@@ -227,6 +239,7 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
     - `alertsCount`: Count of currently active operational alerts.
 
 ### 10.8 Operational Alerts, Deduplication & Resolution
+
 - `GET /api/v1/analytics/alerts`:
   - **Query Parameters**: `status` (`ACTIVE`, `RESOLVED`), `severity` (`INFO`, `WARNING`, `CRITICAL`).
   - **Response**: Array of operational alerts sorted by `triggeredAt` descending.
@@ -243,10 +256,10 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
   - **Body**: `{ resolutionNote?: string }`.
   - **Response**: Updates alert `status` to `RESOLVED`, sets `resolvedAt`, `resolvedById`, records `resolutionNote`, and emits an audit log `alert.resolved`.
 
-
 ## 11. Enterprise Security, Governance, Invitations, API Keys & Retention Endpoints
 
 ### 11.1 Organization Governance & Settings
+
 - `GET /api/v1/organizations/:organizationId/settings`:
   - **Permissions**: Requires membership in target organization (`org:read`).
   - **Response**: `{ id, name, slug, timezone, billingEmail, enforce2FA, allowedIpRanges, executionRetentionDays, auditRetentionDays, role }`.
@@ -262,6 +275,7 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
   - **Auditing**: Emits `organization.ownership_transferred`.
 
 ### 11.2 Member Administration & Last-Owner Protection
+
 - `GET /api/v1/organizations/:organizationId/members`:
   - **Query Parameters**: `page`, `pageSize`, `search` (filter by email or name), `status` (role filter).
   - **Security**: Strips `passwordHash`, sessions, and credential metadata from member objects.
@@ -271,6 +285,7 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
   - **Invariants**: Non-owners cannot remove `OWNER` role (`403`). Removing the sole organization owner is rejected (`400 LAST_OWNER_PROTECTION`).
 
 ### 11.3 Secure Member Invitation Lifecycle
+
 - `POST /api/v1/organizations/:organizationId/invitations`:
   - **Permissions**: Requires `org:members:write` (`OWNER`, `ADMIN`). Non-owners cannot invite with role `OWNER`.
   - **Body**: `{ email: string, role: "ADMIN" | "MEMBER" | "VIEWER" }`.
@@ -285,6 +300,7 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
   - **Verification**: Matches SHA-256 hash. Verifies single-use (`PENDING` only) and expiry timestamp (`7 days`). Atomically creates organization membership with invited role, updates invitation status to `ACCEPTED`, and emits `organization.invitation.accepted`. Re-using an accepted token returns `400 INVITATION_ALREADY_USED`.
 
 ### 11.4 Scoped API Credentials & Service Access
+
 - `POST /api/v1/organizations/:organizationId/api-keys`:
   - **Permissions**: Requires `api-keys:write` (`OWNER`, `ADMIN`). Blocked for API keys.
   - **Body**: `{ name: string, scopes: ApiKeyScope[], expiresInDays?: number }`.
@@ -301,6 +317,7 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
   - Updates `lastUsedAt` timestamp on each successful request.
 
 ### 11.5 Data Retention & Privacy Controls
+
 - `POST /api/v1/organizations/:organizationId/retention/cleanup`:
   - **Permissions**: Requires `retention:write` (`OWNER`). Blocked for API keys.
   - **Body**: `{ dryRun?: boolean, olderThanDays?: number }`.
@@ -308,6 +325,7 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
   - **Auditing**: Emits `organization.retention.cleanup` with candidate count, pruned count, and cutoff timestamp.
 
 ### 11.6 Rate Limiting & Abuse Controls
+
 - Standard RFC rate-limiting headers returned on API responses:
   - `Retry-After`: Seconds to wait before retrying (on HTTP 429).
   - `X-RateLimit-Limit`: Maximum requests permitted in window.
@@ -319,6 +337,7 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
 ## 12. Connectors & Integration Connections API
 
 ### 12.1 Connector Catalog
+
 - `GET /api/v1/connectors`:
   - **Query Parameters**: `category?: ConnectorCategory` (`HTTP`, `NOTIFICATION`, `DATABASE`, `AI`, `CUSTOM`).
   - **Response**: Array of registered connector definitions with operation specifications and authentication parameter schemas (`http-api`, `smtp-email`, `slack-webhook`).
@@ -326,6 +345,7 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
   - **Response**: Full connector specification, operation schemas, and parameter constraints. 404 if not found.
 
 ### 12.2 Organization Connections Management
+
 - `GET /api/v1/organizations/:organizationId/connections`:
   - **Permissions**: Requires `connections:read` or `org:read`.
   - **Response**: List of configured connections. Sensitive secrets are never exposed; returns `maskedSummary` (e.g. `apiKey: ••••••••1234`), status (`ACTIVE`, `DISABLED`, `REVOKED`), and last tested diagnostics.
@@ -363,12 +383,14 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
 ## 13. Workflow Templates & Marketplace API
 
 ### 13.1 Template Catalog Discovery
+
 - `GET /api/v1/templates`:
   - **Query Parameters**: `category?: string`, `tag?: string`, `search?: string`, `visibility?: TemplateVisibility`, `status?: TemplateStatus`, `page?: number`, `pageSize?: number`.
   - **Multi-Tenant Isolation**: Enforces tenant boundary. Users see only verified `PLATFORM` templates, templates published within their active `ORGANIZATION`, and their own `PRIVATE` drafts. Never returns other tenants' organization or private templates.
   - **Response**: Paginated array of templates with required connections, category, usage count, and latest published version metadata.
 
 ### 13.2 Template Retrieval & Lifecycle
+
 - `GET /api/v1/templates/:templateId`:
   - **Permissions**: Requires authenticated session. Enforces tenant visibility (404/restricted if unauthorized).
   - **Response**: Template record with draft/published definition, required connections, and version info.
@@ -386,6 +408,7 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
   - **Action**: Marks status as `ARCHIVED`. Archived templates are excluded from default catalog search. Emits `template:archive` audit event.
 
 ### 13.3 Immutable Versioning & Comparison
+
 - `POST /api/v1/templates/:templateId/publish`:
   - **Permissions**: `templates:publish` (`OWNER`, `ADMIN`) or template creator.
   - **Body**: `{ releaseNotes?: string }`.
@@ -399,6 +422,7 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
   - **Response**: Semantic diff comparing node additions, deletions, configuration changes, and edge modifications.
 
 ### 13.4 Workflow Instantiation
+
 - `POST /api/v1/templates/:templateId/instantiate`:
   - **Permissions**: Requires `workflow:write` in target active organization.
   - **Body**: `{ name?: string, description?: string, versionId?: string, connectionMappings?: Record<string, string>, inputValues?: Record<string, unknown> }`.
@@ -421,6 +445,7 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
 ## 14. Workflow Collaboration and Team Productivity API
 
 ### 14.1 Access Levels & Permission Model
+
 - **Access Hierarchy**:
   - `OWNER`: Primary workflow owner (`createdById`) or Organization `OWNER` / `ADMIN`. Full rights to edit drafts, publish versions, manage collaborators, transfer ownership, resolve/delete any comments, and view activities.
   - `MAINTAINER`: Can edit drafts, publish immutable versions, add/remove `EDITOR` and `VIEWER` collaborators, resolve comments, and view activities. Cannot transfer primary ownership.
@@ -428,6 +453,7 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
   - `VIEWER`: Can view drafts, inspect versions, and post comments. Cannot modify drafts (returns 403 `FORBIDDEN`).
 
 ### 14.2 Collaborators Management
+
 - `GET /api/v1/workflows/:id/collaborators`:
   - **Permissions**: Requires workflow access (`VIEWER` or higher).
   - **Response**: Array of collaborators with user profile and caller's `meta` permissions (`callerLevel`, `canManageCollaborators`).
@@ -445,6 +471,7 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
   - **Response**: 200 OK. Emits `COLLABORATOR_REMOVED` activity.
 
 ### 14.3 Ownership Transfer
+
 - `POST /api/v1/workflows/:id/transfer-ownership`:
   - **Permissions**: Only primary workflow owner (`createdById`) or Organization `OWNER` / `ADMIN`.
   - **Body**: `{ newOwnerId: string }`.
@@ -452,6 +479,7 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
   - **Response**: 200 OK with updated workflow record.
 
 ### 14.4 Contextual Discussions & Threaded Comments
+
 - `GET /api/v1/workflows/:id/comments`:
   - **Query Parameters**: `status?: "all" | "open" | "resolved"`, `draftRevision?: number`.
   - **Response**: Nested array of top-level comments with `replies: []`, author profiles, node attachment badges, and resolution metadata.
@@ -471,6 +499,7 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
   - **Response**: 200 OK. Emits `COMMENT_DELETED` activity.
 
 ### 14.5 Concurrency Conflict Detection & Activity Feeds
+
 - **Optimistic Concurrency**:
   - `PATCH /api/v1/workflows/:id` tracks `lastUpdatedById`.
   - When `expectedRevision` is provided and mismatches current revision: returns 409 `DRAFT_CONFLICT` with `{ currentRevision, expectedRevision, lastUpdatedById }`.
@@ -486,6 +515,7 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
 ## 15. Enterprise Notifications and Outbound Webhooks API
 
 ### 15.1 In-App Notification Center
+
 - `GET /api/v1/notifications`:
   - **Permissions**: `notifications:read`
   - **Query Parameters**: `isRead?: boolean`, `category?: NotificationCategory`, `limit?: number`, `offset?: number`
@@ -505,6 +535,7 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
   - **Response**: 200 OK. Cross-user access rejected with 404.
 
 ### 15.2 Notification Channel Preferences
+
 - `GET /api/v1/notifications/preferences`:
   - **Permissions**: `notifications:read`
   - **Response**: Array of category preferences with `inApp: boolean` and `email: boolean`. Defaults applied for unconfigured categories.
@@ -514,6 +545,7 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
   - **Response**: Updated preference list. Subsequent domain event dispatches respect channel settings.
 
 ### 15.3 Outbound Webhook Subscriptions
+
 - `GET /api/v1/webhooks/subscriptions`:
   - **Permissions**: `webhook:read`
   - **Response**: List of organization webhook subscriptions with masked/omitted secrets.
@@ -543,15 +575,19 @@ All analytics endpoints strictly enforce multi-tenant organization isolation (`r
   - **Response**: Replays dead-lettered or failed delivery immediately with new timestamp and signature.
 
 ### 15.4 Operational Delivery Metrics
+
 - `GET /api/v1/notifications/metrics`:
   - **Permissions**: `notifications:read`
   - **Response**: `{ pendingOutboxCount: number, deliveries: { total, succeeded, failedPermanently, retryScheduled, deadLettered, pending } }`
+
 ---
 
 ## 16. Workflow Import, Export, Portability, and Backup/Restore API
 
 ### 16.1 Package Format (`flowforge.package/v1`)
+
 All exported workflows adhere to the canonical schema:
+
 ```json
 {
   "formatVersion": "flowforge.package/v1",
@@ -590,12 +626,14 @@ All exported workflows adhere to the canonical schema:
 ```
 
 ### 16.2 Export Endpoints
+
 - `GET /api/v1/workflows/:id/export?target={draft|published|version}&versionNumber={n}&versionId={id}`:
   - **Permissions**: `workflow:export` or `workflow:read`
   - **Headers**: `Content-Disposition: attachment; filename="workflow-<slug>-<target>.flowforge.json"`
   - **Behavior**: Deeply scrubs credentials, passwords, tokens, and authorization headers; abstracts tenant database connection IDs into portable references (`conn_ref_1`); disables triggers for activation safety; computes canonical SHA-256 integrity hash.
 
 ### 16.3 Import & Compatibility Endpoints
+
 - `POST /api/v1/workflows/import/preview`:
   - **Permissions**: `workflow:import` or `workflow:write`
   - **Payload**: `{ package: FlowForgeWorkflowPackage }` (Guarded: 5MB maximum size limit)
@@ -645,12 +683,14 @@ All exported workflows adhere to the canonical schema:
   - **Response (201 or 200)**: `{ success: true, data: { ...targetWorkflow, importId, packageHash, provenance } }`
 
 ### 16.4 Provenance & Import History Endpoints
+
 - `GET /api/v1/workflows/:id/imports`:
   - Returns chronological import provenance records for a specific workflow.
 - `GET /api/v1/organizations/:organizationId/imports`:
   - Returns all workflow imports within the organization.
 
 ### 16.5 Organization Bulk Backup & Restore
+
 - `POST /api/v1/organizations/:organizationId/export-backup`:
   - **Permissions**: `OWNER` or `ADMIN` role.
   - **Response (200)**: `FlowForgeBackupPackage` (`flowforge.backup/v1`) containing full sanitized export of all active organization workflows with master SHA-256 package hash.
@@ -658,4 +698,3 @@ All exported workflows adhere to the canonical schema:
   - **Permissions**: `OWNER` or `ADMIN` role.
   - **Payload**: `{ backupPackage: FlowForgeBackupPackage, conflictStrategy: "CREATE_NEW" }`
   - **Response (201)**: `{ success: true, data: { restoredCount: number, workflows: [...], errors: [] } }`
-

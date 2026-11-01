@@ -33,9 +33,9 @@ export const WorkflowCustomNode = memo(({ data, selected }: NodeProps) => {
 
   return (
     <div
-      className={`min-w-[220px] max-w-[280px] bg-white rounded-lg border-2 shadow-sm transition-all duration-150 ${
+      className={`min-w-[220px] max-w-[280px] bg-white dark:bg-slate-900 rounded-lg border-2 shadow-sm transition-all duration-150 ${
         selected
-          ? "border-teal-500 ring-2 ring-teal-500/30 shadow-md"
+          ? "border-indigo-500 ring-2 ring-indigo-500/30 shadow-md"
           : hasError
             ? "border-red-400 shadow-red-100"
             : registryItem.colors.border
@@ -46,27 +46,33 @@ export const WorkflowCustomNode = memo(({ data, selected }: NodeProps) => {
         <Handle
           type="target"
           position={Position.Top}
-          className="!w-3 !h-3 !bg-slate-400 hover:!bg-teal-500 border-2 !border-white transition-colors"
+          className="!w-3 !h-3 !bg-slate-400 hover:!bg-indigo-500 border-2 !border-white transition-colors"
         />
       )}
 
       {/* Card Header */}
-      <div className={`px-3 py-2 border-b flex items-center justify-between ${registryItem.colors.bg}`}>
+      <div
+        className={`px-3 py-2 border-b flex items-center justify-between ${registryItem.colors.bg}`}
+      >
         <div className="flex items-center gap-2">
-          <div className="p-1 rounded bg-white shadow-xs">
-            <IconComponent className={`w-3.5 h-3.5 ${registryItem.colors.text}`} />
+          <div className="p-1 rounded bg-white dark:bg-slate-900 shadow-xs">
+            <IconComponent
+              className={`w-3.5 h-3.5 ${registryItem.colors.text}`}
+            />
           </div>
-          <span className="text-xs font-bold tracking-tight text-slate-800 truncate max-w-[140px]">
+          <span className="text-xs font-bold tracking-tight text-slate-800 dark:text-slate-200 truncate max-w-[140px]">
             {data.name || registryItem.label}
           </span>
         </div>
-        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${registryItem.colors.badge}`}>
+        <span
+          className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${registryItem.colors.badge}`}
+        >
           {registryItem.category}
         </span>
       </div>
 
       {/* Card Body / Config Preview */}
-      <div className="p-2.5 text-xs text-slate-600 space-y-1">
+      <div className="p-2.5 text-xs text-slate-600 dark:text-slate-400 space-y-1">
         {nodeType === "TRIGGER" && (
           <p className="font-mono text-[11px] text-emerald-700 truncate">
             Type: {data.config?.triggerType || "MANUAL"}
@@ -98,7 +104,7 @@ export const WorkflowCustomNode = memo(({ data, selected }: NodeProps) => {
           </p>
         )}
         {nodeType === "END" && (
-          <p className="text-[11px] text-slate-500 italic">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 italic">
             Terminal leaf node
           </p>
         )}
@@ -138,7 +144,7 @@ export const WorkflowCustomNode = memo(({ data, selected }: NodeProps) => {
           <Handle
             type="source"
             position={Position.Bottom}
-            className="!w-3 !h-3 !bg-slate-400 hover:!bg-teal-500 border-2 !border-white transition-colors"
+            className="!w-3 !h-3 !bg-slate-400 hover:!bg-indigo-500 border-2 !border-white transition-colors"
           />
         )
       )}
@@ -147,4 +153,3 @@ export const WorkflowCustomNode = memo(({ data, selected }: NodeProps) => {
 });
 
 WorkflowCustomNode.displayName = "WorkflowCustomNode";
-

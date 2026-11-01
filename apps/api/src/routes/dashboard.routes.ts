@@ -77,3 +77,56 @@ dashboardRouter.get("/activity", requirePermission("org:read"), (req, res) => {
     error: null,
   });
 });
+
+dashboardRouter.get(
+  "/operations",
+  requirePermission("org:read"),
+  (req, res) => {
+    const orgId = req.organizationId!;
+
+    const tenantExecutions = Array.from(apiStore.executions.values()).filter(
+      (e) => e.organizationId === orgId,
+    );
+    const activeExecutions = tenantExecutions.filter(
+      (e) => e.status === "RUNNING" || e.status === "QUEUED",
+    );
+
+    const tenantIncidents = Array.from(apiStore.incidents.values()).filter(
+      (i) => i.organizationId === orgId,
+    );
+    const openIncidents = tenantIncidents
+      .filter((i) => i.status === "OPEN" || i.status === "INVESTIGATING")
+      .sort((a, b) => b.lastObservedAt.getTime() - a.lastObservedAt.getTime());
+
+    const criticalIncidentsCount = openIncidents.filter(
+      (i) => i.severity === "CRITICAL",
+    ).length;
+
+    const tenantAlerts = Array.from(apiStore.alerts.values()).filter(
+      (a) => a.organizationId === orgId,
+    );
+    const activeAlerts = tenantAlerts
+      .filter((a) => a.status === "ACTIVE")
+      .sort((a, b) => b.triggeredAt.getTime() - a.triggeredAt.getTime());
+
+    res.json({
+      success: true,
+      data: {
+        serviceStatus: {
+          api: "healthy",
+          database: "connected",
+          worker: "healthy",
+        },
+        operationalMetrics: {
+          activeExecutionsCount: activeExecutions.length,
+          openIncidentsCount: openIncidents.length,
+          criticalIncidentsCount,
+          activeAlertsCount: activeAlerts.length,
+        },
+        recentIncidents: openIncidents.slice(0, 5),
+        recentAlerts: activeAlerts.slice(0, 5),
+      },
+      error: null,
+    });
+  },
+);

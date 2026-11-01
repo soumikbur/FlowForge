@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { apiStore } from "../store.js";
 import { Role } from "@flowforge/shared";
 import { ApiKeyRecord } from "@flowforge/test-utils";
+import { oauthService } from "../services/oauth.service.js";
 
 declare global {
   namespace Express {
@@ -14,8 +15,11 @@ declare global {
         lastName?: string;
       };
       organizationId?: string;
+      workspaceId?: string;
       role?: Role;
       isApiKey?: boolean;
+      isOAuthClient?: boolean;
+      isSandbox?: boolean;
       apiKey?: ApiKeyRecord;
       apiKeyScopes?: string[];
     }
@@ -43,6 +47,36 @@ export function requireAuth(
       },
     });
     return;
+  }
+
+  // 0. Check if token is an OAuth 2.0 Access Token
+  if (rawToken.startsWith("ff_oat_")) {
+    const payload = oauthService.verifyAccessToken(rawToken);
+    if (!payload) {
+      res.status(401).json({
+        success: false,
+        data: null,
+        error: {
+          code: "INVALID_TOKEN",
+          message: "OAuth access token is invalid, expired, or revoked.",
+        },
+      });
+      return;
+    }
+
+    req.isApiKey = true;
+    req.isOAuthClient = true;
+    req.apiKeyScopes = payload.scopes;
+    req.organizationId = payload.organizationId;
+    req.workspaceId = payload.workspaceId;
+    req.role = "MEMBER";
+    req.user = {
+      id: payload.clientId,
+      email: `${payload.clientId}@oauth.flowforge.internal`,
+      firstName: "OAuth",
+      lastName: "Client",
+    };
+    return next();
   }
 
   // 1. Check if token is an API Key (starts with "ff_" or passed via x-api-key)
@@ -95,7 +129,8 @@ export function requireAuth(
         data: null,
         error: {
           code: "ORGANIZATION_NOT_FOUND",
-          message: "Organization associated with this API key no longer exists.",
+          message:
+            "Organization associated with this API key no longer exists.",
         },
       });
       return;
@@ -108,9 +143,11 @@ export function requireAuth(
     const creator = apiStore.users.get(apiKey.createdById);
 
     req.isApiKey = true;
+    req.isSandbox = rawToken.startsWith("ff_test_");
     req.apiKey = apiKey;
     req.apiKeyScopes = apiKey.scopes;
     req.organizationId = apiKey.organizationId;
+    req.workspaceId = apiKey.workspaceId;
     req.role = "MEMBER";
     req.user = creator
       ? {
@@ -162,7 +199,8 @@ export function requireAuth(
     (m) => m.userId === user.id,
   );
 
-  const requestedOrgId = (req.headers["x-organization-id"] as string) || undefined;
+  const requestedOrgId =
+    (req.headers["x-organization-id"] as string) || undefined;
   const membership = requestedOrgId
     ? userMemberships.find((m) => m.organizationId === requestedOrgId)
     : userMemberships[0];

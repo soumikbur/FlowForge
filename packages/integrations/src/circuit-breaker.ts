@@ -9,7 +9,9 @@ export interface CircuitBreakerOptions {
 export class CircuitBreakerError extends Error {
   public readonly code = "CIRCUIT_BREAKER_OPEN";
   constructor(public readonly host: string) {
-    super(`Circuit breaker is OPEN for destination '${host}'. Request fast-failed.`);
+    super(
+      `Circuit breaker is OPEN for destination '${host}'. Request fast-failed.`,
+    );
     this.name = "CircuitBreakerError";
   }
 }
@@ -78,7 +80,10 @@ export class CircuitBreaker {
     this.lastFailureTime = Date.now();
     this.failureCount++;
 
-    if (this.state === "HALF_OPEN" || this.failureCount >= this.failureThreshold) {
+    if (
+      this.state === "HALF_OPEN" ||
+      this.failureCount >= this.failureThreshold
+    ) {
       this.state = "OPEN";
     }
   }
@@ -96,7 +101,9 @@ export class CircuitBreaker {
       state: this.getState(),
       failureCount: this.failureCount,
       failureThreshold: this.failureThreshold,
-      lastFailureTime: this.lastFailureTime ? new Date(this.lastFailureTime).toISOString() : null,
+      lastFailureTime: this.lastFailureTime
+        ? new Date(this.lastFailureTime).toISOString()
+        : null,
     };
   }
 }
@@ -104,7 +111,10 @@ export class CircuitBreaker {
 export class CircuitBreakerRegistry {
   private breakers = new Map<string, CircuitBreaker>();
 
-  public getBreaker(name: string, options?: CircuitBreakerOptions): CircuitBreaker {
+  public getBreaker(
+    name: string,
+    options?: CircuitBreakerOptions,
+  ): CircuitBreaker {
     let breaker = this.breakers.get(name);
     if (!breaker) {
       breaker = new CircuitBreaker(name, options);
@@ -129,4 +139,3 @@ export class CircuitBreakerRegistry {
 }
 
 export const defaultCircuitBreakerRegistry = new CircuitBreakerRegistry();
-

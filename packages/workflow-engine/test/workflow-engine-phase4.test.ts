@@ -155,7 +155,9 @@ describe("Phase 4: Safe Condition Evaluator & Expressions", () => {
   };
 
   it("evaluates unary EXISTS and IS_EMPTY operators", () => {
-    expect(evaluateCondition("trigger.payload.score EXISTS", context)).toBe(true);
+    expect(evaluateCondition("trigger.payload.score EXISTS", context)).toBe(
+      true,
+    );
     expect(
       evaluateCondition("trigger.payload.nonExistent EXISTS", context),
     ).toBe(false);
@@ -163,9 +165,9 @@ describe("Phase 4: Safe Condition Evaluator & Expressions", () => {
     expect(
       evaluateCondition("trigger.payload.emptyField IS_EMPTY", context),
     ).toBe(true);
-    expect(evaluateCondition("trigger.payload.nullField IS_EMPTY", context)).toBe(
-      true,
-    );
+    expect(
+      evaluateCondition("trigger.payload.nullField IS_EMPTY", context),
+    ).toBe(true);
     expect(evaluateCondition("trigger.payload.score IS_EMPTY", context)).toBe(
       false,
     );
@@ -185,14 +187,21 @@ describe("Phase 4: Safe Condition Evaluator & Expressions", () => {
       evaluateCondition('trigger.payload.status CONTAINS "APPROV"', context),
     ).toBe(true);
     expect(
-      evaluateCondition('trigger.payload.status NOT_CONTAINS "REJECT"', context),
+      evaluateCondition(
+        'trigger.payload.status NOT_CONTAINS "REJECT"',
+        context,
+      ),
     ).toBe(true);
   });
 
   it("strictly handles numeric comparisons and prevents string coercion bugs", () => {
     expect(evaluateCondition("trigger.payload.score > 80", context)).toBe(true);
-    expect(evaluateCondition("trigger.payload.score <= 85", context)).toBe(true);
-    expect(evaluateCondition("trigger.payload.score < 50", context)).toBe(false);
+    expect(evaluateCondition("trigger.payload.score <= 85", context)).toBe(
+      true,
+    );
+    expect(evaluateCondition("trigger.payload.score < 50", context)).toBe(
+      false,
+    );
 
     // Non-numeric string comparison with < or > returns false
     expect(
@@ -204,9 +213,9 @@ describe("Phase 4: Safe Condition Evaluator & Expressions", () => {
     expect(evaluateCondition("user.__proto__.polluted === true", context)).toBe(
       false,
     );
-    expect(evaluateCondition("user.constructor.name === 'Object'", context)).toBe(
-      false,
-    );
+    expect(
+      evaluateCondition("user.constructor.name === 'Object'", context),
+    ).toBe(false);
 
     // Path exceeding maximum depth returns undefined
     const deepPath = Array(ENGINE_LIMITS.MAX_PATH_DEPTH + 2).join("a.");
@@ -272,8 +281,16 @@ describe("Phase 4: Deterministic Execution Planning", () => {
         sourceHandle: "false",
         target: "node_email_fast",
       },
-      { id: "e_appr_to_end", source: "node_approval", target: "node_end_enterprise" },
-      { id: "e_email_to_end", source: "node_email_fast", target: "node_end_standard" },
+      {
+        id: "e_appr_to_end",
+        source: "node_approval",
+        target: "node_end_enterprise",
+      },
+      {
+        id: "e_email_to_end",
+        source: "node_email_fast",
+        target: "node_end_standard",
+      },
     ],
   };
 
@@ -349,7 +366,8 @@ describe("Phase 4: Deterministic Execution Planning", () => {
 describe("Phase 4: Node Handler Contracts & Metadata Registry", () => {
   it("provides registered metadata for all registered node types", () => {
     const types = defaultRegistry.listSupportedTypes();
-    expect(types.length).toBe(8);
+    expect(types.length).toBe(9);
+    expect(types).toContain("EXTENSION_NODE");
 
     const triggerMeta = defaultRegistry.getMetadata("TRIGGER");
     expect(triggerMeta?.isTrigger).toBe(true);
@@ -364,4 +382,3 @@ describe("Phase 4: Node Handler Contracts & Metadata Registry", () => {
     expect(endMeta?.outputs).toBe(0);
   });
 });
-

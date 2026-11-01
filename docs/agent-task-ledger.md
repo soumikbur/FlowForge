@@ -1,36 +1,38 @@
 # FlowForge Agent Task Ledger
 
-| Task ID  | Description                                            | Dependencies                 | Owner                     | Status | Actual Results                                                |
-| -------- | ------------------------------------------------------ | ---------------------------- | ------------------------- | ------ | ------------------------------------------------------------- |
-| TASK-001 | Repository Audit & Architecture Specifications         | None                         | Lead Architect            | DONE   | Specs authored in `docs/`                                     |
-| TASK-002 | Monorepo Foundation & Tooling Setup                    | TASK-001                     | Infrastructure Engineer   | DONE   | pnpm monorepo initialized, scripts & linting configured       |
-| TASK-003 | Shared Contracts, Validation Schemas & Types           | TASK-002                     | Architect                 | DONE   | `@flowforge/shared` Zod schemas & domain types                |
-| TASK-004 | Database Schema, Prisma Client & Migrations            | TASK-003                     | Database Engineer         | DONE   | Prisma schema, migration DDL, `onDelete: Restrict` invariants |
-| TASK-005 | Authentication, Sessions & RBAC Core                   | TASK-004                     | Security Engineer         | DONE   | Session auth, bcrypt hashing & RBAC                           |
-| TASK-006 | Workflow Management REST API & Versioning              | TASK-005                     | Workflow API Engineer     | DONE   | Complete REST endpoints for drafts & versions                 |
-| TASK-007 | Workflow Graph Validation Engine                       | TASK-003                     | Workflow Engine Engineer  | DONE   | Pure validator: cycles, handles, reachability                 |
-| TASK-008 | Workflow Execution Engine & State Machine              | TASK-007, TASK-004           | Workflow Engine Engineer  | DONE   | State machine & step planner verified                         |
-| TASK-009 | Worker Processing & Worker Resilience                  | TASK-008                     | Reliability Engineer      | DONE   | Execution runner with step tracking & retries                 |
-| TASK-010 | Human Approvals Subsystem & Inbox API                  | TASK-008, TASK-005           | Approval Engineer         | DONE   | Decision API, state suspension & resumption                   |
-| TASK-011 | Integrations (Webhook, HTTP Action, Email, Cron)       | TASK-008                     | Integration Engineer      | DONE   | SSRF guard, HMAC webhook, idempotent email                    |
-| TASK-012 | Frontend Foundation & Auth Routing (Next.js)           | TASK-005                     | Frontend Engineer         | DONE   | Next.js 14 App router, Tailwind CSS, Navigation               |
-| TASK-013 | Visual Workflow Builder (React Flow)                   | TASK-006, TASK-007, TASK-012 | Workflow Builder Engineer | DONE   | Interactive React Flow canvas, node palette & drawer          |
-| TASK-014 | Dashboard, Real-time Metrics & Execution History UI    | TASK-006, TASK-008, TASK-010 | Dashboard Engineer        | DONE   | Real-time metrics, execution timeline UI                      |
-| TASK-015 | Observability, Structured Logging & Health Diagnostics | TASK-006, TASK-009           | DevOps Engineer           | DONE   | API `/health`, `/ready`, correlation IDs, envelopes           |
-| TASK-016 | Automated Test Suite (Unit, Integration, Security)     | TASK-005..TASK-011           | QA Engineer               | DONE   | 56/56 passing tests across 8 test files                       |
-| TASK-017 | Docker Compose, Packaging & Deployment Verification    | TASK-002..TASK-015           | DevOps Engineer           | DONE   | Dockerfiles, docker-compose.yml & CI workflow                 |
-| TASK-024 | Durable Triggers, Scheduling, Webhooks & Integrations  | TASK-008..TASK-023           | Integration Engineer      | DONE   | Inbound webhooks, timezone cron & SSRF protection             |
-| TASK-025 | Human-in-the-Loop Approvals & Execution Controls       | TASK-008..TASK-024           | Reliability Engineer      | DONE   | Approval Inbox, step retry & cancellation                     |
-| TASK-026 | Workflow Versioning, Publishing & Environment Promotion| TASK-006..TASK-025           | Lifecycle Lead Engineer   | DONE   | Content hashing, promotions, rollbacks & comparison           |
-| TASK-027 | Analytics, Monitoring, and Operational Intelligence    | TASK-008..TASK-026           | Lead Observability Eng    | DONE   | Real-time KPIs, latency percentiles, bottlenecks & alerts     |
-| TASK-028 | Enterprise Security, Governance & Administration       | TASK-005..TASK-027           | Lead Security Engineer    | DONE   | Roles (Viewer), invitations, API keys, retention & audit trail|
-| TASK-029 | Enterprise Integration & Connector Management          | TASK-008..TASK-028           | Lead Integration Eng      | DONE   | Connector registry, credential lifecycle, SSRF & testing      |
-| TASK-030 | Workflow Templates, Reusable Components & Marketplace  | TASK-006..TASK-029           | Systems Architect         | DONE   | Template lifecycle, versioning, instantiation & parameters    |
-| TASK-031 | Workflow Collaboration & Team Productivity             | TASK-006..TASK-030           | Collaboration Engineer    | DONE   | Activity feed, comments, mentions & presence locking          |
-| TASK-032 | Enterprise Notifications & Event Delivery Subsystem    | TASK-008..TASK-031           | Reliability Engineer      | DONE   | Multi-channel notifications, preferences, dispatch & retries  |
-| TASK-033 | Workflow Portability, Import/Export & Backup/Restore   | TASK-006..TASK-032           | Portability Lead Engineer | DONE   | Portable format, dry-run import preview, backup & restore     |
-| TASK-034 | Performance, Scalability, Reliability & Hardening      | TASK-001..TASK-033           | Performance & SRE Lead    | DONE   | Empirical baselines, SLO budgets, LRU cache, circuit breaker  |
-| TASK-035 | E2E Integration Testing, Security Audit & Release QA   | TASK-001..TASK-034           | Lead QA & Security Eng    | DONE   | 431/431 passing tests, release verification report, audit pass|
+| Task ID  | Description                                               | Dependencies                 | Owner                           | Status | Actual Results                                                     |
+| -------- | --------------------------------------------------------- | ---------------------------- | ------------------------------- | ------ | ------------------------------------------------------------------ |
+| TASK-001 | Repository Audit & Architecture Specifications            | None                         | Lead Architect                  | DONE   | Specs authored in `docs/`                                          |
+| TASK-002 | Monorepo Foundation & Tooling Setup                       | TASK-001                     | Infrastructure Engineer         | DONE   | pnpm monorepo initialized, scripts & linting configured            |
+| TASK-003 | Shared Contracts, Validation Schemas & Types              | TASK-002                     | Architect                       | DONE   | `@flowforge/shared` Zod schemas & domain types                     |
+| TASK-004 | Database Schema, Prisma Client & Migrations               | TASK-003                     | Database Engineer               | DONE   | Prisma schema, migration DDL, `onDelete: Restrict` invariants      |
+| TASK-005 | Authentication, Sessions & RBAC Core                      | TASK-004                     | Security Engineer               | DONE   | Session auth, bcrypt hashing & RBAC                                |
+| TASK-006 | Workflow Management REST API & Versioning                 | TASK-005                     | Workflow API Engineer           | DONE   | Complete REST endpoints for drafts & versions                      |
+| TASK-007 | Workflow Graph Validation Engine                          | TASK-003                     | Workflow Engine Engineer        | DONE   | Pure validator: cycles, handles, reachability                      |
+| TASK-008 | Workflow Execution Engine & State Machine                 | TASK-007, TASK-004           | Workflow Engine Engineer        | DONE   | State machine & step planner verified                              |
+| TASK-009 | Worker Processing & Worker Resilience                     | TASK-008                     | Reliability Engineer            | DONE   | Execution runner with step tracking & retries                      |
+| TASK-010 | Human Approvals Subsystem & Inbox API                     | TASK-008, TASK-005           | Approval Engineer               | DONE   | Decision API, state suspension & resumption                        |
+| TASK-011 | Integrations (Webhook, HTTP Action, Email, Cron)          | TASK-008                     | Integration Engineer            | DONE   | SSRF guard, HMAC webhook, idempotent email                         |
+| TASK-012 | Frontend Foundation & Auth Routing (Next.js)              | TASK-005                     | Frontend Engineer               | DONE   | Next.js 14 App router, Tailwind CSS, Navigation                    |
+| TASK-013 | Visual Workflow Builder (React Flow)                      | TASK-006, TASK-007, TASK-012 | Workflow Builder Engineer       | DONE   | Interactive React Flow canvas, node palette & drawer               |
+| TASK-014 | Dashboard, Real-time Metrics & Execution History UI       | TASK-006, TASK-008, TASK-010 | Dashboard Engineer              | DONE   | Real-time metrics, execution timeline UI                           |
+| TASK-015 | Observability, Structured Logging & Health Diagnostics    | TASK-006, TASK-009           | DevOps Engineer                 | DONE   | API `/health`, `/ready`, correlation IDs, envelopes                |
+| TASK-016 | Automated Test Suite (Unit, Integration, Security)        | TASK-005..TASK-011           | QA Engineer                     | DONE   | 56/56 passing tests across 8 test files                            |
+| TASK-017 | Docker Compose, Packaging & Deployment Verification       | TASK-002..TASK-015           | DevOps Engineer                 | DONE   | Dockerfiles, docker-compose.yml & CI workflow                      |
+| TASK-024 | Durable Triggers, Scheduling, Webhooks & Integrations     | TASK-008..TASK-023           | Integration Engineer            | DONE   | Inbound webhooks, timezone cron & SSRF protection                  |
+| TASK-025 | Human-in-the-Loop Approvals & Execution Controls          | TASK-008..TASK-024           | Reliability Engineer            | DONE   | Approval Inbox, step retry & cancellation                          |
+| TASK-026 | Workflow Versioning, Publishing & Environment Promotion   | TASK-006..TASK-025           | Lifecycle Lead Engineer         | DONE   | Content hashing, promotions, rollbacks & comparison                |
+| TASK-027 | Analytics, Monitoring, and Operational Intelligence       | TASK-008..TASK-026           | Lead Observability Eng          | DONE   | Real-time KPIs, latency percentiles, bottlenecks & alerts          |
+| TASK-028 | Enterprise Security, Governance & Administration          | TASK-005..TASK-027           | Lead Security Engineer          | DONE   | Roles (Viewer), invitations, API keys, retention & audit trail     |
+| TASK-029 | Enterprise Integration & Connector Management             | TASK-008..TASK-028           | Lead Integration Eng            | DONE   | Connector registry, credential lifecycle, SSRF & testing           |
+| TASK-030 | Workflow Templates, Reusable Components & Marketplace     | TASK-006..TASK-029           | Systems Architect               | DONE   | Template lifecycle, versioning, instantiation & parameters         |
+| TASK-031 | Workflow Collaboration & Team Productivity                | TASK-006..TASK-030           | Collaboration Engineer          | DONE   | Activity feed, comments, mentions & presence locking               |
+| TASK-032 | Enterprise Notifications & Event Delivery Subsystem       | TASK-008..TASK-031           | Reliability Engineer            | DONE   | Multi-channel notifications, preferences, dispatch & retries       |
+| TASK-033 | Workflow Portability, Import/Export & Backup/Restore      | TASK-006..TASK-032           | Portability Lead Engineer       | DONE   | Portable format, dry-run import preview, backup & restore          |
+| TASK-034 | Performance, Scalability, Reliability & Hardening         | TASK-001..TASK-033           | Performance & SRE Lead          | DONE   | Empirical baselines, SLO budgets, LRU cache, circuit breaker       |
+| TASK-035 | E2E Integration Testing, Security Audit & Release QA      | TASK-001..TASK-034           | Lead QA & Security Eng          | DONE   | 431/431 passing tests, release verification report, audit pass     |
+| TASK-056 | Full-System Integration and End-to-End Regression Testing | TASK-001..TASK-055           | Principal QA & System Architect | DONE   | Cross-module regression, 10 Journeys (A-J), secret redaction & DLQ |
+| TASK-057 | Production Readiness, Release Certification & Remediation | TASK-001..TASK-056           | Release Certification Lead      | DONE   | Readiness scorecard, baseline audit, security gates & go/no-go     |
 
 ---
 
@@ -107,7 +109,6 @@
 - **KNOWN LIMITATIONS**: Host workstation lacks native PostgreSQL daemon; tests use in-memory store adapter while DDL migration is prepared for containerized PostgreSQL.
 - **STATUS**: DONE
 
-
 ---
 
 ### TASK-018: Multi-Tenant Organization Management & RBAC API
@@ -161,7 +162,6 @@
 - **ACTUAL RESULTS**: 89/89 tests passing across 11 test suites; Next.js 14 web app and Node.js API/Worker apps compiled cleanly.
 - **STATUS**: DONE
 
-
 ---
 
 ### TASK-021: Visual Workflow Builder, Node Registry & Graph Serialization
@@ -182,7 +182,6 @@
 - **ACTUAL RESULTS**: All 15 tests passing across 3 test suites; Next.js 14 production build succeeds with 0 errors.
 - **STATUS**: DONE
 
-
 ---
 
 ### TASK-022: Workflow Graph Validation, Execution Planning & Node Handler Contracts
@@ -202,7 +201,6 @@
 - **REQUIRED TESTS**: `packages/workflow-engine/test/workflow-engine.test.ts`, `packages/workflow-engine/test/workflow-engine-phase4.test.ts`
 - **ACTUAL RESULTS**: All 27 engine tests passing; 118/118 tests passing across the entire repository.
 - **STATUS**: DONE
-
 
 ---
 
@@ -227,7 +225,6 @@
 - **ACTUAL RESULTS**: All 20/20 Phase 5 integration tests passing; 138/138 total tests passing across 16 test suites.
 - **STATUS**: DONE
 
-
 ---
 
 ### TASK-024: Durable Triggers, Scheduling, Webhooks, and Integrations (Prompt 7)
@@ -249,7 +246,6 @@
 - **VERIFICATION COMMANDS**: `pnpm test; pnpm typecheck; pnpm lint; pnpm build`
 - **ACTUAL RESULTS**: All 32/32 Prompt 7 integration tests passing; 170/170 total tests passing across 17 test suites; Next.js 14 and all packages build with 0 errors.
 - **STATUS**: DONE
-
 
 ---
 
@@ -304,7 +300,6 @@
 - **ACTUAL RESULTS**: All 23/23 Prompt 9 integration tests passing; 209/209 total tests passing across 19 test suites; full monorepo build and Next.js 14 production build succeed with 0 errors.
 - **STATUS**: DONE
 
-
 ---
 
 ### TASK-027: Analytics, Monitoring, and Operational Intelligence (Prompt 10)
@@ -349,7 +344,6 @@
 - **VERIFICATION COMMANDS**: `pnpm test; pnpm typecheck; pnpm build`
 - **ACTUAL RESULTS**: All 18/18 Prompt 10 integration tests passing; 227/227 total tests passing across 20 test suites; full monorepo build and Next.js 14 production build succeed with 0 errors.
 - **STATUS**: DONE
-
 
 ---
 
@@ -489,6 +483,7 @@
 - **STATUS**: DONE
 
 ## TASK-031: Workflow Collaboration, Team Productivity, Discussions, and Activity Feeds (Prompt 14)
+
 - **TASK ID**: TASK-031
 - **TITLE**: Workflow Collaboration and Team Productivity
 - **DESCRIPTION**: Implement a complete, multi-tenant team collaboration system for FlowForge, including workflow-level access roles (MAINTAINER, EDITOR, VIEWER), collaborator management, primary ownership transfer, contextual discussions and node-pinned comments with threading and resolution states, optimistic concurrency conflict detection with actor attribution, chronological activity feeds (workflow-level and organization-wide), and frontend productivity controls in the visual workflow builder and workflow dashboard.
@@ -535,6 +530,7 @@
 ---
 
 ## TASK-032: Prompt 15 — Enterprise Notifications and Event Delivery
+
 - **STATUS**: DONE
 - **OBJECTIVE**: Implement a reliable, secure, tenant-aware notification and event-delivery subsystem connecting workflow lifecycle and business events to internal in-app notifications, email notifications, and outbound webhooks with transactional outbox, SSRF defense, HMAC signatures, and retry backoff.
 - **SUCCESS CRITERIA**:
@@ -581,9 +577,11 @@
 - **VERIFICATION COMMANDS**: `pnpm test; pnpm typecheck; pnpm build`
 - **ACTUAL RESULTS**: All 26/26 Prompt 15 integration tests passing; 350/350 total tests passing across 25 test suites; full monorepo build and Next.js 14 production build succeed with 0 errors.
 - **STATUS**: DONE
+
 ---
 
 ## TASK-033: Workflow Import, Export, Portability, and Backup/Restore (Prompt 16)
+
 - **TASK ID**: TASK-033
 - **TITLE**: Workflow Import, Export, Portability, and Backup/Restore
 - **DESCRIPTION**: Implement an enterprise workflow portability subsystem allowing authorized users to export workflows, transfer them between environments or organizations, import workflow packages, inspect dependencies, resolve configuration differences, and validate imported workflows before activation, with deterministic cryptographic package integrity, deep credential sanitization, tenant-safe connector mapping, conflict resolution strategies, provenance tracking, and organization bulk backup/restore.
@@ -695,7 +693,6 @@
 - **ACTUAL RESULTS**: All 17/17 Prompt 17 resilience tests passing; 393/393 total tests passing across all 27 test files; full monorepo build succeeds with 0 errors.
 - **STATUS**: DONE
 
-
 ---
 
 ### TASK-035: End-to-End Integration Testing, Security Audit, and Release QA
@@ -740,4 +737,43 @@
 - **REQUIRED TESTS**: tests/integration/end-to-end-release-qa.test.ts, tests/e2e/workflow-builder.spec.ts
 - **VERIFICATION COMMANDS**: pnpm test; pnpm typecheck; pnpm build
 - **ACTUAL RESULTS**: All 32/32 release QA tests passing; all 6/6 builder E2E tests passing; 431/431 total tests passing across all 29 test files; full monorepo build succeeds with 0 errors.
+- **STATUS**: DONE
+
+---
+
+### TASK-056: Full-System Integration and End-to-End Regression Testing (Prompt 39)
+
+- **OBJECTIVE**: Comprehensive, repository-driven cross-module integration and full-system regression verification across FlowForge. Authored and executed an exhaustive end-to-end regression test suite (`tests/integration/full-system-e2e-regression.test.ts`) covering all 10 mandated production journeys: Journey A (Multi-step linear & branched workflow lifecycle, validation, publication, worker execution), Journey B (Cyclic invalid graph rejection with zero partial state corruption and safe recovery), Journey C (Execution failure, sensitive credential deep scrubbing, step retry tracking), Journey D (Human approval checkpoint suspension, cross-tenant decision prevention, authorized approval resumption), Journey E (Multi-tenant resource isolation, cross-tenant 404 boundary enforcement), Journey F (Cryptographic HMAC-SHA256 signature verification, pre-idempotency validation ordering, replay detection), Journey G (Connector credential AES-256-GCM encryption, SSRF protection against private CIDR blocks/metadata services, credential revocation), Journey H (Real-time RBAC demotion without stale token caching), Journey I (Workflow package export integrity with SHA-256 canonical hashing and cross-tenant import ID regeneration), Journey J (Idempotent API replay caching and payload mismatch 409 rejection), alongside Worker Resilience, Circuit Breaker thresholding, and Graceful Shutdown handling.
+- **DEPENDENCIES**: TASK-001..TASK-055
+- **ALLOWED FILES**: All files across monorepo (`apps/api`, `apps/worker`, `apps/web`, `packages/*`, `tests/*`, `docs/*`)
+- **DELIVERABLES & DEFECT REMEDIATIONS**:
+  1. **DEF-SEC-01 (P1 - Credential Leakage in Execution Details)**: Resolved sensitive credential leakage in `apps/api/src/routes/execution.routes.ts` (`GET /:id`, `GET /`, and `GET /:id/steps`) where unredacted execution trigger payloads and context data were exposed. Integrated recursive `deepScrubSecrets` from `@flowforge/workflow-engine` ensuring all sensitive keys (`password`, `token`, `secret`, `apiKey`) are masked as `[REDACTED]`.
+  2. **DEF-SEC-02 (P1 - Insecure Webhook Validation Ordering)**: Reordered webhook processing in `apps/api/src/routes/webhook.routes.ts` so that cryptographic HMAC-SHA256 signature verification and replay defense are executed _before_ idempotency caching. This prevents unauthenticated attackers from gaining duplicate payload acknowledgments with tampered signatures.
+  3. **DEF-ENG-01 (Engine Portability Preservation)**: Enhanced `deepScrubSecrets` in `packages/workflow-engine/src/portability.ts` to preserve `Date` instances, preventing object-entry flattening of Date fields into empty objects `{}`.
+  4. **DEF-ROUTER-01 (Connector Routing Discovery)**: Aligned organizational connection creation with canonical REST route `/api/v1/organizations/:organizationId/connections` and supported both catalog inspection and connection credential rotation.
+  5. **TEST-SUITE-P39**: Created comprehensive end-to-end regression test suite `tests/integration/full-system-e2e-regression.test.ts` (26 test cases) validating all 10 core integration journeys.
+- **ACCEPTANCE CRITERIA**: 100% test pass rate across all 50 test suites (848/848 tests passing); 0 TypeScript errors; 0 ESLint errors; clean Next.js 14 production build; overall status: PASS.
+- **REQUIRED TESTS**: `tests/integration/full-system-e2e-regression.test.ts`
+- **VERIFICATION COMMANDS**: `pnpm test; pnpm typecheck; pnpm lint; pnpm --prefix apps/web build`
+- **ACTUAL RESULTS**: All 26/26 Prompt 39 tests passing; 848/848 total tests passing across all 50 test files; 0 TypeScript errors; 0 ESLint errors; full Next.js production build succeeds with 0 errors; release status: PASS.
+- **STATUS**: DONE
+
+---
+
+### TASK-057: Production Readiness, Release Certification, and Final Remediation (Prompt 40)
+
+- **OBJECTIVE**: Final production-readiness evaluation, baseline consolidation, release-blocking defect resolution, comprehensive security gate verification, and evidence-based release certification with formal Go/No-Go decision.
+- **DEPENDENCIES**: TASK-001..TASK-056
+- **ALLOWED FILES**: All files across monorepo (`apps/*`, `packages/*`, `tests/*`, `docs/*`, `scripts/*`)
+- **DELIVERABLES & VERIFICATION**:
+  1. **Production Readiness Scorecard**: Assessed 10 production readiness domains (Application Correctness, Workflow Execution, Security, Data Integrity, Reliability, Enterprise Capabilities, Accessibility/Usability, Deployment/Operations, Observability, Disaster Recovery).
+  2. **Security Release Gate**: Zero hardcoded secrets, timing-safe cryptographic verification, strict tenant isolation across all API endpoints, SSRF protections against internal CIDR/metadata IPs, AES-256-GCM credential encryption at rest, and secret redaction (`deepScrubSecrets`) verified.
+  3. **Critical End-to-End Journeys**: All 10 mandated production journeys (A through J) and worker resilience verified passing in `tests/integration/full-system-e2e-regression.test.ts`.
+  4. **Database & Migrations**: 28 Prisma migrations ordered and verified with zero schema drift; PostgreSQL connection URL enforced in production; forward-recovery strategy established.
+  5. **Deployment & Operations**: Multi-stage Dockerfiles (`apps/api`, `apps/worker`, `apps/web`), unprivileged runtime users (`flowforge:1001`), Docker Compose production definitions, and healthcheck endpoints (`/health/live`, `/health/ready`, `/health`) validated.
+  6. **Release Recommendation**: **CONDITIONAL GO** — All automated test suites, production builds, and security gates pass; live production deployment requires fulfillment of external environment prerequisites (PostgreSQL 16 connection, Redis 7 TLS instance, high-entropy KMS secrets, and ingress reverse proxy for Next.js 14 CVE mitigation).
+- **ACCEPTANCE CRITERIA**: 100% test pass rate across all 50 test suites (848/848 tests passing); 0 TypeScript errors; 0 ESLint errors; clean Next.js 14 production build; overall status: CONDITIONAL GO.
+- **REQUIRED TESTS**: All 50 test suites across monorepo
+- **VERIFICATION COMMANDS**: `pnpm test; pnpm typecheck; pnpm lint; pnpm --prefix apps/web build`
+- **ACTUAL RESULTS**: 848/848 tests passing across 50 test suites; 0 TypeScript errors; 0 ESLint errors; Next.js 14 production build succeeds with 0 errors; Ponytail preflight checks pass (7/7 version files pinned at 5.3.3, 10 rule invariants present, 5/5 activation tests passing); recommendation: CONDITIONAL GO.
 - **STATUS**: DONE

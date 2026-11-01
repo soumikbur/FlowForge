@@ -17,7 +17,8 @@ approvalRouter.use(requireAuth);
 function meetsRole(userRole: Role | undefined, requiredRole: Role): boolean {
   if (!userRole) return false;
   if (userRole === "OWNER") return true;
-  if (userRole === "ADMIN") return requiredRole === "ADMIN" || requiredRole === "MEMBER";
+  if (userRole === "ADMIN")
+    return requiredRole === "ADMIN" || requiredRole === "MEMBER";
   return requiredRole === "MEMBER";
 }
 
@@ -29,7 +30,10 @@ approvalRouter.get("/", requirePermission("approval:read"), (req, res) => {
   const { status, assignedToMe, page = "1", pageSize = "20" } = req.query;
 
   const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
-  const sizeNum = Math.min(100, Math.max(1, parseInt(pageSize as string, 10) || 20));
+  const sizeNum = Math.min(
+    100,
+    Math.max(1, parseInt(pageSize as string, 10) || 20),
+  );
 
   let approvals = Array.from(apiStore.approvals.values()).filter(
     (a) => a.organizationId === orgId,
@@ -95,10 +99,16 @@ approvalRouter.get("/:id", requirePermission("approval:read"), (req, res) => {
   }
 
   const execution = apiStore.executions.get(approval.executionId);
-  const workflow = execution ? apiStore.workflows.get(execution.workflowId) : undefined;
+  const workflow = execution
+    ? apiStore.workflows.get(execution.workflowId)
+    : undefined;
   const step = apiStore.steps.get(approval.stepId);
-  const decider = approval.decidedById ? apiStore.users.get(approval.decidedById) : undefined;
-  const assignee = approval.assignedUserId ? apiStore.users.get(approval.assignedUserId) : undefined;
+  const decider = approval.decidedById
+    ? apiStore.users.get(approval.decidedById)
+    : undefined;
+  const assignee = approval.assignedUserId
+    ? apiStore.users.get(approval.assignedUserId)
+    : undefined;
 
   res.json({
     success: true,
@@ -124,8 +134,22 @@ approvalRouter.get("/:id", requirePermission("approval:read"), (req, res) => {
             attempt: step.attempt,
           }
         : null,
-      decider: decider ? { id: decider.id, email: decider.email, firstName: decider.firstName, lastName: decider.lastName } : null,
-      assignee: assignee ? { id: assignee.id, email: assignee.email, firstName: assignee.firstName, lastName: assignee.lastName } : null,
+      decider: decider
+        ? {
+            id: decider.id,
+            email: decider.email,
+            firstName: decider.firstName,
+            lastName: decider.lastName,
+          }
+        : null,
+      assignee: assignee
+        ? {
+            id: assignee.id,
+            email: assignee.email,
+            firstName: assignee.firstName,
+            lastName: assignee.lastName,
+          }
+        : null,
     },
     error: null,
   });
@@ -180,7 +204,10 @@ approvalRouter.post(
       res.status(404).json({
         success: false,
         data: null,
-        error: { code: "NOT_FOUND", message: "Associated execution not found." },
+        error: {
+          code: "NOT_FOUND",
+          message: "Associated execution not found.",
+        },
       });
       return;
     }
@@ -203,7 +230,8 @@ approvalRouter.post(
         data: null,
         error: {
           code: "SELF_APPROVAL_FORBIDDEN",
-          message: "Self-approval is forbidden for this workflow. An independent approver is required.",
+          message:
+            "Self-approval is forbidden for this workflow. An independent approver is required.",
         },
       });
       return;
@@ -272,7 +300,8 @@ approvalRouter.post(
     if (execution.status !== "CANCELLED") {
       if (decision === "APPROVE") {
         if (version) {
-          const currentNodeId = execution.currentNodeId || (step ? step.nodeId : "");
+          const currentNodeId =
+            execution.currentNodeId || (step ? step.nodeId : "");
           execution.contextData = {
             ...execution.contextData,
             steps: {

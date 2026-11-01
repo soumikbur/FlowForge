@@ -85,7 +85,9 @@ export class ConnectorRegistry {
   public getHandler(id: string): ConnectorHandler {
     const handler = this.handlers.get(id);
     if (!handler) {
-      throw new Error(`Execution handler for connector '${id}' not registered.`);
+      throw new Error(
+        `Execution handler for connector '${id}' not registered.`,
+      );
     }
     return handler;
   }

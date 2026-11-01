@@ -52,7 +52,10 @@ export function isPrivateIp(ip: string): boolean {
  * Checks whether a hostname matches prohibited or dangerous internal names.
  */
 export function isBlockedHostname(hostname: string): boolean {
-  const clean = hostname.toLowerCase().replace(/^\[|\]$/g, "").trim();
+  const clean = hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "")
+    .trim();
   if (
     clean === "localhost" ||
     clean === "::1" ||

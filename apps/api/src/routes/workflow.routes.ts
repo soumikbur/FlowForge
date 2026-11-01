@@ -27,6 +27,12 @@ import { publishDomainEvent } from "../services/event-delivery.service.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { resolveWorkflowAccess } from "../middleware/workflow-access.js";
 import { collaborationRouter } from "./collaboration.routes.js";
+import { entitlementService } from "../services/entitlement.service.js";
+import { deprecationNotice } from "../middleware/deprecation.js";
+import { policyService } from "../services/policy.service.js";
+import { resourceGovernanceService } from "../services/resource-governance.service.js";
+import { simulationService } from "../services/simulation.service.js";
+import { workflowSimulationRouter } from "./simulation.routes.js";
 
 export const workflowRouter = Router();
 
@@ -72,7 +78,9 @@ workflowRouter.get("/", requirePermission("workflow:read"), (req, res) => {
   if (status) {
     workflows = workflows.filter((w) => w.status === status);
   } else {
-    workflows = workflows.filter((w) => !w.deletedAt && w.status !== "ARCHIVED");
+    workflows = workflows.filter(
+      (w) => !w.deletedAt && w.status !== "ARCHIVED",
+    );
   }
 
   // Name / Description Search filter
@@ -100,31 +108,41 @@ workflowRouter.get("/", requirePermission("workflow:read"), (req, res) => {
     );
   }
 
+  if (req.query.workspaceId) {
+    workflows = workflows.filter(
+      (w) => w.workspaceId === req.query.workspaceId,
+    );
+  }
+
   // Sort by updatedAt descending
   workflows.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
 
   const total = workflows.length;
   const startIndex = (page - 1) * pageSize;
-  const paginatedWorkflows = workflows.slice(startIndex, startIndex + pageSize).map((w) => {
-    const collabCount = Array.from(apiStore.collaborators.values()).filter(
-      (c) => c.workflowId === w.id,
-    ).length;
-    const ownerUser = w.createdById ? apiStore.users.get(w.createdById) : null;
-    const access = resolveWorkflowAccess(w, req);
-    return {
-      ...w,
-      collaboratorsCount: collabCount,
-      accessLevel: access?.level,
-      owner: ownerUser
-        ? {
-            id: ownerUser.id,
-            email: ownerUser.email,
-            firstName: ownerUser.firstName,
-            lastName: ownerUser.lastName,
-          }
-        : null,
-    };
-  });
+  const paginatedWorkflows = workflows
+    .slice(startIndex, startIndex + pageSize)
+    .map((w) => {
+      const collabCount = Array.from(apiStore.collaborators.values()).filter(
+        (c) => c.workflowId === w.id,
+      ).length;
+      const ownerUser = w.createdById
+        ? apiStore.users.get(w.createdById)
+        : null;
+      const access = resolveWorkflowAccess(w, req);
+      return {
+        ...w,
+        collaboratorsCount: collabCount,
+        accessLevel: access?.level,
+        owner: ownerUser
+          ? {
+              id: ownerUser.id,
+              email: ownerUser.email,
+              firstName: ownerUser.firstName,
+              lastName: ownerUser.lastName,
+            }
+          : null,
+      };
+    });
 
   res.json({
     success: true,
@@ -157,7 +175,38 @@ workflowRouter.post("/", requirePermission("workflow:write"), (req, res) => {
     return;
   }
 
-  const { name, description } = parseResult.data;
+  const wfQuota = entitlementService.checkWorkflowCreationQuota(
+    req.organizationId!,
+  );
+  if (!wfQuota.allowed) {
+    res.status(402).json({
+      success: false,
+      data: null,
+      error: {
+        code: wfQuota.reason,
+        message: wfQuota.message,
+        details: { limit: wfQuota.limit, currentUsage: wfQuota.currentUsage },
+      },
+    });
+    return;
+  }
+
+  const { name, description, workspaceId } = parseResult.data;
+  if (workspaceId) {
+    const ws = apiStore.workspaces.get(workspaceId);
+    if (!ws || ws.organizationId !== req.organizationId) {
+      res.status(404).json({
+        success: false,
+        data: null,
+        error: {
+          code: "NOT_FOUND",
+          message: "Workspace not found in this organization.",
+        },
+      });
+      return;
+    }
+  }
+
   const workflowId = `wf_${crypto.randomUUID()}`;
   const now = new Date();
 
@@ -166,6 +215,7 @@ workflowRouter.post("/", requirePermission("workflow:write"), (req, res) => {
     organizationId: req.organizationId!,
     name,
     description,
+    workspaceId: workspaceId || undefined,
     status: "DRAFT",
     draftRevision: 1,
     createdById: req.user?.id,
@@ -217,7 +267,11 @@ workflowRouter.post("/", requirePermission("workflow:write"), (req, res) => {
 // ==========================================
 workflowRouter.get("/:id", requirePermission("workflow:read"), (req, res) => {
   const workflow = apiStore.workflows.get(req.params.id);
-  if (!workflow || workflow.organizationId !== req.organizationId || workflow.deletedAt) {
+  if (
+    !workflow ||
+    workflow.organizationId !== req.organizationId ||
+    workflow.deletedAt
+  ) {
     res.status(404).json({
       success: false,
       data: null,
@@ -231,7 +285,10 @@ workflowRouter.get("/:id", requirePermission("workflow:read"), (req, res) => {
     res.status(404).json({
       success: false,
       data: null,
-      error: { code: "NOT_FOUND", message: "Workflow not found or access denied." },
+      error: {
+        code: "NOT_FOUND",
+        message: "Workflow not found or access denied.",
+      },
     });
     return;
   }
@@ -240,11 +297,13 @@ workflowRouter.get("/:id", requirePermission("workflow:read"), (req, res) => {
     .filter((v) => v.workflowId === workflow.id)
     .sort((a, b) => b.versionNumber - a.versionNumber);
 
-  const deployments = Array.from(apiStore.deployments.values())
-    .filter((d) => d.workflowId === workflow.id && d.status === "ACTIVE");
+  const deployments = Array.from(apiStore.deployments.values()).filter(
+    (d) => d.workflowId === workflow.id && d.status === "ACTIVE",
+  );
 
   const environments: Record<string, WorkflowDeploymentRecord | null> = {
-    development: deployments.find((d) => d.environment === "development") || null,
+    development:
+      deployments.find((d) => d.environment === "development") || null,
     staging: deployments.find((d) => d.environment === "staging") || null,
     production: deployments.find((d) => d.environment === "production") || null,
   };
@@ -266,7 +325,9 @@ workflowRouter.get("/:id", requirePermission("workflow:read"), (req, res) => {
       };
     });
 
-  const ownerUser = workflow.createdById ? apiStore.users.get(workflow.createdById) : null;
+  const ownerUser = workflow.createdById
+    ? apiStore.users.get(workflow.createdById)
+    : null;
 
   res.json({
     success: true,
@@ -297,116 +358,119 @@ workflowRouter.get("/:id", requirePermission("workflow:read"), (req, res) => {
 // ==========================================
 // 4. Update workflow draft with optimistic concurrency protection
 // ==========================================
-workflowRouter.patch(
-  "/:id",
-  (req, res) => {
-    const workflow = apiStore.workflows.get(req.params.id);
-    if (!workflow || workflow.organizationId !== req.organizationId || workflow.deletedAt) {
-      res.status(404).json({
-        success: false,
-        data: null,
-        error: { code: "NOT_FOUND", message: "Workflow not found." },
-      });
-      return;
-    }
-
-    const access = resolveWorkflowAccess(workflow, req);
-    if (!access || !access.canEdit) {
-      res.status(403).json({
-        success: false,
-        data: null,
-        error: {
-          code: "FORBIDDEN",
-          message: "You lack permission to edit this workflow draft.",
-        },
-      });
-      return;
-    }
-
-    const parseResult = UpdateWorkflowSchema.safeParse(req.body);
-    if (!parseResult.success) {
-      res.status(400).json({
-        success: false,
-        data: null,
-        error: {
-          code: "VALIDATION_FAILED",
-          message: "Invalid update payload",
-          details: parseResult.error.issues,
-        },
-      });
-      return;
-    }
-
-    // Optimistic Concurrency Control
-    const expectedRevision =
-      parseResult.data.expectedRevision !== undefined
-        ? parseResult.data.expectedRevision
-        : req.headers["if-match"]
-          ? parseInt(req.headers["if-match"] as string, 10)
-          : undefined;
-
-    const currentRevision = workflow.draftRevision || 1;
-    if (expectedRevision !== undefined && expectedRevision !== currentRevision) {
-      res.status(409).json({
-        success: false,
-        data: null,
-        error: {
-          code: "DRAFT_CONFLICT",
-          message: `Draft was modified by another session (expected revision ${expectedRevision}, current is ${currentRevision}). Refresh to review latest changes.`,
-          details: {
-            currentRevision,
-            expectedRevision,
-            lastUpdatedById: workflow.lastUpdatedById,
-          },
-        },
-      });
-      return;
-    }
-
-    const { name, description, nodes, edges } = parseResult.data;
-
-    if (name !== undefined) workflow.name = name;
-    if (description !== undefined) workflow.description = description;
-    if (nodes !== undefined || edges !== undefined) {
-      workflow.draftDefinition = {
-        nodes: nodes ?? workflow.draftDefinition.nodes,
-        edges: edges ?? workflow.draftDefinition.edges,
-      };
-    }
-    workflow.draftRevision = currentRevision + 1;
-    workflow.lastUpdatedById = req.user?.id;
-    workflow.updatedAt = new Date();
-
-    apiStore.workflows.set(workflow.id, workflow);
-
-    apiStore.recordAudit({
-      organizationId: req.organizationId!,
-      userId: req.user?.id,
-      action: "workflow.updated",
-      resourceType: "workflow",
-      resourceId: workflow.id,
-      metadata: { name: workflow.name, revision: workflow.draftRevision },
-      ipAddress: req.ip,
+workflowRouter.patch("/:id", (req, res) => {
+  const workflow = apiStore.workflows.get(req.params.id);
+  if (
+    !workflow ||
+    workflow.organizationId !== req.organizationId ||
+    workflow.deletedAt
+  ) {
+    res.status(404).json({
+      success: false,
+      data: null,
+      error: { code: "NOT_FOUND", message: "Workflow not found." },
     });
+    return;
+  }
 
-    apiStore.recordActivity({
-      organizationId: workflow.organizationId,
-      workflowId: workflow.id,
-      userId: req.user?.id,
-      type: "DRAFT_UPDATED",
-      metadata: {
-        revision: workflow.draftRevision,
-        updatedFields: Object.keys(parseResult.data),
+  const access = resolveWorkflowAccess(workflow, req);
+  if (!access || !access.canEdit) {
+    res.status(403).json({
+      success: false,
+      data: null,
+      error: {
+        code: "FORBIDDEN",
+        message: "You lack permission to edit this workflow draft.",
       },
     });
+    return;
+  }
 
-    res.json({
-      success: true,
-      data: workflow,
-      error: null,
+  const parseResult = UpdateWorkflowSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    res.status(400).json({
+      success: false,
+      data: null,
+      error: {
+        code: "VALIDATION_FAILED",
+        message: "Invalid update payload",
+        details: parseResult.error.issues,
+      },
     });
-  },
-);
+    return;
+  }
+
+  // Optimistic Concurrency Control
+  const expectedRevision =
+    parseResult.data.expectedRevision !== undefined
+      ? parseResult.data.expectedRevision
+      : req.headers["if-match"]
+        ? parseInt(req.headers["if-match"] as string, 10)
+        : undefined;
+
+  const currentRevision = workflow.draftRevision || 1;
+  if (expectedRevision !== undefined && expectedRevision !== currentRevision) {
+    res.status(409).json({
+      success: false,
+      data: null,
+      error: {
+        code: "DRAFT_CONFLICT",
+        message: `Draft was modified by another session (expected revision ${expectedRevision}, current is ${currentRevision}). Refresh to review latest changes.`,
+        details: {
+          currentRevision,
+          expectedRevision,
+          lastUpdatedById: workflow.lastUpdatedById,
+        },
+      },
+    });
+    return;
+  }
+
+  const { name, description, workspaceId, nodes, edges } = parseResult.data;
+
+  if (name !== undefined) workflow.name = name;
+  if (description !== undefined) workflow.description = description;
+  if (workspaceId !== undefined)
+    workflow.workspaceId = workspaceId || undefined;
+  if (nodes !== undefined || edges !== undefined) {
+    workflow.draftDefinition = {
+      nodes: nodes ?? workflow.draftDefinition.nodes,
+      edges: edges ?? workflow.draftDefinition.edges,
+    };
+  }
+  workflow.draftRevision = currentRevision + 1;
+  workflow.lastUpdatedById = req.user?.id;
+  workflow.updatedAt = new Date();
+
+  apiStore.workflows.set(workflow.id, workflow);
+
+  apiStore.recordAudit({
+    organizationId: req.organizationId!,
+    userId: req.user?.id,
+    action: "workflow.updated",
+    resourceType: "workflow",
+    resourceId: workflow.id,
+    metadata: { name: workflow.name, revision: workflow.draftRevision },
+    ipAddress: req.ip,
+  });
+
+  apiStore.recordActivity({
+    organizationId: workflow.organizationId,
+    workflowId: workflow.id,
+    userId: req.user?.id,
+    type: "DRAFT_UPDATED",
+    metadata: {
+      revision: workflow.draftRevision,
+      updatedFields: Object.keys(parseResult.data),
+    },
+  });
+
+  res.json({
+    success: true,
+    data: workflow,
+    error: null,
+  });
+});
 
 // ==========================================
 // 5. Soft-Delete / Archive Workflow
@@ -416,7 +480,11 @@ workflowRouter.delete(
   requirePermission("workflow:delete"),
   (req, res) => {
     const workflow = apiStore.workflows.get(req.params.id);
-    if (!workflow || workflow.organizationId !== req.organizationId || workflow.deletedAt) {
+    if (
+      !workflow ||
+      workflow.organizationId !== req.organizationId ||
+      workflow.deletedAt
+    ) {
       res.status(404).json({
         success: false,
         data: null,
@@ -455,9 +523,13 @@ workflowRouter.delete(
 workflowRouter.post(
   "/:id/validate",
   requirePermission("workflow:read"),
-  (req, res) => {
+  async (req, res) => {
     const workflow = apiStore.workflows.get(req.params.id);
-    if (!workflow || workflow.organizationId !== req.organizationId || workflow.deletedAt) {
+    if (
+      !workflow ||
+      workflow.organizationId !== req.organizationId ||
+      workflow.deletedAt
+    ) {
       res.status(404).json({
         success: false,
         data: null,
@@ -468,9 +540,48 @@ workflowRouter.post(
 
     const validation = validateWorkflowGraph(workflow.draftDefinition);
 
+    // Evaluate governance policies
+    const destinationDomains: string[] = [];
+    if (workflow.draftDefinition?.nodes) {
+      for (const n of workflow.draftDefinition.nodes) {
+        if (n.type === "HTTP_REQUEST" && (n.config as any)?.url) {
+          try {
+            destinationDomains.push(new URL((n.config as any).url).hostname);
+          } catch {
+            // ignore
+          }
+        }
+      }
+    }
+
+    const policyDecision = await policyService.evaluate({
+      organizationId: workflow.organizationId,
+      workspaceId: workflow.workspaceId,
+      principal: {
+        id: req.user?.id || "usr_anonymous",
+        role: (req as any).membership?.role || "MEMBER",
+        email: req.user?.email,
+        ip: req.ip,
+      },
+      resourceType: "WORKFLOW",
+      resourceId: workflow.id,
+      operation: "PUBLISH",
+      attributes: {
+        nodeTypes: workflow.draftDefinition.nodes.map((n) => n.type),
+        destinationDomains,
+        nodeCount: workflow.draftDefinition.nodes.length,
+        dataClassification: (workflow as any).dataClassification || "INTERNAL",
+        riskClassification: (workflow as any).riskClassification || "STANDARD",
+      },
+      correlationId: req.headers["x-correlation-id"] as string,
+    });
+
     res.json({
       success: true,
-      data: validation,
+      data: {
+        ...validation,
+        policyDecision,
+      },
       error: null,
     });
   },
@@ -479,180 +590,298 @@ workflowRouter.post(
 // ==========================================
 // 7. Publish workflow draft into an immutable version
 // ==========================================
-workflowRouter.post(
-  "/:id/publish",
-  (req, res) => {
-    const workflow = apiStore.workflows.get(req.params.id);
-    if (!workflow || workflow.organizationId !== req.organizationId || workflow.deletedAt) {
-      res.status(404).json({
+workflowRouter.post("/:id/publish", async (req, res) => {
+  const workflow = apiStore.workflows.get(req.params.id);
+  if (
+    !workflow ||
+    workflow.organizationId !== req.organizationId ||
+    workflow.deletedAt
+  ) {
+    res.status(404).json({
+      success: false,
+      data: null,
+      error: { code: "NOT_FOUND", message: "Workflow not found." },
+    });
+    return;
+  }
+
+  const access = resolveWorkflowAccess(workflow, req);
+  if (!access || !access.canPublish) {
+    res.status(403).json({
+      success: false,
+      data: null,
+      error: {
+        code: "FORBIDDEN",
+        message: "You lack permission to publish this workflow.",
+      },
+    });
+    return;
+  }
+
+  // 1. Validate complete workflow graph
+  const validation = validateWorkflowGraph(workflow.draftDefinition);
+  if (!validation.isValid) {
+    res.status(400).json({
+      success: false,
+      data: null,
+      error: {
+        code: "GRAPH_VALIDATION_FAILED",
+        message: "Cannot publish workflow with validation errors.",
+        details: validation.errors,
+      },
+    });
+    return;
+  }
+
+  // 2. Parse publish options
+  const parseResult = PublishWorkflowSchema.safeParse(req.body);
+  const releaseNotes = parseResult.success
+    ? parseResult.data.releaseNotes
+    : undefined;
+  const force = parseResult.success ? parseResult.data.force : false;
+
+  // 3. Compute deterministic canonical content hash
+  const contentHash = computeWorkflowContentHash(workflow.draftDefinition);
+
+  // 4. Duplicate Publication Guard
+  if (workflow.publishedVersionId && !force) {
+    const currentVersion = apiStore.versions.get(workflow.publishedVersionId);
+    if (currentVersion && currentVersion.contentHash === contentHash) {
+      res.status(409).json({
         success: false,
-        data: null,
-        error: { code: "NOT_FOUND", message: "Workflow not found." },
+        data: {
+          currentVersion,
+          contentHash,
+        },
+        error: {
+          code: "UNCHANGED_CONTENT",
+          message:
+            "Draft definition is identical to currently published version. Duplicate publication rejected.",
+        },
       });
       return;
     }
+  }
 
-    const access = resolveWorkflowAccess(workflow, req);
-    if (!access || !access.canPublish) {
+  // 4.5. Active Workflow Quota Check
+  if (workflow.status !== "ACTIVE") {
+    const activeQuota = entitlementService.checkActiveWorkflowQuota(
+      workflow.organizationId,
+    );
+    if (!activeQuota.allowed) {
+      res.status(402).json({
+        success: false,
+        data: null,
+        error: {
+          code: activeQuota.reason,
+          message: activeQuota.message,
+          details: {
+            limit: activeQuota.limit,
+            currentUsage: activeQuota.currentUsage,
+          },
+        },
+      });
+      return;
+    }
+  }
+
+  // 4.6. Policy Governance Check
+  const destinationDomains: string[] = [];
+  if (workflow.draftDefinition?.nodes) {
+    for (const n of workflow.draftDefinition.nodes) {
+      if (n.type === "HTTP_REQUEST" && (n.config as any)?.url) {
+        try {
+          destinationDomains.push(new URL((n.config as any).url).hostname);
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }
+
+  const policyDecision = await policyService.evaluate({
+    organizationId: workflow.organizationId,
+    workspaceId: workflow.workspaceId,
+    principal: {
+      id: req.user?.id || "usr_anonymous",
+      role: (req as any).membership?.role || "MEMBER",
+      email: req.user?.email,
+      ip: req.ip,
+    },
+    resourceType: "WORKFLOW",
+    resourceId: workflow.id,
+    operation: "PUBLISH",
+    attributes: {
+      nodeTypes: workflow.draftDefinition.nodes.map((n) => n.type),
+      destinationDomains,
+      nodeCount: workflow.draftDefinition.nodes.length,
+      dataClassification: (workflow as any).dataClassification || "INTERNAL",
+      riskClassification: (workflow as any).riskClassification || "STANDARD",
+    },
+    correlationId: req.headers["x-correlation-id"] as string,
+  });
+
+  if (!policyDecision.isAllowed) {
+    if (policyDecision.requiresApproval) {
       res.status(403).json({
         success: false,
         data: null,
         error: {
-          code: "FORBIDDEN",
-          message: "You lack permission to publish this workflow.",
+          code: "POLICY_APPROVAL_REQUIRED",
+          message:
+            "Policy requires explicit administrative approval before this workflow can be published.",
+          details: {
+            requiredRole: policyDecision.requiredApprovalRole || "ADMIN",
+            violations: policyDecision.violations,
+            matchedPolicies: policyDecision.matchedPolicies,
+          },
         },
       });
       return;
     }
 
-    // 1. Validate complete workflow graph
-    const validation = validateWorkflowGraph(workflow.draftDefinition);
-    if (!validation.isValid) {
-      res.status(400).json({
-        success: false,
-        data: null,
-        error: {
-          code: "GRAPH_VALIDATION_FAILED",
-          message: "Cannot publish workflow with validation errors.",
-          details: validation.errors,
+    res.status(403).json({
+      success: false,
+      data: null,
+      error: {
+        code: "POLICY_VIOLATION",
+        message: "Workflow publication blocked by active governance policy.",
+        details: {
+          violations: policyDecision.violations,
+          matchedPolicies: policyDecision.matchedPolicies,
         },
-      });
-      return;
-    }
+      },
+    });
+    return;
+  }
 
-    // 2. Parse publish options
-    const parseResult = PublishWorkflowSchema.safeParse(req.body);
-    const releaseNotes = parseResult.success ? parseResult.data.releaseNotes : undefined;
-    const force = parseResult.success ? parseResult.data.force : false;
-
-    // 3. Compute deterministic canonical content hash
-    const contentHash = computeWorkflowContentHash(workflow.draftDefinition);
-
-    // 4. Duplicate Publication Guard
-    if (workflow.publishedVersionId && !force) {
-      const currentVersion = apiStore.versions.get(workflow.publishedVersionId);
-      if (currentVersion && currentVersion.contentHash === contentHash) {
-        res.status(409).json({
-          success: false,
-          data: {
-            currentVersion,
-            contentHash,
-          },
-          error: {
-            code: "UNCHANGED_CONTENT",
-            message: "Draft definition is identical to currently published version. Duplicate publication rejected.",
-          },
-        });
-        return;
-      }
-    }
-
-    // 5. Version sequencing
-    const existingVersions = Array.from(apiStore.versions.values()).filter(
-      (v) => v.workflowId === workflow.id,
+  // 4.7. Publishing Gate Evaluation (Static validation, test suite, regression check)
+  if (!force) {
+    const gateResult = await simulationService.evaluatePublishingGates(
+      workflow.organizationId,
+      workflow.id,
+      workflow.draftDefinition,
     );
-    const nextVersionNumber = existingVersions.length + 1;
-    const versionId = `ver_${crypto.randomUUID()}`;
+    if (!gateResult.passed) {
+      res.status(422).json({
+        success: false,
+        data: gateResult,
+        error: {
+          code: "PUBLISHING_GATE_BLOCKED",
+          message:
+            "Workflow publication blocked by publishing gate requirements.",
+          details: gateResult.reasons,
+        },
+      });
+      return;
+    }
+  }
 
-    // 6. Immutable snapshot
-    const newVersion: WorkflowVersionRecord = {
-      id: versionId,
-      workflowId: workflow.id,
+  // 5. Version sequencing
+  const existingVersions = Array.from(apiStore.versions.values()).filter(
+    (v) => v.workflowId === workflow.id,
+  );
+  const nextVersionNumber = existingVersions.length + 1;
+  const versionId = `ver_${crypto.randomUUID()}`;
+
+  // 6. Immutable snapshot
+  const newVersion: WorkflowVersionRecord = {
+    id: versionId,
+    workflowId: workflow.id,
+    versionNumber: nextVersionNumber,
+    definition: JSON.parse(JSON.stringify(workflow.draftDefinition)),
+    contentHash,
+    releaseNotes,
+    publishedAt: new Date(),
+    publishedById: req.user?.id,
+  };
+
+  apiStore.versions.set(versionId, newVersion);
+
+  // 7. Update workflow reference
+  workflow.publishedVersionId = versionId;
+  workflow.status = "ACTIVE";
+  workflow.updatedAt = new Date();
+  apiStore.workflows.set(workflow.id, workflow);
+
+  // 8. Auto-deploy to development environment
+  const depId = `dep_${crypto.randomUUID()}`;
+  const devDeployment: WorkflowDeploymentRecord = {
+    id: depId,
+    organizationId: workflow.organizationId,
+    workflowId: workflow.id,
+    workflowVersionId: versionId,
+    environment: "development",
+    status: "ACTIVE",
+    deployedById: req.user?.id,
+    deployedAt: new Date(),
+    releaseNotes,
+  };
+
+  // Supersede previous development deployment
+  for (const dep of apiStore.deployments.values()) {
+    if (
+      dep.workflowId === workflow.id &&
+      dep.environment === "development" &&
+      dep.status === "ACTIVE"
+    ) {
+      dep.status = "SUPERSEDED";
+      apiStore.deployments.set(dep.id, dep);
+    }
+  }
+  apiStore.deployments.set(depId, devDeployment);
+
+  // 9. Record audit event
+  apiStore.recordAudit({
+    organizationId: req.organizationId!,
+    userId: req.user?.id,
+    action: "workflow.published",
+    resourceType: "workflow",
+    resourceId: workflow.id,
+    metadata: {
+      versionId,
       versionNumber: nextVersionNumber,
-      definition: JSON.parse(JSON.stringify(workflow.draftDefinition)),
       contentHash,
       releaseNotes,
-      publishedAt: new Date(),
-      publishedById: req.user?.id,
-    };
+    },
+    ipAddress: req.ip,
+  });
 
-    apiStore.versions.set(versionId, newVersion);
+  apiStore.recordActivity({
+    organizationId: workflow.organizationId,
+    workflowId: workflow.id,
+    userId: req.user?.id,
+    type: "WORKFLOW_PUBLISHED",
+    metadata: {
+      versionNumber: nextVersionNumber,
+      versionId,
+      contentHash,
+    },
+  });
 
-    // 7. Update workflow reference
-    workflow.publishedVersionId = versionId;
-    workflow.status = "ACTIVE";
-    workflow.updatedAt = new Date();
-    apiStore.workflows.set(workflow.id, workflow);
+  publishDomainEvent(apiStore, {
+    type: "workflow.published",
+    organizationId: workflow.organizationId,
+    resourceType: "workflow",
+    resourceId: workflow.id,
+    actorId: req.user?.id,
+    data: {
+      versionNumber: nextVersionNumber,
+      versionId,
+      contentHash,
+    },
+  });
 
-    // 8. Auto-deploy to development environment
-    const depId = `dep_${crypto.randomUUID()}`;
-    const devDeployment: WorkflowDeploymentRecord = {
-      id: depId,
-      organizationId: workflow.organizationId,
-      workflowId: workflow.id,
-      workflowVersionId: versionId,
-      environment: "development",
-      status: "ACTIVE",
-      deployedById: req.user?.id,
-      deployedAt: new Date(),
-      releaseNotes,
-    };
-
-    // Supersede previous development deployment
-    for (const dep of apiStore.deployments.values()) {
-      if (
-        dep.workflowId === workflow.id &&
-        dep.environment === "development" &&
-        dep.status === "ACTIVE"
-      ) {
-        dep.status = "SUPERSEDED";
-        apiStore.deployments.set(dep.id, dep);
-      }
-    }
-    apiStore.deployments.set(depId, devDeployment);
-
-    // 9. Record audit event
-    apiStore.recordAudit({
-      organizationId: req.organizationId!,
-      userId: req.user?.id,
-      action: "workflow.published",
-      resourceType: "workflow",
-      resourceId: workflow.id,
-      metadata: {
-        versionId,
-        versionNumber: nextVersionNumber,
-        contentHash,
-        releaseNotes,
-      },
-      ipAddress: req.ip,
-    });
-
-    apiStore.recordActivity({
-      organizationId: workflow.organizationId,
-      workflowId: workflow.id,
-      userId: req.user?.id,
-      type: "WORKFLOW_PUBLISHED",
-      metadata: {
-        versionNumber: nextVersionNumber,
-        versionId,
-        contentHash,
-      },
-    });
-
-    publishDomainEvent(apiStore, {
-      type: "workflow.published",
-      organizationId: workflow.organizationId,
-      resourceType: "workflow",
-      resourceId: workflow.id,
-      actorId: req.user?.id,
-      data: {
-        versionNumber: nextVersionNumber,
-        versionId,
-        contentHash,
-      },
-    });
-
-    res.status(201).json({
-      success: true,
-      data: {
-        workflow,
-        version: newVersion,
-        deployment: devDeployment,
-      },
-      error: null,
-    });
-  },
-);
+  res.status(201).json({
+    success: true,
+    data: {
+      workflow,
+      version: newVersion,
+      deployment: devDeployment,
+    },
+    error: null,
+  });
+});
 
 // ==========================================
 // 8. List immutable published versions of a workflow
@@ -728,7 +957,8 @@ const immutableRejectHandler = (req: any, res: any) => {
     data: null,
     error: {
       code: "VERSION_IMMUTABLE",
-      message: "Published workflow versions are immutable and cannot be updated or deleted.",
+      message:
+        "Published workflow versions are immutable and cannot be updated or deleted.",
     },
   });
 };
@@ -745,7 +975,11 @@ workflowRouter.post(
   requirePermission("workflow:write"),
   (req, res) => {
     const workflow = apiStore.workflows.get(req.params.id);
-    if (!workflow || workflow.organizationId !== req.organizationId || workflow.deletedAt) {
+    if (
+      !workflow ||
+      workflow.organizationId !== req.organizationId ||
+      workflow.deletedAt
+    ) {
       res.status(404).json({
         success: false,
         data: null,
@@ -776,7 +1010,10 @@ workflowRouter.post(
       action: "workflow.draft_restored",
       resourceType: "workflow",
       resourceId: workflow.id,
-      metadata: { fromVersionId: version.id, versionNumber: version.versionNumber },
+      metadata: {
+        fromVersionId: version.id,
+        versionNumber: version.versionNumber,
+      },
       ipAddress: req.ip,
     });
 
@@ -796,7 +1033,11 @@ workflowRouter.get(
   requirePermission("workflow:read"),
   (req, res) => {
     const workflow = apiStore.workflows.get(req.params.id);
-    if (!workflow || workflow.organizationId !== req.organizationId || workflow.deletedAt) {
+    if (
+      !workflow ||
+      workflow.organizationId !== req.organizationId ||
+      workflow.deletedAt
+    ) {
       res.status(404).json({
         success: false,
         data: null,
@@ -805,8 +1046,10 @@ workflowRouter.get(
       return;
     }
 
-    const fromVersionId = (req.query.fromVersionId || req.query.baseVersionId) as string | undefined;
-    const toVersionId = (req.query.toVersionId || req.query.targetVersionId) as string | undefined;
+    const fromVersionId = (req.query.fromVersionId ||
+      req.query.baseVersionId) as string | undefined;
+    const toVersionId = (req.query.toVersionId || req.query.targetVersionId) as
+      string | undefined;
 
     let fromDef = workflow.draftDefinition;
     let toDef = workflow.draftDefinition;
@@ -817,7 +1060,10 @@ workflowRouter.get(
         res.status(404).json({
           success: false,
           data: null,
-          error: { code: "NOT_FOUND", message: `Source version '${fromVersionId}' not found.` },
+          error: {
+            code: "NOT_FOUND",
+            message: `Source version '${fromVersionId}' not found.`,
+          },
         });
         return;
       }
@@ -833,7 +1079,10 @@ workflowRouter.get(
         res.status(404).json({
           success: false,
           data: null,
-          error: { code: "NOT_FOUND", message: `Target version '${toVersionId}' not found.` },
+          error: {
+            code: "NOT_FOUND",
+            message: `Target version '${toVersionId}' not found.`,
+          },
         });
         return;
       }
@@ -899,7 +1148,10 @@ workflowRouter.get(
 
     const env = req.params.environment;
     const deployment = Array.from(apiStore.deployments.values()).find(
-      (d) => d.workflowId === workflow.id && d.environment === env && d.status === "ACTIVE",
+      (d) =>
+        d.workflowId === workflow.id &&
+        d.environment === env &&
+        d.status === "ACTIVE",
     );
 
     res.json({
@@ -915,13 +1167,34 @@ workflowRouter.get(
 // ==========================================
 const handlePromoteWorkflow = (req: any, res: any) => {
   const workflow = apiStore.workflows.get(req.params.id);
-  if (!workflow || workflow.organizationId !== req.organizationId || workflow.deletedAt) {
+  if (
+    !workflow ||
+    workflow.organizationId !== req.organizationId ||
+    workflow.deletedAt
+  ) {
     res.status(404).json({
       success: false,
       data: null,
       error: { code: "NOT_FOUND", message: "Workflow not found." },
     });
     return;
+  }
+
+  // Workspace Archival Execution Guard
+  if (workflow.workspaceId) {
+    const ws = apiStore.workspaces.get(workflow.workspaceId);
+    if (ws && ws.status === "ARCHIVED") {
+      res.status(403).json({
+        success: false,
+        data: null,
+        error: {
+          code: "WORKSPACE_ARCHIVED",
+          message:
+            "Cannot execute workflow belonging to an archived workspace.",
+        },
+      });
+      return;
+    }
   }
 
   const parseResult = PromoteWorkflowSchema.safeParse(req.body);
@@ -950,7 +1223,8 @@ const handlePromoteWorkflow = (req: any, res: any) => {
         data: null,
         error: {
           code: "PRODUCTION_DEPLOY_UNAUTHORIZED",
-          message: "Elevated permissions required to promote or deploy to production environment.",
+          message:
+            "Elevated permissions required to promote or deploy to production environment.",
         },
       });
       return;
@@ -1016,12 +1290,19 @@ const handlePromoteWorkflow = (req: any, res: any) => {
   );
 
   // If already active with same version and no new notes, return idempotently
-  if (currentActive && currentActive.workflowVersionId === versionId && !releaseNotes) {
+  if (
+    currentActive &&
+    currentActive.workflowVersionId === versionId &&
+    !releaseNotes
+  ) {
     res.status(200).json({
       success: true,
       data: currentActive,
       error: null,
-      meta: { idempotent: true, message: "Version is already active in environment." },
+      meta: {
+        idempotent: true,
+        message: "Version is already active in environment.",
+      },
     });
     return;
   }
@@ -1042,7 +1323,9 @@ const handlePromoteWorkflow = (req: any, res: any) => {
     status: "ACTIVE",
     deployedById: req.user?.id,
     deployedAt: new Date(),
-    previousVersionId: currentActive ? currentActive.workflowVersionId : undefined,
+    previousVersionId: currentActive
+      ? currentActive.workflowVersionId
+      : undefined,
     releaseNotes: releaseNotes || version.releaseNotes,
     idempotencyKey,
   };
@@ -1072,18 +1355,10 @@ const handlePromoteWorkflow = (req: any, res: any) => {
   });
 };
 
-workflowRouter.post(
-  "/:id/promote",
-  requireAuth,
-  handlePromoteWorkflow,
-);
+workflowRouter.post("/:id/promote", requireAuth, handlePromoteWorkflow);
 
 // Alias /deploy to /promote for deployment compatibility
-workflowRouter.post(
-  "/:id/deploy",
-  requireAuth,
-  handlePromoteWorkflow,
-);
+workflowRouter.post("/:id/deploy", requireAuth, handlePromoteWorkflow);
 
 // ==========================================
 // 16. Rollback deployment in an environment
@@ -1093,7 +1368,11 @@ workflowRouter.post(
   requireAuth,
   (req, res) => {
     const workflow = apiStore.workflows.get(req.params.id);
-    if (!workflow || workflow.organizationId !== req.organizationId || workflow.deletedAt) {
+    if (
+      !workflow ||
+      workflow.organizationId !== req.organizationId ||
+      workflow.deletedAt
+    ) {
       res.status(404).json({
         success: false,
         data: null,
@@ -1107,7 +1386,10 @@ workflowRouter.post(
       res.status(400).json({
         success: false,
         data: null,
-        error: { code: "INVALID_ENVIRONMENT", message: `Environment '${env}' is not supported.` },
+        error: {
+          code: "INVALID_ENVIRONMENT",
+          message: `Environment '${env}' is not supported.`,
+        },
       });
       return;
     }
@@ -1121,7 +1403,8 @@ workflowRouter.post(
           data: null,
           error: {
             code: "PRODUCTION_DEPLOY_UNAUTHORIZED",
-            message: "Elevated permissions required to perform rollback in production.",
+            message:
+              "Elevated permissions required to perform rollback in production.",
           },
         });
         return;
@@ -1134,7 +1417,10 @@ workflowRouter.post(
       : { targetVersionId: undefined, reason: undefined };
 
     const currentActive = Array.from(apiStore.deployments.values()).find(
-      (d) => d.workflowId === workflow.id && d.environment === env && d.status === "ACTIVE",
+      (d) =>
+        d.workflowId === workflow.id &&
+        d.environment === env &&
+        d.status === "ACTIVE",
     );
 
     // Determine target version
@@ -1201,7 +1487,9 @@ workflowRouter.post(
       status: "ACTIVE",
       deployedById: req.user?.id,
       deployedAt: new Date(),
-      previousVersionId: currentActive ? currentActive.workflowVersionId : undefined,
+      previousVersionId: currentActive
+        ? currentActive.workflowVersionId
+        : undefined,
       rollbackReason: reason || "Rollback to previous stable version",
     };
 
@@ -1236,13 +1524,34 @@ workflowRouter.post(
 // ==========================================
 const dispatchExecutionHandler = async (req: any, res: any) => {
   const workflow = apiStore.workflows.get(req.params.id);
-  if (!workflow || workflow.organizationId !== req.organizationId || workflow.deletedAt) {
+  if (
+    !workflow ||
+    workflow.organizationId !== req.organizationId ||
+    workflow.deletedAt
+  ) {
     res.status(404).json({
       success: false,
       data: null,
       error: { code: "NOT_FOUND", message: "Workflow not found." },
     });
     return;
+  }
+
+  // Workspace Archival Execution Guard
+  if (workflow.workspaceId) {
+    const ws = apiStore.workspaces.get(workflow.workspaceId);
+    if (ws && ws.status === "ARCHIVED") {
+      res.status(403).json({
+        success: false,
+        data: null,
+        error: {
+          code: "WORKSPACE_ARCHIVED",
+          message:
+            "Cannot execute workflow belonging to an archived workspace.",
+        },
+      });
+      return;
+    }
   }
 
   // Resolve Environment and Deployed Workflow Version
@@ -1252,7 +1561,10 @@ const dispatchExecutionHandler = async (req: any, res: any) => {
     "development"
   ).toLowerCase() as "development" | "staging" | "production";
 
-  const resolvedVersionId = resolveActiveWorkflowVersionId(workflow.id, requestedEnv);
+  const resolvedVersionId = resolveActiveWorkflowVersionId(
+    workflow.id,
+    requestedEnv,
+  );
 
   if (!resolvedVersionId) {
     res.status(400).json({
@@ -1292,37 +1604,50 @@ const dispatchExecutionHandler = async (req: any, res: any) => {
   const parseResult = TriggerWorkflowSchema.safeParse(req.body);
   const triggerPayload = parseResult.success ? parseResult.data.payload : {};
 
-  const executionId = `exec_${crypto.randomUUID()}`;
-  const now = new Date();
-
-  // Bound immutably to resolvedVersionId and environment at trigger acceptance time!
-  const execution: WorkflowExecutionRecord = {
-    id: executionId,
+  // Authoritative Resource Governance & Admission Control
+  const admission = resourceGovernanceService.admitExecution({
     organizationId: req.organizationId!,
     workflowId: workflow.id,
+    workspaceId: workflow.workspaceId,
     workflowVersionId: resolvedVersionId,
-    environment: requestedEnv,
     triggerType: "MANUAL",
     triggerPayload,
+    environment: requestedEnv,
     idempotencyKey,
-    status: "QUEUED",
-    contextData: { trigger: { payload: triggerPayload, type: "MANUAL" } },
-    retryCount: 0,
-    createdAt: now,
-    updatedAt: now,
-  };
+    userId: req.user?.id,
+  });
 
-  apiStore.executions.set(executionId, execution);
+  if (!admission.allowed) {
+    if (admission.retryAfterSeconds) {
+      res.setHeader("Retry-After", admission.retryAfterSeconds.toString());
+    }
+    res.status(admission.statusCode).json({
+      success: false,
+      data: null,
+      error: {
+        code: admission.outcome,
+        message: admission.reason,
+        details: {
+          metric: admission.metric,
+          limit: admission.limit,
+          currentUsage: admission.currentUsage,
+        },
+      },
+    });
+    return;
+  }
 
-  res.status(202).json({
+  res.status(admission.statusCode).json({
     success: true,
-    data: execution,
+    data: admission.execution,
     error: null,
+    meta: admission.statusCode === 200 ? { idempotent: true } : undefined,
   });
 };
 
 workflowRouter.post(
   "/:id/trigger",
+  deprecationNotice("/api/v1/workflows/:id/execute"),
   requirePermission("workflow:execute"),
   dispatchExecutionHandler,
 );
@@ -1336,3 +1661,5 @@ workflowRouter.post(
 // Mount workflow collaboration subrouter (collaborators, comments, activities)
 workflowRouter.use("/:id", collaborationRouter);
 
+// Mount workflow simulation and testing subrouter
+workflowRouter.use("/:id", workflowSimulationRouter);

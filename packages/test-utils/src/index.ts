@@ -1,4 +1,150 @@
-import { WorkflowDefinition, Role } from "@flowforge/shared";
+import crypto from "crypto";
+import {
+  WorkflowDefinition,
+  Role,
+  OperationalIncidentRecord,
+  PlanRecord,
+  SubscriptionRecord,
+  UsageRecord,
+  InvoiceRecord,
+  BillingWebhookEventRecord,
+  DEFAULT_PLANS,
+  WorkspaceRecord,
+  WorkspaceMemberRecord,
+  OrganizationBrandingRecord,
+  CustomDomainRecord,
+  EnterpriseLicenseRecord,
+  SsoConfigurationRecord,
+  ExternalIdentityRecord,
+  GroupRoleMappingRecord,
+  ScimTokenRecord,
+  OAuthClientRecord,
+  IdempotencyRecord,
+  RetentionPolicyRecord,
+  RetentionJobRecord,
+  PrivacyRequestRecord,
+  LegalHoldRecord,
+  ComplianceControlItem,
+  AiConfigurationRecord,
+  ProcessEventRecord,
+  BusinessOutcomeRecord,
+  WorkflowSloRecord,
+  StreamEventRecord,
+  EventDeduplicationRecord,
+  ConnectorSubscriptionRecord,
+  EventMetricsSummary,
+  EventReplayPreviewResult,
+  EventReplayResult,
+  EventRedriveResult,
+  ExtensionPackageRecord,
+  ExtensionVersionRecord,
+  ExtensionInstallationRecord,
+  UpgradePreviewResult,
+  ExtensionManifest,
+  DeclaredCustomNode,
+  ExecutionLeaseRecord,
+  ScheduleExecutionClaimRecord,
+  StepReconciliationRecord,
+  HealthReadinessDetails,
+  ReconcileExecutionStepRequest,
+  SearchableResourceTypeEnum,
+  SearchableResourceType,
+  SearchQuery,
+  SearchResultItem,
+  UnifiedSearchResponse,
+  SavedSearchRecord,
+  CreateSavedSearchRequest,
+  SearchMetricsSummary,
+  PolicyRecord,
+  PolicyVersionRecord,
+  PolicyExceptionRecord,
+  PolicyViolationRecord,
+  PolicyRule,
+  PolicyRuleCondition,
+  PolicyEvaluationContext,
+  PolicyEvaluationDecision,
+  RoiAssumptionRecord,
+  SavedReportRecord,
+  ResourceQuotaRecord,
+  ResourceReservationRecord,
+  WorkflowTestCaseRecord,
+  WorkflowTestRunRecord,
+  TestFixtureRecord,
+  DebugSessionRecord,
+  PublishingGateConfigRecord,
+} from "@flowforge/shared";
+
+export type {
+  WorkflowTestCaseRecord,
+  WorkflowTestRunRecord,
+  TestFixtureRecord,
+  DebugSessionRecord,
+  PublishingGateConfigRecord,
+  ResourceQuotaRecord,
+  ResourceReservationRecord,
+  RoiAssumptionRecord,
+  SavedReportRecord,
+  PolicyRecord,
+  PolicyVersionRecord,
+  PolicyExceptionRecord,
+  PolicyViolationRecord,
+  PolicyRule,
+  PolicyRuleCondition,
+  PolicyEvaluationContext,
+  PolicyEvaluationDecision,
+  OperationalIncidentRecord,
+  PlanRecord,
+  SubscriptionRecord,
+  UsageRecord,
+  InvoiceRecord,
+  BillingWebhookEventRecord,
+  WorkspaceRecord,
+  WorkspaceMemberRecord,
+  OrganizationBrandingRecord,
+  CustomDomainRecord,
+  EnterpriseLicenseRecord,
+  SsoConfigurationRecord,
+  ExternalIdentityRecord,
+  GroupRoleMappingRecord,
+  ScimTokenRecord,
+  OAuthClientRecord,
+  IdempotencyRecord,
+  RetentionPolicyRecord,
+  RetentionJobRecord,
+  PrivacyRequestRecord,
+  LegalHoldRecord,
+  ComplianceControlItem,
+  AiConfigurationRecord,
+  ProcessEventRecord,
+  BusinessOutcomeRecord,
+  WorkflowSloRecord,
+  StreamEventRecord,
+  EventDeduplicationRecord,
+  ConnectorSubscriptionRecord,
+  EventMetricsSummary,
+  EventReplayPreviewResult,
+  EventReplayResult,
+  EventRedriveResult,
+  ExtensionPackageRecord,
+  ExtensionVersionRecord,
+  ExtensionInstallationRecord,
+  UpgradePreviewResult,
+  ExtensionManifest,
+  DeclaredCustomNode,
+  ExecutionLeaseRecord,
+  ScheduleExecutionClaimRecord,
+  StepReconciliationRecord,
+  HealthReadinessDetails,
+  ReconcileExecutionStepRequest,
+  SearchableResourceTypeEnum,
+  SearchableResourceType,
+  SearchQuery,
+  SearchResultItem,
+  UnifiedSearchResponse,
+  SavedSearchRecord,
+  CreateSavedSearchRequest,
+  SearchMetricsSummary,
+};
 
 export interface UserRecord {
   id: string;
@@ -6,6 +152,7 @@ export interface UserRecord {
   passwordHash: string;
   firstName?: string;
   lastName?: string;
+  active?: boolean;
 }
 
 export interface OrganizationRecord {
@@ -33,6 +180,9 @@ export interface SessionRecord {
   id: string;
   userId: string;
   token: string;
+  ipAddress?: string;
+  userAgent?: string;
+  lastActivityAt?: Date;
   expiresAt: Date;
 }
 
@@ -49,6 +199,7 @@ export interface WorkflowRecord {
   lastUpdatedById?: string;
   sourceTemplateId?: string;
   sourceTemplateVersionId?: string;
+  workspaceId?: string;
   deletedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -57,13 +208,45 @@ export interface WorkflowRecord {
 export interface AuditLogRecord {
   id: string;
   organizationId: string;
+  workspaceId?: string;
   userId?: string;
+  actorType?: "USER" | "API_KEY" | "OAUTH_CLIENT" | "SYSTEM" | string;
+  actorId?: string;
+  authMethod?: string;
   action: string;
   resourceType: string;
   resourceId: string;
+  outcome?: "SUCCESS" | "FAILURE" | "DENIED" | string;
   metadata?: Record<string, unknown>;
   ipAddress?: string;
+  userAgent?: string;
+  correlationId?: string;
+  recordHash?: string;
+  prevRecordHash?: string;
   createdAt: Date;
+}
+
+export function sanitizeAuditMetadata(
+  obj: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  const REDACT_PATTERN =
+    /password|secret|token|key|authorization|apiKey|clientSecret/i;
+  for (const [k, v] of Object.entries(obj)) {
+    if (REDACT_PATTERN.test(k)) {
+      result[k] = "[REDACTED]";
+    } else if (
+      v &&
+      typeof v === "object" &&
+      !Array.isArray(v) &&
+      !(v instanceof Date)
+    ) {
+      result[k] = sanitizeAuditMetadata(v as Record<string, unknown>);
+    } else {
+      result[k] = v;
+    }
+  }
+  return result;
 }
 
 export interface WorkflowVersionRecord {
@@ -83,7 +266,7 @@ export interface WorkflowExecutionRecord {
   workflowId: string;
   workflowVersionId: string;
   environment?: "development" | "staging" | "production";
-  triggerType: "MANUAL" | "WEBHOOK" | "SCHEDULE";
+  triggerType: "MANUAL" | "WEBHOOK" | "SCHEDULE" | "EVENT";
   triggerPayload: Record<string, unknown>;
   idempotencyKey?: string;
   status:
@@ -161,6 +344,8 @@ export interface WebhookConfigRecord {
   name: string;
   enabled: boolean;
   signingSecret: string;
+  secondarySigningSecret?: string | null;
+  secretRotatedAt?: Date | null;
   eventFilter?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -248,6 +433,7 @@ export interface OrganizationInvitationRecord {
 export interface ApiKeyRecord {
   id: string;
   organizationId: string;
+  workspaceId?: string;
   name: string;
   keyPrefix: string;
   keyHash: string;
@@ -405,6 +591,8 @@ export interface WebhookSubscriptionRecord {
   events: string[];
   enabled: boolean;
   secret: string;
+  secondarySecret?: string | null;
+  secretRotatedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -419,6 +607,7 @@ export interface WebhookDeliveryRecord {
     | "PENDING"
     | "PROCESSING"
     | "SUCCEEDED"
+    | "DELIVERED"
     | "RETRY_SCHEDULED"
     | "FAILED_PERMANENTLY"
     | "DEAD_LETTERED";
@@ -467,6 +656,7 @@ export class InMemoryDatabase {
   public delays = new Map<string, DelayRecord>();
   public deployments = new Map<string, WorkflowDeploymentRecord>();
   public alerts = new Map<string, OperationalAlertRecord>();
+  public incidents = new Map<string, OperationalIncidentRecord>();
   public invitations = new Map<string, OrganizationInvitationRecord>();
   public apiKeys = new Map<string, ApiKeyRecord>();
   public connections = new Map<string, IntegrationConnectionRecord>();
@@ -478,14 +668,79 @@ export class InMemoryDatabase {
   public auditLogs: Array<AuditLogRecord> = [];
   public outboxEvents = new Map<string, OutboxEventRecord>();
   public notifications = new Map<string, NotificationRecord>();
-  public notificationPreferences = new Map<string, NotificationPreferenceRecord>();
+  public notificationPreferences = new Map<
+    string,
+    NotificationPreferenceRecord
+  >();
   public webhookSubscriptions = new Map<string, WebhookSubscriptionRecord>();
   public webhookDeliveries = new Map<string, WebhookDeliveryRecord>();
   public workflowImports = new Map<string, WorkflowImportRecord>();
+  public plans = new Map<string, PlanRecord>();
+  public subscriptions = new Map<string, SubscriptionRecord>();
+  public usageRecords = new Map<string, UsageRecord>();
+  public invoices = new Map<string, InvoiceRecord>();
+  public billingWebhookEvents = new Map<string, BillingWebhookEventRecord>();
+  public workspaces = new Map<string, WorkspaceRecord>();
+  public workspaceMembers = new Map<string, WorkspaceMemberRecord>();
+  public brandings = new Map<string, OrganizationBrandingRecord>();
+  public customDomains = new Map<string, CustomDomainRecord>();
+  public enterpriseLicenses = new Map<string, EnterpriseLicenseRecord>();
+  public ssoConfigurations = new Map<string, SsoConfigurationRecord>();
+  public externalIdentities = new Map<string, ExternalIdentityRecord>();
+  public groupRoleMappings = new Map<string, GroupRoleMappingRecord>();
+  public scimTokens = new Map<string, ScimTokenRecord>();
+  public oauthClients = new Map<string, OAuthClientRecord>();
+  public idempotencyRecords = new Map<string, IdempotencyRecord>();
+  public retentionPolicies = new Map<string, RetentionPolicyRecord>();
+  public retentionJobs = new Map<string, RetentionJobRecord>();
+  public privacyRequests = new Map<string, PrivacyRequestRecord>();
+  public legalHolds = new Map<string, LegalHoldRecord>();
+  public aiConfigurations = new Map<string, AiConfigurationRecord>();
+  public slos = new Map<string, WorkflowSloRecord>();
+  public businessOutcomes = new Map<string, BusinessOutcomeRecord>();
+  public processEvents: Array<ProcessEventRecord> = [];
+  public streamEvents = new Map<string, StreamEventRecord>();
+  public eventDeduplications = new Map<string, EventDeduplicationRecord>();
+  public connectorSubscriptions = new Map<
+    string,
+    ConnectorSubscriptionRecord
+  >();
+  public extensionPackages = new Map<string, ExtensionPackageRecord>();
+  public extensionVersions = new Map<string, ExtensionVersionRecord>();
+  public extensionInstallations = new Map<
+    string,
+    ExtensionInstallationRecord
+  >();
+  public executionLeases = new Map<string, ExecutionLeaseRecord>();
+  public scheduleClaims = new Map<string, ScheduleExecutionClaimRecord>();
+  public stepReconciliations = new Map<string, StepReconciliationRecord>();
+  public savedSearches = new Map<string, SavedSearchRecord>();
+  public policies = new Map<string, PolicyRecord>();
+  public policyVersions = new Map<string, PolicyVersionRecord>();
+  public policyExceptions = new Map<string, PolicyExceptionRecord>();
+  public policyViolations = new Map<string, PolicyViolationRecord>();
+  public roiAssumptions = new Map<string, RoiAssumptionRecord>();
+  public savedReports = new Map<string, SavedReportRecord>();
+  public resourceQuotas = new Map<string, ResourceQuotaRecord>();
+  public resourceReservations = new Map<string, ResourceReservationRecord>();
+  public workflowTestCases = new Map<string, WorkflowTestCaseRecord>();
+  public workflowTestRuns = new Map<string, WorkflowTestRunRecord>();
+  public testFixtures = new Map<string, TestFixtureRecord>();
+  public debugSessions = new Map<string, DebugSessionRecord>();
+  public publishingGateConfigs = new Map<string, PublishingGateConfigRecord>();
+
+  constructor() {
+    for (const plan of Object.values(DEFAULT_PLANS)) {
+      this.plans.set(plan.id, { ...plan });
+      this.plans.set(plan.slug, { ...plan });
+    }
+  }
 
   public publishOutboxEvent(event: any): OutboxEventRecord {
     const outboxRecord: OutboxEventRecord = {
-      id: event.id || `outbox_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      id:
+        event.id ||
+        `outbox_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       organizationId: event.organizationId,
       eventType: event.type,
       payload: event,
@@ -498,7 +753,10 @@ export class InMemoryDatabase {
   }
 
   public createNotification(
-    record: Omit<NotificationRecord, "id" | "createdAt" | "isRead" | "readAt"> & {
+    record: Omit<
+      NotificationRecord,
+      "id" | "createdAt" | "isRead" | "readAt"
+    > & {
       isRead?: boolean;
       readAt?: Date | null;
     },
@@ -514,17 +772,69 @@ export class InMemoryDatabase {
     return notif;
   }
 
-  public recordAudit(record: Omit<AuditLogRecord, "id" | "createdAt">): AuditLogRecord {
+  public recordAudit(
+    record: Omit<
+      AuditLogRecord,
+      "id" | "createdAt" | "recordHash" | "prevRecordHash"
+    > & {
+      id?: string;
+      createdAt?: Date;
+      recordHash?: string;
+      prevRecordHash?: string;
+    },
+  ): AuditLogRecord {
+    const auditId =
+      record.id ||
+      `audit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const now = record.createdAt || new Date();
+
+    // Sensitive metadata sanitization
+    const sanitizedMetadata = record.metadata
+      ? sanitizeAuditMetadata(record.metadata)
+      : undefined;
+
+    // Tamper-evident hash chaining per organization
+    const orgLogs = this.auditLogs.filter(
+      (l) => l.organizationId === record.organizationId,
+    );
+    const lastLog =
+      orgLogs.length > 0 ? orgLogs[orgLogs.length - 1] : undefined;
+    const prevRecordHash =
+      record.prevRecordHash || lastLog?.recordHash || "GENESIS_HASH";
+
+    const hashPayload = `${prevRecordHash}:${auditId}:${now.toISOString()}:${record.organizationId}:${record.action}:${record.resourceType}:${record.resourceId}:${record.outcome || "SUCCESS"}:${JSON.stringify(sanitizedMetadata || {})}`;
+    const recordHash =
+      record.recordHash ||
+      crypto.createHash("sha256").update(hashPayload).digest("hex");
+
     const auditRecord: AuditLogRecord = {
-      id: `audit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      createdAt: new Date(),
-      ...record,
+      id: auditId,
+      organizationId: record.organizationId,
+      workspaceId: record.workspaceId,
+      userId: record.userId,
+      actorType: record.actorType || (record.userId ? "USER" : "SYSTEM"),
+      actorId: record.actorId || record.userId,
+      authMethod: record.authMethod,
+      action: record.action,
+      resourceType: record.resourceType,
+      resourceId: record.resourceId,
+      outcome: record.outcome || "SUCCESS",
+      metadata: sanitizedMetadata,
+      ipAddress: record.ipAddress,
+      userAgent: record.userAgent,
+      correlationId: record.correlationId,
+      recordHash,
+      prevRecordHash,
+      createdAt: now,
     };
+
     this.auditLogs.push(auditRecord);
     return auditRecord;
   }
 
-  public recordActivity(record: Omit<WorkflowActivityRecord, "id" | "createdAt">): WorkflowActivityRecord {
+  public recordActivity(
+    record: Omit<WorkflowActivityRecord, "id" | "createdAt">,
+  ): WorkflowActivityRecord {
     const activityRecord: WorkflowActivityRecord = {
       id: `act_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       createdAt: new Date(),
@@ -551,6 +861,7 @@ export class InMemoryDatabase {
     this.delays.clear();
     this.deployments.clear();
     this.alerts.clear();
+    this.incidents.clear();
     this.invitations.clear();
     this.apiKeys.clear();
     this.connections.clear();
@@ -564,6 +875,57 @@ export class InMemoryDatabase {
     this.webhookSubscriptions.clear();
     this.webhookDeliveries.clear();
     this.workflowImports.clear();
+    this.subscriptions.clear();
+    this.usageRecords.clear();
+    this.invoices.clear();
+    this.billingWebhookEvents.clear();
+    this.workspaces.clear();
+    this.workspaceMembers.clear();
+    this.brandings.clear();
+    this.customDomains.clear();
+    this.enterpriseLicenses.clear();
+    this.ssoConfigurations.clear();
+    this.externalIdentities.clear();
+    this.groupRoleMappings.clear();
+    this.scimTokens.clear();
+    this.oauthClients.clear();
+    this.idempotencyRecords.clear();
+    this.retentionPolicies.clear();
+    this.retentionJobs.clear();
+    this.privacyRequests.clear();
+    this.legalHolds.clear();
+    this.aiConfigurations.clear();
+    this.slos.clear();
+    this.businessOutcomes.clear();
+    this.processEvents = [];
+    this.streamEvents.clear();
+    this.eventDeduplications.clear();
+    this.connectorSubscriptions.clear();
+    this.extensionPackages.clear();
+    this.extensionVersions.clear();
+    this.extensionInstallations.clear();
+    this.executionLeases.clear();
+    this.scheduleClaims.clear();
+    this.stepReconciliations.clear();
+    this.savedSearches.clear();
+    this.policies.clear();
+    this.policyVersions.clear();
+    this.policyExceptions.clear();
+    this.policyViolations.clear();
+    this.roiAssumptions.clear();
+    this.savedReports.clear();
+    this.resourceQuotas.clear();
+    this.resourceReservations.clear();
+    this.workflowTestCases.clear();
+    this.workflowTestRuns.clear();
+    this.testFixtures.clear();
+    this.debugSessions.clear();
+    this.publishingGateConfigs.clear();
+    this.plans.clear();
+    for (const plan of Object.values(DEFAULT_PLANS)) {
+      this.plans.set(plan.id, { ...plan });
+      this.plans.set(plan.slug, { ...plan });
+    }
     this.activities = [];
     this.auditLogs = [];
   }

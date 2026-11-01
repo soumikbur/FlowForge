@@ -9,6 +9,8 @@ import { apiStore } from "../store.js";
 import { requireAuth } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/rbac.js";
 import { replayWebhookDelivery } from "../services/event-delivery.service.js";
+import { apiReliabilityService } from "../services/api-reliability.service.js";
+import { deprecationNotice } from "../middleware/deprecation.js";
 
 export const webhookSubscriptionRouter = Router();
 webhookSubscriptionRouter.use(requireAuth);
@@ -70,7 +72,13 @@ webhookSubscriptionRouter.post(
       return;
     }
 
-    const { name, url, events, enabled, secret: customSecret } = parseResult.data;
+    const {
+      name,
+      url,
+      events,
+      enabled,
+      secret: customSecret,
+    } = parseResult.data;
 
     // SSRF Destination Validation
     if (isPrivateOrBlockedDestination(url)) {
@@ -79,7 +87,8 @@ webhookSubscriptionRouter.post(
         data: null,
         error: {
           code: "SSRF_BLOCKED_DESTINATION",
-          message: "The destination URL resolves to a private, loopback, or prohibited network address.",
+          message:
+            "The destination URL resolves to a private, loopback, or prohibited network address.",
         },
       });
       return;
@@ -147,7 +156,10 @@ webhookSubscriptionRouter.get(
       res.status(404).json({
         success: false,
         data: null,
-        error: { code: "NOT_FOUND", message: "Webhook subscription not found." },
+        error: {
+          code: "NOT_FOUND",
+          message: "Webhook subscription not found.",
+        },
       });
       return;
     }
@@ -185,7 +197,10 @@ webhookSubscriptionRouter.patch(
       res.status(404).json({
         success: false,
         data: null,
-        error: { code: "NOT_FOUND", message: "Webhook subscription not found." },
+        error: {
+          code: "NOT_FOUND",
+          message: "Webhook subscription not found.",
+        },
       });
       return;
     }
@@ -211,7 +226,8 @@ webhookSubscriptionRouter.patch(
           data: null,
           error: {
             code: "SSRF_BLOCKED_DESTINATION",
-            message: "The destination URL resolves to a private, loopback, or prohibited network address.",
+            message:
+              "The destination URL resolves to a private, loopback, or prohibited network address.",
           },
         });
         return;
@@ -220,8 +236,10 @@ webhookSubscriptionRouter.patch(
     }
 
     if (parseResult.data.name !== undefined) sub.name = parseResult.data.name;
-    if (parseResult.data.events !== undefined) sub.events = parseResult.data.events;
-    if (parseResult.data.enabled !== undefined) sub.enabled = parseResult.data.enabled;
+    if (parseResult.data.events !== undefined)
+      sub.events = parseResult.data.events;
+    if (parseResult.data.enabled !== undefined)
+      sub.enabled = parseResult.data.enabled;
     sub.updatedAt = new Date();
 
     apiStore.webhookSubscriptions.set(id, sub);
@@ -253,7 +271,7 @@ webhookSubscriptionRouter.patch(
 
 /**
  * POST /api/v1/webhooks/subscriptions/:id/rotate-secret
- * Rotate HMAC signing secret for a subscription.
+ * Rotate HMAC signing secret for a subscription with secondary secret grace period.
  */
 webhookSubscriptionRouter.post(
   "/subscriptions/:id/rotate-secret",
@@ -261,20 +279,34 @@ webhookSubscriptionRouter.post(
   (req: Request, res: Response) => {
     const { id } = req.params;
     const orgId = req.organizationId!;
+    const requestId =
+      (req as any).requestId ||
+      (req.headers["x-request-id"] as string) ||
+      `req_${crypto.randomUUID()}`;
 
     const sub = apiStore.webhookSubscriptions.get(id);
     if (!sub || sub.organizationId !== orgId) {
       res.status(404).json({
         success: false,
         data: null,
-        error: { code: "NOT_FOUND", message: "Webhook subscription not found." },
+        error: {
+          code: "NOT_FOUND",
+          message: "Webhook subscription not found.",
+          requestId,
+          retryable: false,
+        },
       });
       return;
     }
 
+    const previousSecret = sub.secret;
     const newSecret = `whsec_${crypto.randomBytes(24).toString("hex")}`;
+    const now = new Date();
+
+    sub.secondarySecret = previousSecret;
     sub.secret = newSecret;
-    sub.updatedAt = new Date();
+    sub.secretRotatedAt = now;
+    sub.updatedAt = now;
     apiStore.webhookSubscriptions.set(id, sub);
 
     apiStore.recordAudit({
@@ -283,6 +315,10 @@ webhookSubscriptionRouter.post(
       action: "webhook_subscription:rotate_secret",
       resourceType: "webhook_subscription",
       resourceId: id,
+      metadata: {
+        hasSecondarySecret: true,
+        rotatedAt: now.toISOString(),
+      },
     });
 
     res.json({
@@ -291,6 +327,8 @@ webhookSubscriptionRouter.post(
         subscriptionId: id,
         secret: newSecret,
         newSecret,
+        secondarySecret: previousSecret,
+        secretRotatedAt: now.toISOString(),
         updatedAt: sub.updatedAt.toISOString(),
       },
       error: null,
@@ -314,7 +352,10 @@ webhookSubscriptionRouter.delete(
       res.status(404).json({
         success: false,
         data: null,
-        error: { code: "NOT_FOUND", message: "Webhook subscription not found." },
+        error: {
+          code: "NOT_FOUND",
+          message: "Webhook subscription not found.",
+        },
       });
       return;
     }
@@ -353,14 +394,20 @@ webhookSubscriptionRouter.get(
       res.status(404).json({
         success: false,
         data: null,
-        error: { code: "NOT_FOUND", message: "Webhook subscription not found." },
+        error: {
+          code: "NOT_FOUND",
+          message: "Webhook subscription not found.",
+        },
       });
       return;
     }
 
     const deliveries = Array.from(apiStore.webhookDeliveries.values())
       .filter((d) => d.subscriptionId === id && d.organizationId === orgId)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      )
       .slice(0, 50);
 
     res.json({
@@ -373,39 +420,140 @@ webhookSubscriptionRouter.get(
 );
 
 /**
- * POST /api/v1/webhooks/deliveries/:id/retry
- * Replays a failed or dead-lettered delivery.
+ * GET /api/v1/webhooks/deliveries/dead-letter
+ * Lists dead-lettered webhook deliveries for the current organization.
  */
-webhookSubscriptionRouter.post(
-  "/deliveries/:id/retry",
-  requirePermission("webhook:write"),
-  async (req: Request, res: Response) => {
+webhookSubscriptionRouter.get(
+  "/deliveries/dead-letter",
+  requirePermission("webhook:read"),
+  (req: Request, res: Response) => {
+    const orgId = req.organizationId!;
+    const subscriptionId = req.query.subscriptionId as string | undefined;
+
+    const dlqDeliveries = Array.from(apiStore.webhookDeliveries.values())
+      .filter((d) => {
+        if (d.organizationId !== orgId) return false;
+        if (d.status !== "DEAD_LETTERED") return false;
+        if (subscriptionId && d.subscriptionId !== subscriptionId) return false;
+        return true;
+      })
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+
+    res.json({
+      success: true,
+      data: dlqDeliveries,
+      meta: { total: dlqDeliveries.length },
+      error: null,
+    });
+  },
+);
+
+/**
+ * GET /api/v1/webhooks/deliveries/:id
+ * Retrieve details of a specific webhook delivery.
+ */
+webhookSubscriptionRouter.get(
+  "/deliveries/:id",
+  requirePermission("webhook:read"),
+  (req: Request, res: Response) => {
     const { id } = req.params;
     const orgId = req.organizationId!;
+    const requestId =
+      (req as any).requestId ||
+      (req.headers["x-request-id"] as string) ||
+      `req_${crypto.randomUUID()}`;
 
     const delivery = apiStore.webhookDeliveries.get(id);
     if (!delivery || delivery.organizationId !== orgId) {
       res.status(404).json({
         success: false,
         data: null,
-        error: { code: "NOT_FOUND", message: "Webhook delivery record not found." },
+        error: {
+          code: "NOT_FOUND",
+          message: "Webhook delivery record not found.",
+          requestId,
+          retryable: false,
+        },
       });
       return;
     }
 
-    try {
-      const retried = await replayWebhookDelivery(apiStore, id, req.user?.id);
-      res.json({
-        success: true,
-        data: retried,
-        error: null,
-      });
-    } catch (err: any) {
-      res.status(400).json({
-        success: false,
-        data: null,
-        error: { code: "REPLAY_FAILED", message: err.message },
-      });
-    }
+    res.json({
+      success: true,
+      data: delivery,
+      error: null,
+    });
   },
+);
+
+/**
+ * Common handler to replay a failed or dead-lettered delivery.
+ */
+const handleDeliveryReplay = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const orgId = req.organizationId!;
+  const requestId =
+    (req as any).requestId ||
+    (req.headers["x-request-id"] as string) ||
+    `req_${crypto.randomUUID()}`;
+
+  const delivery = apiStore.webhookDeliveries.get(id);
+  if (!delivery || delivery.organizationId !== orgId) {
+    res.status(404).json({
+      success: false,
+      data: null,
+      error: {
+        code: "NOT_FOUND",
+        message: "Webhook delivery record not found.",
+        requestId,
+        retryable: false,
+      },
+    });
+    return;
+  }
+
+  try {
+    const retried = await replayWebhookDelivery(apiStore, id, req.user?.id);
+    apiReliabilityService.recordOutboundWebhook("replayed");
+    res.json({
+      success: true,
+      data: retried,
+      error: null,
+    });
+  } catch (err: any) {
+    res.status(400).json({
+      success: false,
+      data: null,
+      error: {
+        code: "REPLAY_FAILED",
+        message: err.message,
+        requestId,
+        retryable: false,
+      },
+    });
+  }
+};
+
+/**
+ * POST /api/v1/webhooks/deliveries/:id/replay
+ * Replays a failed or dead-lettered delivery.
+ */
+webhookSubscriptionRouter.post(
+  "/deliveries/:id/replay",
+  requirePermission("webhook:write"),
+  handleDeliveryReplay,
+);
+
+/**
+ * POST /api/v1/webhooks/deliveries/:id/retry
+ * Deprecated alias for /replay.
+ */
+webhookSubscriptionRouter.post(
+  "/deliveries/:id/retry",
+  deprecationNotice("/api/v1/webhooks/deliveries/:id/replay"),
+  requirePermission("webhook:write"),
+  handleDeliveryReplay,
 );

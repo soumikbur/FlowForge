@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from "react";
 import {
@@ -41,7 +41,11 @@ interface ActivityDrawerProps {
   onClose: () => void;
 }
 
-export function ActivityDrawer({ workflowId, isOpen, onClose }: ActivityDrawerProps) {
+export function ActivityDrawer({
+  workflowId,
+  isOpen,
+  onClose,
+}: ActivityDrawerProps) {
   const [activities, setActivities] = useState<ActivityEvent[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -74,7 +78,7 @@ export function ActivityDrawer({ workflowId, isOpen, onClose }: ActivityDrawerPr
       case "DRAFT_UPDATED":
         return <FileEdit className="w-4 h-4 text-blue-600" />;
       case "WORKFLOW_PUBLISHED":
-        return <Send className="w-4 h-4 text-teal-600" />;
+        return <Send className="w-4 h-4 text-indigo-600" />;
       case "OWNERSHIP_TRANSFERRED":
         return <Crown className="w-4 h-4 text-purple-600" />;
       case "COLLABORATOR_ADDED":
@@ -84,7 +88,9 @@ export function ActivityDrawer({ workflowId, isOpen, onClose }: ActivityDrawerPr
       case "COLLABORATOR_ROLE_UPDATED":
         return <ShieldAlert className="w-4 h-4 text-amber-600" />;
       case "COMMENT_ADDED":
-        return <MessageSquare className="w-4 h-4 text-slate-600" />;
+        return (
+          <MessageSquare className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+        );
       case "COMMENT_RESOLVED":
         return <CheckCircle2 className="w-4 h-4 text-emerald-600" />;
       case "COMMENT_DELETED":
@@ -128,16 +134,18 @@ export function ActivityDrawer({ workflowId, isOpen, onClose }: ActivityDrawerPr
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-y-0 right-0 z-50 w-96 bg-white shadow-2xl border-l border-slate-200 flex flex-col">
+    <div className="fixed inset-y-0 right-0 z-50 w-96 bg-white dark:bg-slate-900 shadow-2xl border-l border-slate-200 dark:border-slate-800 flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+      <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/60">
         <div className="flex items-center gap-2">
-          <History className="w-5 h-5 text-teal-600" />
-          <h2 className="font-bold text-slate-800 text-sm">Activity & Audit Feed</h2>
+          <History className="w-5 h-5 text-indigo-600" />
+          <h2 className="font-bold text-slate-800 dark:text-slate-200 text-sm">
+            Activity & Audit Feed
+          </h2>
         </div>
         <button
           onClick={onClose}
-          className="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-slate-200 transition"
+          className="text-slate-400 hover:text-slate-600 dark:text-slate-400 p-1 rounded-md hover:bg-slate-200 transition"
         >
           <X className="w-4 h-4" />
         </button>
@@ -146,27 +154,32 @@ export function ActivityDrawer({ workflowId, isOpen, onClose }: ActivityDrawerPr
       {/* Activity Timeline */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {loading ? (
-          <div className="py-12 text-center text-xs text-slate-400">Loading activity feed...</div>
+          <div className="py-12 text-center text-xs text-slate-400">
+            Loading activity feed...
+          </div>
         ) : activities.length === 0 ? (
           <div className="py-12 text-center">
             <History className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-            <p className="text-xs text-slate-500 font-medium">No activity recorded yet</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+              No activity recorded yet
+            </p>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              Draft changes, publishes, and collaborator events will appear here.
+              Draft changes, publishes, and collaborator events will appear
+              here.
             </p>
           </div>
         ) : (
-          <div className="relative border-l border-slate-200 ml-3 space-y-5">
+          <div className="relative border-l border-slate-200 dark:border-slate-800 ml-3 space-y-5">
             {activities.map((item) => (
               <div key={item.id} className="relative pl-6">
                 {/* Node icon bubble */}
-                <div className="absolute -left-3 top-0 w-6 h-6 rounded-full bg-white border border-slate-200 flex items-center justify-center shadow-xs">
+                <div className="absolute -left-3 top-0 w-6 h-6 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center shadow-xs">
                   {renderEventIcon(item.type)}
                 </div>
 
                 {/* Event card */}
                 <div>
-                  <p className="text-xs text-slate-800 leading-snug font-medium">
+                  <p className="text-xs text-slate-800 dark:text-slate-200 leading-snug font-medium">
                     {formatEventDescription(item)}
                   </p>
                   <span className="text-[10px] text-slate-400 block mt-1">

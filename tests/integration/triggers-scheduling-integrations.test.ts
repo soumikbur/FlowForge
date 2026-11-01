@@ -169,7 +169,10 @@ describe("Prompt 7: Durable Triggers, Webhooks, Scheduling, Delays, and Integrat
       const res = await request(app)
         .post(`/api/v1/webhooks/incoming/${webhookConfigId}`)
         .set("Content-Type", "application/json")
-        .set("X-Signature-256", "0000000000000000000000000000000000000000000000000000000000000000")
+        .set(
+          "X-Signature-256",
+          "0000000000000000000000000000000000000000000000000000000000000000",
+        )
         .send(payload);
 
       expect(res.status).toBe(401);
@@ -532,8 +535,8 @@ describe("Prompt 7: Durable Triggers, Webhooks, Scheduling, Delays, and Integrat
         id: overdueExecId,
         organizationId: orgAId,
         workflowId: delayWorkflowId,
-        workflowVersionId: apiStore.workflows.get(delayWorkflowId)!
-          .publishedVersionId!,
+        workflowVersionId:
+          apiStore.workflows.get(delayWorkflowId)!.publishedVersionId!,
         triggerType: "MANUAL",
         triggerPayload: {},
         status: "WAITING_DELAY",
@@ -654,7 +657,10 @@ describe("Prompt 7: Durable Triggers, Webhooks, Scheduling, Delays, and Integrat
     let credentialId: string;
 
     it("encrypts credential data at rest using AES-256-GCM and verifies decryption", () => {
-      const secretPayload = { apiKey: "prod_live_sec_12345", endpoint: "https://api.partner.com" };
+      const secretPayload = {
+        apiKey: "prod_live_sec_12345",
+        endpoint: "https://api.partner.com",
+      };
       const encrypted = encryptCredentialData(secretPayload);
 
       expect(encrypted).toContain(":");
@@ -702,4 +708,3 @@ describe("Prompt 7: Durable Triggers, Webhooks, Scheduling, Delays, and Integrat
     });
   });
 });
-

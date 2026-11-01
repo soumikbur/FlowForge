@@ -1,4 +1,8 @@
-import { WorkflowDefinition, WorkflowNode, WorkflowEdge } from "@flowforge/shared";
+import {
+  WorkflowDefinition,
+  WorkflowNode,
+  WorkflowEdge,
+} from "@flowforge/shared";
 
 export interface ConfigDiff {
   path: string;
@@ -32,7 +36,8 @@ export interface WorkflowComparisonResult {
   };
 }
 
-const SENSITIVE_KEY_REGEX = /(password|secret|token|api_?key|credential|private)/i;
+const SENSITIVE_KEY_REGEX =
+  /(password|secret|token|api_?key|credential|private)/i;
 
 /**
  * Redacts sensitive credentials or secrets within configuration values.
@@ -45,12 +50,19 @@ export function redactSensitiveValues(obj: unknown, keyPath = ""): unknown {
     return obj;
   }
   if (Array.isArray(obj)) {
-    return obj.map((item, i) => redactSensitiveValues(item, `${keyPath}[${i}]`));
+    return obj.map((item, i) =>
+      redactSensitiveValues(item, `${keyPath}[${i}]`),
+    );
   }
   const result: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
     const currentPath = keyPath ? `${keyPath}.${k}` : k;
-    if (SENSITIVE_KEY_REGEX.test(k) && v !== undefined && v !== null && v !== "") {
+    if (
+      SENSITIVE_KEY_REGEX.test(k) &&
+      v !== undefined &&
+      v !== null &&
+      v !== ""
+    ) {
       result[k] = "[REDACTED]";
     } else {
       result[k] = redactSensitiveValues(v, currentPath);
@@ -138,25 +150,42 @@ export function compareWorkflowDefinitions(
       });
     } else {
       const fromNode = fromNodesMap.get(toId)!;
-      const configDiffs = compareObjects(fromNode.config || {}, toNode.config || {});
+      const configDiffs = compareObjects(
+        fromNode.config || {},
+        toNode.config || {},
+      );
       const typeChanged = fromNode.type !== toNode.type;
       const nameChanged = fromNode.name !== toNode.name;
 
       if (configDiffs.length > 0 || typeChanged || nameChanged) {
         const diffs = [...configDiffs];
         if (typeChanged) {
-          diffs.unshift({ path: "type", before: fromNode.type, after: toNode.type });
+          diffs.unshift({
+            path: "type",
+            before: fromNode.type,
+            after: toNode.type,
+          });
         }
         if (nameChanged) {
-          diffs.unshift({ path: "name", before: fromNode.name, after: toNode.name });
+          diffs.unshift({
+            path: "name",
+            before: fromNode.name,
+            after: toNode.name,
+          });
         }
 
         modifiedNodes.push({
           nodeId: toId,
           nodeName: toNode.name,
           nodeType: toNode.type,
-          previousConfig: redactSensitiveValues(fromNode.config) as Record<string, unknown>,
-          newConfig: redactSensitiveValues(toNode.config) as Record<string, unknown>,
+          previousConfig: redactSensitiveValues(fromNode.config) as Record<
+            string,
+            unknown
+          >,
+          newConfig: redactSensitiveValues(toNode.config) as Record<
+            string,
+            unknown
+          >,
           diffs,
         });
       }
@@ -167,7 +196,10 @@ export function compareWorkflowDefinitions(
     if (!toNodesMap.has(fromId)) {
       removedNodes.push({
         ...fromNode,
-        config: redactSensitiveValues(fromNode.config) as Record<string, unknown>,
+        config: redactSensitiveValues(fromNode.config) as Record<
+          string,
+          unknown
+        >,
       });
     }
   }
@@ -219,4 +251,3 @@ export function compareWorkflowDefinitions(
     },
   };
 }
-

@@ -1,68 +1,232 @@
-# FlowForge — Business Workflow Automation Platform
+# FlowForge — Resilient Multi-Tenant Business Workflow Automation Platform
 
-FlowForge is a resilient, multi-tenant business workflow automation platform built with modern TypeScript across both backend services and frontend applications.
+[![CI Quality Gate](https://github.com/soumikbur/FlowForge/actions/workflows/ci.yml/badge.svg)](https://github.com/soumikbur/FlowForge/actions/workflows/ci.yml)
+[![Node.js](https://img.shields.io/badge/Node.js-22.x%20%7C%2024.x-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![pnpm](https://img.shields.io/badge/pnpm-12.16.1-F69220?logo=pnpm&logoColor=white)](https://pnpm.io/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7.3-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-14.2.35-000000?logo=next.js&logoColor=white)](https://nextjs.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4.1-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![React Flow](https://img.shields.io/badge/React_Flow-11.11.4-FF0072)](https://reactflow.dev/)
+[![Prisma](https://img.shields.io/badge/Prisma-6.3.1-2D3748?logo=prisma&logoColor=white)](https://www.prisma.io/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)](https://redis.io/)
+[![Tests](https://img.shields.io/badge/Tests-873%20Passing-brightgreen?logo=vitest&logoColor=white)](https://vitest.dev/)
 
-It enables organizations to automate repetitive operational processes through a visual workflow editor, durable execution engine, human-in-the-loop approvals, scheduled tasks, webhook triggers, and external API integrations.
+FlowForge is an enterprise-grade, resilient, multi-tenant business workflow automation platform built with modern TypeScript across frontend applications, distributed API services, and resilient background execution workers.
+
+It empowers organizations to design, simulate, govern, execute, and monitor critical operational workflows through an intuitive drag-and-drop visual canvas, durable execution state machines, human-in-the-loop approvals, AI-assisted authoring, and secure external connectors.
 
 ---
 
 ## Architecture Overview
 
+FlowForge is architected as an audited monorepo structured around separation of concerns, strict boundary enforcement, and defense-in-depth security:
+
 ```
 FlowForge/
-|-- apps/
-|   |-- web/             # Next.js App router, Tailwind CSS, React Flow visual editor
-|   |-- api/             # Express REST API, session authentication, RBAC, webhooks
-|   |-- worker/          # Resilient background execution worker, timeout & retry handling
-|
-|-- packages/
-|   |-- database/        # Prisma schema, multi-tenant abstractions, migrations
-|   |-- shared/          # Universal Zod schemas, domain types, API contracts, RBAC
-|   |-- workflow-engine/ # Pure graph validation, topological sort, conditions & state machine
-|   |-- integrations/    # SSRF-guarded HTTP client, webhooks, email delivery, scheduler
-|   |-- config/          # Environment configuration loader with Zod validation
-|   |-- test-utils/      # In-memory database store, fixtures & mock utilities
-|
-|-- tests/
-|   |-- unit/            # Shared contracts, database invariants, infrastructure tests
-|   |-- integration/     # End-to-end API and workflow execution tests
-|   |-- security/        # Tenant isolation & SSRF penetration tests
-|
-|-- docs/                # Architecture, DB schema, API contracts, state machine specs
-|-- docker-compose.yml   # Multi-container orchestration (Postgres, Redis, API, Worker, Web)
+├── apps/
+│   ├── web/                     # Next.js 14 App Router, React Flow builder, Tailwind CSS dual theme
+│   ├── api/                     # Express REST API, RBAC, OAuth 2.0, Webhook engine, AI Copilot
+│   └── worker/                  # Resilient background execution runner, BullMQ queues, Fair scheduler
+├── packages/
+│   ├── database/                # Prisma ORM schema (20+ models), PostgreSQL migrations, client
+│   ├── workflow-engine/         # Pure graph validation, topological planner, state machine, hasher
+│   ├── integrations/            # SSRF-guarded HTTP client, Slack & SMTP connectors, Webhook dispatch
+│   ├── shared/                  # Zod schemas, API contracts, domain models, RBAC permissions
+│   ├── config/                  # Validated environment configuration loader
+│   └── test-utils/              # In-memory transactional test store, fixtures, mock providers
+├── scripts/                     # Production migration runner (db-migrate.js)
+├── tests/                       # 873 automated unit, integration, and security tests (52 suites)
+├── docs/                        # Architecture, OpenAPI, Runbooks, Disaster Recovery, Compliance guides
+├── docker-compose.yml           # Local multi-service development orchestration
+└── docker-compose.prod.yml      # Hardened production container topology with network isolation
+```
+
+### System Architecture Diagram
+
+```mermaid
+flowchart TD
+    subgraph Client ["Client Tier"]
+        Browser["Modern Browser (Chrome / Edge / Safari)"]
+        Web["FlowForge Web UI (Next.js 14 / React Flow)\n:3000"]
+    end
+
+    subgraph Gateway ["Ingress & Routing"]
+        Ingress["Reverse Proxy / SSL Termination / Gateway"]
+    end
+
+    subgraph Services ["Application Services"]
+        API["FlowForge REST API Server (Express)\n:4000\nAuth, RBAC, Copilot, Governance"]
+        Worker["Background Execution Worker\n:4001\nScheduler, Step Runner, Retries"]
+    end
+
+    subgraph Data ["Data & Messaging Tier"]
+        Postgres[("PostgreSQL 16\nMulti-tenant Partitioning\nAudit Logs & State")]
+        Redis[("Redis 7 / In-Memory Queue\nTask Queues & Locks")]
+    end
+
+    subgraph External ["External Integrations"]
+        Webhooks["Outbound Webhooks / HMAC-SHA256"]
+        APIs["SSRF-Guarded External APIs"]
+        Email["SMTP / Notifications"]
+    end
+
+    Browser --> Ingress
+    Ingress --> Web
+    Ingress --> API
+    Web --> API
+    API --> Postgres
+    API --> Redis
+    Worker --> Redis
+    Worker --> Postgres
+    Worker --> Webhooks
+    Worker --> APIs
+    Worker --> Email
 ```
 
 ---
 
-## Core Capabilities
+## Verified Feature Inventory
 
-1. **Visual Workflow Builder**: Interactive drag-and-drop workflow canvas powered by React Flow with custom node handlers (`TRIGGER`, `CONDITION`, `HTTP_REQUEST`, `EMAIL`, `APPROVAL`, `DELAY`, `END`).
-2. **Durable Execution Engine**: State-machine driven workflow execution (`QUEUED`, `RUNNING`, `WAITING_APPROVAL`, `WAITING_DELAY`, `RETRYING`, `SUCCEEDED`, `FAILED`, `CANCELLED`).
-3. **Human Approval Inbox**: Approvers can inspect execution context, submit approvals or rejections with audit comments, and resume waiting workflows.
-4. **Security & Isolation**: Multi-tenant database partitioning, bcrypt session authentication, role-based access control (`OWNER`, `ADMIN`, `MEMBER`), and SSRF guards blocking private subnets and metadata IPs.
-5. **Resilient Integrations**: Safe HTTP actions with bounded exponential retries, webhook signature verification (HMAC SHA-256), and idempotent email dispatch.
+| Capability                        | Implementation Status | Description                                                                                                                                           |
+| :-------------------------------- | :-------------------: | :---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Visual Workflow Builder**       | **Production Ready**  | Drag-and-drop workflow canvas built on React Flow with interactive node palette, validation overlays, pan/zoom controls, and minimap.                 |
+| **Node Handler Ecosystem**        | **Production Ready**  | Handlers for `TRIGGER`, `CONDITION`, `HTTP_REQUEST`, `EMAIL`, `APPROVAL`, `DELAY`, `TRANSFORM`, and `END`.                                            |
+| **Durable State Machine**         | **Production Ready**  | Deterministic workflow execution states: `QUEUED`, `RUNNING`, `WAITING_APPROVAL`, `WAITING_DELAY`, `RETRYING`, `SUCCEEDED`, `FAILED`, `CANCELLED`.    |
+| **Human-in-the-Loop Inbox**       | **Production Ready**  | Dedicated approvals inbox (`/approvals`) allowing authorized reviewers to inspect runtime payload, leave audit comments, and approve or reject steps. |
+| **Global Theme System**           | **Production Ready**  | Cohesive dual-theme architecture (Light & Dark) backed by semantic CSS tokens, zero-flash pre-hydration script, and persistent user selection.        |
+| **Enterprise Connectors**         | **Production Ready**  | Pre-built integrations for HTTP REST APIs, Slack webhooks, and SMTP email with credential vault encryption (AES-256-GCM).                             |
+| **Workflow Templates**            | **Production Ready**  | Reusable automation templates catalog (`/templates`) with category filtering, search, and one-click instantiation.                                    |
+| **Simulation & Debugging**        | **Production Ready**  | Dry-run execution engine (`/workflows/[id]/test`) with mock input fixtures, step-by-step telemetry, and state inspection.                             |
+| **Process Intelligence**          | **Production Ready**  | Workflow discovery, bottleneck detection, SLA violation tracking, and operational efficiency analytics (`/analytics`).                                |
+| **AI Workflow Copilot**           | **Production Ready**  | Natural language workflow generation, node auto-configuration, and schema mapping powered by provider abstraction.                                    |
+| **Resource Governance & Quotas**  | **Production Ready**  | Per-organization execution quotas, connector call limits, rate limiters, and fair scheduling controls (`/quotas`).                                    |
+| **SSO, SCIM & RBAC**              | **Production Ready**  | Multi-tenant organization scoping, SAML/OIDC SSO configuration, SCIM 2.0 user/group provisioning, and fine-grained RBAC (`OWNER`, `ADMIN`, `MEMBER`). |
+| **Event Streaming & Outbox**      | **Production Ready**  | Guaranteed at-least-once transactional outbox event delivery with Dead Letter Queue (DLQ) replay capability.                                          |
+| **Resilience & Request Draining** | **Production Ready**  | Graceful SIGTERM/SIGINT shutdown, in-flight request draining, and `/health/live` & `/health/ready` Kubernetes probes.                                 |
 
 ---
 
-## Quickstart & Local Setup
+## Technology Stack
 
-### 1. Prerequisites
+| Layer                      | Technologies & Frameworks                                                      |
+| :------------------------- | :----------------------------------------------------------------------------- |
+| **Frontend Application**   | Next.js 14 (App Router), React 18, React Flow 11, Tailwind CSS 3, Lucide React |
+| **Backend API Services**   | Node.js 22+, Express 4, Zod, Bcrypt, JsonWebToken, Supertest                   |
+| **Background Processing**  | Node.js Worker, BullMQ / In-Memory Task Queue, Distributed Locks               |
+| **Persistence & Database** | PostgreSQL 16, Prisma ORM 6.3, Transactional Schemas                           |
+| **Caching & Messaging**    | Redis 7, Pub/Sub Event Streaming, Transactional Outbox                         |
+| **Tooling & Monorepo**     | pnpm 12 workspaces, TypeScript 5.7, Prettier 3, ESLint 9, Vitest 3             |
+| **Containerization**       | Docker, Docker Compose, Multi-stage unprivileged Alpine containers             |
 
-- **Node.js**: v20+ (tested on Node.js v24.19.0)
-- **pnpm**: v9+ (tested on pnpm v12.16.1)
-- **Docker & Docker Compose** (optional for containerized PostgreSQL and Redis)
+---
 
-### 2. Installation
+## Prerequisites
+
+Before setting up FlowForge locally or in production, ensure your environment meets these requirements:
+
+- **Node.js**: `v22.0.0` or higher (verified on Node.js `v24.19.0`)
+- **pnpm**: `v12.0.0` or higher (verified on pnpm `v12.16.1`)
+- **PostgreSQL**: `v16.x` (or Docker)
+- **Redis**: `v7.x` (or Docker)
+- **Docker & Docker Compose**: Recommended for containerized infrastructure and production deployment
+
+---
+
+## Installation & Setup
+
+### 1. Clone the Repository
 
 ```bash
-# Install all monorepo dependencies
-pnpm install
+git clone https://github.com/soumikbur/FlowForge.git
+cd FlowForge
 ```
 
-### 3. Running Automated Tests & Quality Checks
+### 2. Install Workspace Dependencies
 
 ```bash
-# Run all unit, integration, and security tests (56 tests)
+pnpm install --frozen-lockfile
+```
+
+### 3. Generate Database Client
+
+```bash
+pnpm db:generate
+```
+
+### 4. Configure Environment Variables
+
+Create your local `.env` file from the comprehensive template:
+
+```bash
+cp .env.example .env
+```
+
+Ensure cryptographic keys are generated with adequate entropy:
+
+```bash
+# Generate 256-bit hexadecimal key for ENCRYPTION_KEY (64 hex characters)
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+# Generate high-entropy string for SESSION_SECRET & JWT_SECRET (32+ chars)
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+---
+
+## Local Development
+
+Start the platform locally using the unified development command or individual microservices:
+
+```bash
+# Start all services concurrently (Web, API, Worker)
+pnpm dev
+
+# Or launch individual services in separate terminals:
+pnpm dev:api       # Express REST API (Port 4000)
+pnpm dev:worker    # Background Worker (Port 4001)
+pnpm dev:web       # Next.js Web Frontend (Port 3000)
+```
+
+### Service Endpoints
+
+- **Web Frontend Application**: [http://localhost:3000](http://localhost:3000)
+- **REST API Base URL**: [http://localhost:4000](http://localhost:4000)
+- **API Liveness Probe**: [http://localhost:4000/health/live](http://localhost:4000/health/live)
+- **API Readiness Probe**: [http://localhost:4000/health/ready](http://localhost:4000/health/ready)
+- **Worker Health Probe**: [http://localhost:4001/health](http://localhost:4001/health)
+
+---
+
+## Database Management
+
+FlowForge leverages Prisma ORM with strict migration controls and production pre-flight checks:
+
+```bash
+# Launch PostgreSQL and Redis using Docker Compose
+pnpm db:up
+
+# Deploy pending migrations (Development)
+pnpm db:migrate
+
+# Seed development database with initial tenant, admin user, and sample workflows
+pnpm db:seed
+
+# Production-safe migration deployment (validates connection strings & executes prisma deploy)
+pnpm db:migrate:prod
+
+# Stop containerized database services
+pnpm db:down
+```
+
+---
+
+## Automated Verification & Testing
+
+The repository maintains 100% passing test coverage across 52 test suites and 873 automated tests:
+
+```bash
+# Run the complete test suite
 pnpm test
 
 # Run unit tests only
@@ -71,53 +235,72 @@ pnpm test:unit
 # Run API and workflow integration tests
 pnpm test:integration
 
-# Run security and tenant isolation tests
+# Run security, tenant-isolation, and SSRF penetration tests
 pnpm test:security
 
-# Type checking across all workspaces
+# TypeScript compiler validation across all workspaces
 pnpm typecheck
 
-# Code formatting check & linting
+# Code formatting and static lint analysis
 pnpm format
 pnpm lint
-```
 
-### 4. Running the Development Environment
-
-```bash
-# Start all services concurrently (Web, API, Worker)
-pnpm dev
-
-# Or start services individually:
-pnpm dev:api       # Express API server on port 4000
-pnpm dev:worker    # Background worker service on port 4001
-pnpm dev:web       # Next.js web application on port 3000
-```
-
-- Web Application: [http://localhost:3000](http://localhost:3000)
-- REST API Server: [http://localhost:4000](http://localhost:4000)
-- Process Liveness Check: [http://localhost:4000/health](http://localhost:4000/health)
-- Dependency Readiness Check: [http://localhost:4000/ready](http://localhost:4000/ready)
-- Worker Healthcheck: [http://localhost:4001/health](http://localhost:4001/health)
-
-### 5. Running with Docker Compose
-
-```bash
-# Start PostgreSQL 16 and Redis 7 in background
-pnpm db:up
-
-# Stop databases safely
-pnpm db:down
-
-# Start entire containerized stack
-docker compose up --build -d
+# Production monorepo build verification
+pnpm build
 ```
 
 ---
 
-## Verification & Test Results
+## Production Deployment Architecture
 
-- **Unit & Contract Tests**: 27 tests passing (`tests/unit/shared-contracts.test.ts`, `tests/unit/database-entities.test.ts`, `tests/unit/infrastructure.test.ts`, `packages/workflow-engine`, `packages/integrations`).
-- **Integration Tests**: 11 tests passing (`tests/integration/api-auth.test.ts`, `tests/integration/workflow-execution.test.ts`).
-- **Security Tests**: 5 tests passing (`tests/security/tenant-isolation.test.ts`).
-- **Total**: 56/56 passing tests across 8 test suites.
+FlowForge provides a hardened, production-grade container topology configured in [`docker-compose.prod.yml`](./docker-compose.prod.yml):
+
+```bash
+# Build and run the complete production stack
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+### Container Topology & Security Hardening
+
+- **Unprivileged Execution:** Application containers run under an unprivileged user (`flowforge:flowforge` UID/GID 1001).
+- **Network Isolation:** PostgreSQL and Redis reside on an internal network (`flowforge-internal`) that is not exposed to the public internet or external host ports.
+- **Reverse Proxy Protection:** The API and Web services bind to `127.0.0.1` behind an SSL-terminating reverse proxy (Nginx, Caddy, Cloudflare, or AWS ALB).
+- **Resource Constraints:** Explicit CPU and memory limits prevent denial-of-service and "noisy neighbor" starvation.
+- **Log Rotation:** JSON-file logging drivers are configured with maximum file sizes (`20m` - `50m`) and rotation limits (`3` - `5` files).
+- **Health Probes:** Docker health checks poll `/health/live` and `/health/ready` to ensure seamless zero-downtime rolling updates.
+
+---
+
+## Security Practices
+
+1. **SSRF Defense:** All external HTTP connector nodes resolve domains and filter IP addresses before request dispatch, rejecting loopback, RFC 1918 private subnets, link-local, and cloud metadata IPs (`169.254.169.254`).
+2. **Credential Encryption at Rest:** Third-party credentials, tokens, and secrets are encrypted with AES-256-GCM using unique initialization vectors (IVs) and authentication tags.
+3. **Data Redaction:** Execution logs and error payloads pass through automated redaction filters to scrub authorization headers, cookies, and bearer tokens.
+4. **Role-Based Access Control:** Every API route verifies tenant boundaries (`organizationId`) and user permissions (`OWNER`, `ADMIN`, `MEMBER`).
+5. **Rate Limiting & Abuse Defense:** Tiered sliding-window rate limiters protect public API routes and webhook receivers against brute-force attacks and abuse.
+
+For reporting vulnerabilities, consult [`SECURITY.md`](./SECURITY.md).
+
+---
+
+## Troubleshooting Guide
+
+| Issue                                    | Root Cause                                                     | Resolution                                                                                                                    |
+| :--------------------------------------- | :------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------- |
+| **Port `3000` / `4000` / `4001` in use** | A dangling development process or prior container is active    | Run `Get-NetTCPConnection -LocalPort <PORT>` on Windows or `lsof -i :<PORT>` on Linux/macOS and terminate the orphan process. |
+| **Missing Prisma Client**                | Client was not generated after fresh installation              | Run `pnpm db:generate` to regenerate `@prisma/client`.                                                                        |
+| **Database connection refused**          | PostgreSQL service is stopped or DATABASE_URL is misconfigured | Run `pnpm db:up` to start containerized Postgres or verify connection string credentials in `.env`.                           |
+| **Prettier formatting error in CI**      | File modified without adhering to workspace code style         | Run `pnpm format:fix` to automatically format all files before committing.                                                    |
+| **TypeScript compile error on build**    | Shared package dependency not compiled in order                | Run `pnpm build` from the repository root to trigger topological dependency compilation.                                      |
+
+---
+
+## Contributing
+
+We welcome community contributions. Please review [`CONTRIBUTING.md`](./CONTRIBUTING.md) for our branching model, commit conventions, and pull request guidelines.
+
+---
+
+## License
+
+This project is licensed under the terms established in the repository. Unauthorized copying, distribution, or modification is subject to project permissions.

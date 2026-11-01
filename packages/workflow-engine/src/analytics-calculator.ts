@@ -23,7 +23,10 @@ export interface ExecutionMetricsSummary {
   retryRate: number;
   timeoutCount: number;
   durations: DurationStats;
-  byWorkflow: Record<string, { total: number; successful: number; failed: number }>;
+  byWorkflow: Record<
+    string,
+    { total: number; successful: number; failed: number }
+  >;
   byTriggerType: Record<string, number>;
   byStatus: Record<string, number>;
   byEnvironment: Record<string, number>;
@@ -76,7 +79,10 @@ export function sanitizeErrorMessage(message?: string): string {
 /**
  * Calculates a specific percentile from an array of numbers using linear interpolation.
  */
-export function calculatePercentile(values: number[], percentile: number): number {
+export function calculatePercentile(
+  values: number[],
+  percentile: number,
+): number {
   if (values.length === 0) return 0;
   if (values.length === 1) return values[0];
 
@@ -88,7 +94,10 @@ export function calculatePercentile(values: number[], percentile: number): numbe
   const weight = index - lower;
 
   if (lower === upper) return sorted[lower];
-  return Math.round((sorted[lower] * (1 - weight) + sorted[upper] * weight) * 100) / 100;
+  return (
+    Math.round((sorted[lower] * (1 - weight) + sorted[upper] * weight) * 100) /
+    100
+  );
 }
 
 /**
@@ -99,9 +108,8 @@ export function classifyFailure(
   errorMessage?: string,
   nodeType?: string,
 ): FailureCategory {
-  const combined = (
-    `${errorMessage || ""} ${JSON.stringify(errorDetails || "")} ${nodeType || ""}`
-  ).toLowerCase();
+  const combined =
+    `${errorMessage || ""} ${JSON.stringify(errorDetails || "")} ${nodeType || ""}`.toLowerCase();
 
   if (
     combined.includes("cancel") ||
@@ -230,7 +238,10 @@ export function calculateExecutionStats(
   let totalRetries = 0;
 
   const durations: number[] = [];
-  const byWorkflow: Record<string, { total: number; successful: number; failed: number }> = {};
+  const byWorkflow: Record<
+    string,
+    { total: number; successful: number; failed: number }
+  > = {};
   const byTriggerType: Record<string, number> = {};
   const byStatus: Record<string, number> = {};
   const byEnvironment: Record<string, number> = {};
@@ -285,7 +296,10 @@ export function calculateExecutionStats(
     }
 
     // Duration calculation for completed terminal executions
-    if ((st === "SUCCEEDED" || st === "FAILED" || st === "CANCELLED") && exec.completedAt) {
+    if (
+      (st === "SUCCEEDED" || st === "FAILED" || st === "CANCELLED") &&
+      exec.completedAt
+    ) {
       const start = new Date(exec.startedAt || exec.createdAt).getTime();
       const end = new Date(exec.completedAt).getTime();
       const durationMs = Math.max(0, end - start);
@@ -296,9 +310,13 @@ export function calculateExecutionStats(
   // Eligible terminal executions for rate denominators (only SUCCEEDED + FAILED)
   const eligibleTerminal = successful + failed;
   const successRate =
-    eligibleTerminal > 0 ? Math.round((successful / eligibleTerminal) * 1000) / 10 : 100;
+    eligibleTerminal > 0
+      ? Math.round((successful / eligibleTerminal) * 1000) / 10
+      : 100;
   const failureRate =
-    eligibleTerminal > 0 ? Math.round((failed / eligibleTerminal) * 1000) / 10 : 0;
+    eligibleTerminal > 0
+      ? Math.round((failed / eligibleTerminal) * 1000) / 10
+      : 0;
   const retryRate =
     total > 0 ? Math.round((totalRetries / total) * 1000) / 10 : 0;
 
@@ -397,7 +415,8 @@ export function calculateNodePerformance(
     if (step.startedAt && step.completedAt) {
       const dur = Math.max(
         0,
-        new Date(step.completedAt).getTime() - new Date(step.startedAt).getTime(),
+        new Date(step.completedAt).getTime() -
+          new Date(step.startedAt).getTime(),
       );
       item.durations.push(dur);
       cumulativeWorkflowDurationMs += dur;
@@ -409,14 +428,19 @@ export function calculateNodePerformance(
   for (const item of nodeMap.values()) {
     const totalDurationMs = item.durations.reduce((acc, d) => acc + d, 0);
     const avgDurationMs =
-      item.durations.length > 0 ? Math.round(totalDurationMs / item.durations.length) : 0;
+      item.durations.length > 0
+        ? Math.round(totalDurationMs / item.durations.length)
+        : 0;
     const medianDurationMs = calculatePercentile(item.durations, 50);
     const p95DurationMs = calculatePercentile(item.durations, 95);
     const failureRate =
-      item.count > 0 ? Math.round((item.failureCount / item.count) * 1000) / 10 : 0;
+      item.count > 0
+        ? Math.round((item.failureCount / item.count) * 1000) / 10
+        : 0;
     const percentageOfTotalDuration =
       cumulativeWorkflowDurationMs > 0
-        ? Math.round((totalDurationMs / cumulativeWorkflowDurationMs) * 1000) / 10
+        ? Math.round((totalDurationMs / cumulativeWorkflowDurationMs) * 1000) /
+          10
         : 0;
 
     // A node is flagged as a potential bottleneck if it accounts for >= 40% of runtime or failureRate >= 25%
@@ -466,7 +490,10 @@ export function groupExecutionsByTimeBucket(
     currentStart.setHours(0, 0, 0, 0);
   }
 
-  const bucketMap = new Map<number, { bucket: TimeSeriesBucket; durations: number[] }>();
+  const bucketMap = new Map<
+    number,
+    { bucket: TimeSeriesBucket; durations: number[] }
+  >();
 
   while (currentStart.getTime() < to.getTime()) {
     const bucketKey = currentStart.getTime();

@@ -1,4 +1,9 @@
-import { WorkflowDefinition, WorkflowNode, WorkflowEdge, NodeType } from "@flowforge/shared";
+import {
+  WorkflowDefinition,
+  WorkflowNode,
+  WorkflowEdge,
+  NodeType,
+} from "@flowforge/shared";
 import { Node, Edge } from "reactflow";
 
 export interface SerializedGraph {
@@ -81,4 +86,3 @@ export function reactFlowToWorkflowDefinition(
     edges: serializedEdges,
   };
 }
-

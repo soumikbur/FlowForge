@@ -1,20 +1,23 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useState, useCallback } from "react";
 import {
   CheckSquare,
-  CheckCircle2,
-  XCircle,
   Clock,
   UserCheck,
   RefreshCw,
   AlertCircle,
-  Filter,
   User,
   Shield,
   MessageSquare,
-  ArrowRight,
 } from "lucide-react";
+import { Badge } from "@/components/ui/Badge";
+import { Modal } from "@/components/ui/Modal";
+import { getApiBaseUrl } from "@/lib/api-client";
+import { FormField } from "@/components/ui/FormField";
+import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 interface ApprovalItem {
   id: string;
@@ -38,8 +41,12 @@ export default function ApprovalsPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [assignedToMe, setAssignedToMe] = useState(false);
-  const [activeApproval, setActiveApproval] = useState<ApprovalItem | null>(null);
-  const [reassignApproval, setReassignApproval] = useState<ApprovalItem | null>(null);
+  const [activeApproval, setActiveApproval] = useState<ApprovalItem | null>(
+    null,
+  );
+  const [reassignApproval, setReassignApproval] = useState<ApprovalItem | null>(
+    null,
+  );
 
   // Decision Modal State
   const [decision, setDecision] = useState<"APPROVE" | "REJECT">("APPROVE");
@@ -56,15 +63,18 @@ export default function ApprovalsPage() {
 
   const fetchApprovals = useCallback(async () => {
     setLoading(true);
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+    const apiUrl = getApiBaseUrl();
     const params = new URLSearchParams();
     if (statusFilter !== "ALL") params.append("status", statusFilter);
     if (assignedToMe) params.append("assignedToMe", "true");
 
     try {
-      const res = await fetch(`${apiUrl}/api/v1/approvals?${params.toString()}`, {
-        credentials: "include",
-      });
+      const res = await fetch(
+        `${apiUrl}/api/v1/approvals?${params.toString()}`,
+        {
+          credentials: "include",
+        },
+      );
       if (res.ok) {
         const json = await res.json();
         if (json.success && Array.isArray(json.data)) {
@@ -74,7 +84,7 @@ export default function ApprovalsPage() {
         }
       }
     } catch {
-      // Fallback fallback mock if network unreachable
+      // Fallback
     }
 
     // Default mock data if API is unseeded or running standalone
@@ -118,7 +128,7 @@ export default function ApprovalsPage() {
     if (!activeApproval) return;
     setSubmitting(true);
     setDecisionError(null);
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+    const apiUrl = getApiBaseUrl();
 
     try {
       const res = await fetch(
@@ -134,9 +144,14 @@ export default function ApprovalsPage() {
 
       if (!res.ok) {
         if (res.status === 409) {
-          setDecisionError("Conflict: This approval has already been decided by another user.");
+          setDecisionError(
+            "Conflict: This approval has already been decided by another user.",
+          );
         } else if (res.status === 403) {
-          setDecisionError(data.error?.message || "Forbidden: You are not authorized to decide this approval.");
+          setDecisionError(
+            data.error?.message ||
+              "Forbidden: You are not authorized to decide this approval.",
+          );
         } else {
           setDecisionError(data.error?.message || "Failed to submit decision.");
         }
@@ -158,7 +173,7 @@ export default function ApprovalsPage() {
       setActiveApproval(null);
       setComment("");
     } catch (err: any) {
-      setDecisionError(err.message || "Network error submitting decision.");
+      setDecisionError(err.message || "Failed to reach backend.");
     } finally {
       setSubmitting(false);
     }
@@ -168,7 +183,7 @@ export default function ApprovalsPage() {
     if (!reassignApproval) return;
     setReassigning(true);
     setReassignError(null);
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+    const apiUrl = getApiBaseUrl();
 
     try {
       const res = await fetch(
@@ -178,9 +193,9 @@ export default function ApprovalsPage() {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({
-            assignedUserId: reassignUserId || undefined,
-            requiredRole: reassignRole as any,
-            reason: reassignReason || undefined,
+            requiredRole: reassignRole,
+            assignedUserId: reassignUserId.trim() || undefined,
+            reason: reassignReason.trim() || undefined,
           }),
         },
       );
@@ -197,70 +212,60 @@ export default function ApprovalsPage() {
           a.id === reassignApproval.id
             ? {
                 ...a,
-                assignedUserId: reassignUserId || a.assignedUserId,
                 requiredRole: reassignRole,
+                assignedUserId: reassignUserId.trim() || undefined,
               }
             : a,
         ),
       );
       setReassignApproval(null);
-      setReassignUserId("");
-      setReassignReason("");
     } catch (err: any) {
-      setReassignError(err.message || "Network error reassigning approval.");
+      setReassignError(err.message || "Network error submitting reassignment.");
     } finally {
       setReassigning(false);
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "PENDING":
-        return "bg-amber-100 text-amber-800 border-amber-200";
-      case "APPROVED":
-        return "bg-emerald-100 text-emerald-800 border-emerald-200";
-      case "REJECTED":
-        return "bg-red-100 text-red-800 border-red-200";
-      case "TIMEOUT":
-        return "bg-purple-100 text-purple-800 border-purple-200";
-      default:
-        return "bg-slate-100 text-slate-700 border-slate-200";
-    }
-  };
-
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-6">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <CheckSquare className="w-6 h-6 text-teal-600" />
-            Human Approval Inbox
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <CheckSquare className="w-6 h-6 text-indigo-600 shrink-0" />
+            <span>Human Approval Inbox</span>
           </h1>
-          <p className="text-sm text-slate-500">
-            Authorize high-value actions, exceptions, and pending business operations.
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Review, authorize, or delegate manual workflow checkpoints and
+            critical business decisions.
           </p>
         </div>
-        <button
+        <Button
+          variant="outline"
           onClick={fetchApprovals}
-          className="inline-flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 shadow-sm transition"
+          isLoading={loading}
+          icon={
+            <RefreshCw
+              className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`}
+            />
+          }
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
           Refresh
-        </button>
+        </Button>
       </div>
 
-      {/* Filter Toolbar */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {["ALL", "PENDING", "APPROVED", "REJECTED", "TIMEOUT"].map((tab) => (
+      {/* Filter and Control Bar */}
+      <div className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+          {["ALL", "PENDING", "APPROVED", "REJECTED"].map((tab) => (
             <button
               key={tab}
               onClick={() => setStatusFilter(tab)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition ${
+              aria-pressed={statusFilter === tab}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition focus-ring ${
                 statusFilter === tab
-                  ? "bg-slate-900 text-white shadow-sm"
-                  : "text-slate-600 hover:bg-slate-100"
+                  ? "bg-slate-900 text-white shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:bg-slate-800"
               }`}
             >
               {tab.charAt(0) + tab.slice(1).toLowerCase()}
@@ -268,84 +273,89 @@ export default function ApprovalsPage() {
           ))}
         </div>
 
-        <label className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer select-none">
+        <label className="flex items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-300 cursor-pointer select-none">
           <input
             type="checkbox"
             checked={assignedToMe}
             onChange={(e) => setAssignedToMe(e.target.checked)}
-            className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+            className="rounded border-slate-300 text-indigo-600 focus-ring"
           />
           <span>Assigned to me</span>
         </label>
       </div>
 
       {/* Approval List */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden divide-y divide-slate-100">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden divide-y divide-slate-100">
         {loading ? (
           <div className="p-12 text-center text-slate-400 text-sm">
-            <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-slate-400" />
-            Loading approval requests...
+            <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-indigo-600" />
+            <span>Loading approval requests...</span>
           </div>
         ) : approvals.length === 0 ? (
-          <div className="p-12 text-center space-y-3">
-            <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto text-slate-400">
-              <CheckCircle2 className="w-6 h-6" />
-            </div>
-            <h3 className="text-sm font-semibold text-slate-900">Inbox Zero</h3>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              No approval requests match your selected filters. All workflows are running smoothly.
-            </p>
-          </div>
+          <EmptyState
+            icon={CheckSquare}
+            title="Inbox Zero"
+            description="No approval requests match your selected filters. All workflows are running smoothly."
+            actionLabel="Reset Filters"
+            onAction={() => {
+              setStatusFilter("ALL");
+              setAssignedToMe(false);
+            }}
+          />
         ) : (
           approvals.map((appr) => (
             <div
               key={appr.id}
-              className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-50 transition"
+              className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-50 dark:bg-slate-800/50 transition"
             >
-              <div className="space-y-1.5 max-w-2xl">
+              <div className="space-y-1.5 max-w-2xl min-w-0">
                 <div className="flex items-center gap-2.5 flex-wrap">
-                  <span className="font-semibold text-slate-900 text-base">
+                  <span className="font-semibold text-slate-900 dark:text-slate-100 text-base">
                     {appr.title}
                   </span>
-                  <span
-                    className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${getStatusBadge(
-                      appr.status,
-                    )}`}
-                  >
-                    {appr.status}
-                  </span>
+                  <Badge status={appr.status} size="sm" />
                   {appr.workflowName && (
-                    <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                    <span className="text-xs font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
                       {appr.workflowName}
                     </span>
                   )}
                 </div>
 
                 {appr.description && (
-                  <p className="text-sm text-slate-600">{appr.description}</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                    {appr.description}
+                  </p>
                 )}
 
                 <div className="flex items-center gap-4 text-xs text-slate-400 pt-1 flex-wrap">
-                  <span className="flex items-center gap-1 text-slate-500">
+                  <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
                     <Shield className="w-3.5 h-3.5" />
-                    Role: <strong className="text-slate-700">{appr.requiredRole}</strong>
+                    Role:{" "}
+                    <strong className="text-slate-700 dark:text-slate-300">
+                      {appr.requiredRole}
+                    </strong>
                   </span>
                   {appr.assignedUserId && (
-                    <span className="flex items-center gap-1 text-slate-500">
+                    <span className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
                       <User className="w-3.5 h-3.5" />
-                      Assignee: <strong className="text-slate-700">{appr.assignedUserId}</strong>
+                      Assignee:{" "}
+                      <strong className="text-slate-700 dark:text-slate-300">
+                        {appr.assignedUserId}
+                      </strong>
                     </span>
                   )}
                   <span className="flex items-center gap-1">
                     <Clock className="w-3.5 h-3.5" />
-                    Requested: {new Date(appr.createdAt).toLocaleDateString()} at{" "}
-                    {new Date(appr.createdAt).toLocaleTimeString()}
+                    Requested: {new Date(
+                      appr.createdAt,
+                    ).toLocaleDateString()}{" "}
+                    at {new Date(appr.createdAt).toLocaleTimeString()}
                   </span>
                 </div>
 
                 {appr.decisionComment && (
-                  <div className="mt-2 text-xs bg-slate-100 border border-slate-200 text-slate-700 p-2.5 rounded-lg flex items-start gap-2">
-                    <MessageSquare className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" />
+                  <div className="mt-2 text-xs bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 p-2.5 rounded-lg flex items-start gap-2">
+                    <MessageSquare className="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0" />
                     <span>
                       <strong>Decision Note:</strong> {appr.decisionComment}
                     </span>
@@ -354,37 +364,40 @@ export default function ApprovalsPage() {
               </div>
 
               {appr.status === "PENDING" && (
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <button
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => {
                       setReassignApproval(appr);
                       setReassignRole(appr.requiredRole);
                       setReassignUserId(appr.assignedUserId || "");
                     }}
-                    className="px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition"
                   >
                     Reassign
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
                     onClick={() => {
                       setActiveApproval(appr);
                       setDecision("REJECT");
                       setDecisionError(null);
                     }}
-                    className="px-3 py-1.5 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition"
                   >
                     Reject
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
                     onClick={() => {
                       setActiveApproval(appr);
                       setDecision("APPROVE");
                       setDecisionError(null);
                     }}
-                    className="px-3.5 py-1.5 text-xs font-semibold text-white bg-teal-600 rounded-lg hover:bg-teal-700 shadow-sm transition"
                   >
                     Approve
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
@@ -392,195 +405,181 @@ export default function ApprovalsPage() {
         )}
       </div>
 
-      {/* Decision Submission Modal */}
-      {activeApproval && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-lg w-full p-6 space-y-4 animate-in fade-in zoom-in-95">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">
-                  {decision === "APPROVE" ? "Approve Execution Step" : "Reject Execution Step"}
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Workflow: {activeApproval.workflowName || activeApproval.title}
-                </p>
-              </div>
-              <button
-                onClick={() => setActiveApproval(null)}
-                className="text-slate-400 hover:text-slate-600 p-1"
-              >
-                ✕
-              </button>
+      {/* Accessible Decision Submission Modal */}
+      <Modal
+        isOpen={!!activeApproval}
+        onClose={() => setActiveApproval(null)}
+        title={
+          decision === "APPROVE"
+            ? "Approve Execution Step"
+            : "Reject Execution Step"
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Workflow:{" "}
+            <strong>
+              {activeApproval?.workflowName || activeApproval?.title}
+            </strong>
+          </p>
+
+          {decisionError && (
+            <div
+              role="alert"
+              className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-start gap-2"
+            >
+              <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+              <span>{decisionError}</span>
             </div>
+          )}
 
-            {decisionError && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-                <span>{decisionError}</span>
-              </div>
-            )}
-
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Decision
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setDecision("APPROVE")}
-                    className={`py-2 text-xs font-semibold rounded-lg border text-center transition ${
-                      decision === "APPROVE"
-                        ? "bg-teal-50 border-teal-500 text-teal-700"
-                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    Approve Request
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDecision("REJECT")}
-                    className={`py-2 text-xs font-semibold rounded-lg border text-center transition ${
-                      decision === "REJECT"
-                        ? "bg-red-50 border-red-500 text-red-700"
-                        : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    Reject Request
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Decision Note / Audit Comment (Optional)
-                </label>
-                <textarea
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  placeholder="Provide audit reason, authorization reference, or feedback..."
-                  rows={3}
-                  className="w-full text-xs p-3 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 text-slate-900"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setActiveApproval(null)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={submitDecision}
-                className={`px-4 py-2 text-xs font-semibold text-white rounded-lg transition shadow-sm ${
-                  decision === "APPROVE"
-                    ? "bg-teal-600 hover:bg-teal-700"
-                    : "bg-red-600 hover:bg-red-700"
-                } ${submitting ? "opacity-60 cursor-not-allowed" : ""}`}
-              >
-                {submitting ? "Submitting..." : `Confirm ${decision === "APPROVE" ? "Approval" : "Rejection"}`}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Reassign Modal */}
-      {reassignApproval && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-lg w-full p-6 space-y-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">
-                  Reassign Approval
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Change assignee or required authorization tier
-                </p>
-              </div>
-              <button
-                onClick={() => setReassignApproval(null)}
-                className="text-slate-400 hover:text-slate-600 p-1"
-              >
-                ✕
-              </button>
-            </div>
-
-            {reassignError && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
-                <span>{reassignError}</span>
-              </div>
-            )}
-
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Required Role
-                </label>
-                <select
-                  value={reassignRole}
-                  onChange={(e) => setReassignRole(e.target.value)}
-                  className="w-full text-xs p-2.5 rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+          <div className="space-y-3">
+            <div>
+              <span className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                Decision
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDecision("APPROVE")}
+                  aria-pressed={decision === "APPROVE"}
+                  className={`py-2 text-xs font-semibold rounded-lg border text-center transition focus-ring ${
+                    decision === "APPROVE"
+                      ? "bg-indigo-50 border-indigo-500 text-indigo-700 ring-1 ring-indigo-500"
+                      : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-800/50"
+                  }`}
                 >
-                  <option value="MEMBER">MEMBER</option>
-                  <option value="ADMIN">ADMIN</option>
-                  <option value="OWNER">OWNER</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Specific User ID (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={reassignUserId}
-                  onChange={(e) => setReassignUserId(e.target.value)}
-                  placeholder="e.g. usr_manager_123"
-                  className="w-full text-xs p-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Reassignment Reason (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={reassignReason}
-                  onChange={(e) => setReassignReason(e.target.value)}
-                  placeholder="e.g. Primary approver on annual leave"
-                  className="w-full text-xs p-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
-                />
+                  Approve Request
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDecision("REJECT")}
+                  aria-pressed={decision === "REJECT"}
+                  className={`py-2 text-xs font-semibold rounded-lg border text-center transition focus-ring ${
+                    decision === "REJECT"
+                      ? "bg-red-50 border-red-500 text-red-700 ring-1 ring-red-500"
+                      : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:bg-slate-800/50"
+                  }`}
+                >
+                  Reject Request
+                </button>
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setReassignApproval(null)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={reassigning}
-                onClick={submitReassignment}
-                className="px-4 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition shadow-sm"
-              >
-                {reassigning ? "Saving..." : "Save Reassignment"}
-              </button>
-            </div>
+            <FormField
+              label="Decision Note / Audit Comment"
+              name="decision-comment"
+              hint="Provide audit reason, authorization reference, or explanatory feedback."
+            >
+              <textarea
+                id="decision-comment"
+                name="decision-comment"
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="Provide audit reason, authorization reference, or feedback..."
+                rows={3}
+                className="w-full text-xs p-3 rounded-lg border border-slate-200 dark:border-slate-800 focus-ring text-slate-900 dark:text-slate-100"
+              />
+            </FormField>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <Button variant="outline" onClick={() => setActiveApproval(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant={decision === "APPROVE" ? "primary" : "danger"}
+              isLoading={submitting}
+              onClick={submitDecision}
+            >
+              {`Confirm ${decision === "APPROVE" ? "Approval" : "Rejection"}`}
+            </Button>
           </div>
         </div>
-      )}
+      </Modal>
+
+      {/* Accessible Reassign Modal */}
+      <Modal
+        isOpen={!!reassignApproval}
+        onClose={() => setReassignApproval(null)}
+        title="Reassign Approval Checkpoint"
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Change assignee or required authorization tier for this workflow
+            checkpoint.
+          </p>
+
+          {reassignError && (
+            <div
+              role="alert"
+              className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-start gap-2"
+            >
+              <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+              <span>{reassignError}</span>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <FormField label="Required Role" name="reassign-role">
+              <select
+                id="reassign-role"
+                name="reassign-role"
+                value={reassignRole}
+                onChange={(e) => setReassignRole(e.target.value)}
+                className="w-full text-xs p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus-ring text-slate-900 dark:text-slate-100"
+              >
+                <option value="MEMBER">MEMBER</option>
+                <option value="ADMIN">ADMIN</option>
+                <option value="OWNER">OWNER</option>
+              </select>
+            </FormField>
+
+            <FormField
+              label="Specific User ID"
+              name="reassign-user"
+              hint="Leave blank to allow any user with the required role to authorize."
+            >
+              <Input
+                id="reassign-user"
+                name="reassign-user"
+                type="text"
+                value={reassignUserId}
+                onChange={(e) => setReassignUserId(e.target.value)}
+                placeholder="e.g. usr_manager_123"
+              />
+            </FormField>
+
+            <FormField
+              label="Reassignment Reason"
+              name="reassign-reason"
+              hint="Audit note explaining the delegation."
+            >
+              <Input
+                id="reassign-reason"
+                name="reassign-reason"
+                type="text"
+                value={reassignReason}
+                onChange={(e) => setReassignReason(e.target.value)}
+                placeholder="e.g. Primary approver on annual leave"
+              />
+            </FormField>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <Button variant="outline" onClick={() => setReassignApproval(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              isLoading={reassigning}
+              onClick={submitReassignment}
+            >
+              Save Reassignment
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -192,7 +192,8 @@ describe("Prompt 10: Analytics, Monitoring, and Operational Intelligence", () =>
       completedAt: exec4End,
       retryCount: 0,
       errorDetails: {
-        message: "Connect timeout at https://api.stripe.com/v1/charges with Authorization: Bearer sk_live_secret123456789",
+        message:
+          "Connect timeout at https://api.stripe.com/v1/charges with Authorization: Bearer sk_live_secret123456789",
         failedNodeId: "node_payment_charge",
       },
       createdAt: exec4Start,
@@ -216,7 +217,8 @@ describe("Prompt 10: Analytics, Monitoring, and Operational Intelligence", () =>
       completedAt: exec5End,
       retryCount: 0,
       errorDetails: {
-        message: "HTTP 429 Too Many Requests: Rate limit exceeded for token eyJhbGciOi...",
+        message:
+          "HTTP 429 Too Many Requests: Rate limit exceeded for token eyJhbGciOi...",
         failedNodeId: "node_payment_charge",
       },
       createdAt: exec5Start,
@@ -362,7 +364,8 @@ describe("Prompt 10: Analytics, Monitoring, and Operational Intelligence", () =>
       status: "FAILED",
       startedAt: exec4Start,
       completedAt: exec4End,
-      errorMessage: "Connect timeout at https://api.stripe.com/v1/charges with Authorization: Bearer sk_live_secret123456789",
+      errorMessage:
+        "Connect timeout at https://api.stripe.com/v1/charges with Authorization: Bearer sk_live_secret123456789",
       attempt: 1,
     });
 
@@ -375,7 +378,8 @@ describe("Prompt 10: Analytics, Monitoring, and Operational Intelligence", () =>
       status: "FAILED",
       startedAt: exec5Start,
       completedAt: exec5End,
-      errorMessage: "HTTP 429 Too Many Requests: Rate limit exceeded for token eyJhbGciOi...",
+      errorMessage:
+        "HTTP 429 Too Many Requests: Rate limit exceeded for token eyJhbGciOi...",
       attempt: 1,
     });
 
@@ -423,7 +427,9 @@ describe("Prompt 10: Analytics, Monitoring, and Operational Intelligence", () =>
       expect(metrics.durations).toHaveProperty("p95Ms");
       expect(metrics.durations).toHaveProperty("p99Ms");
       expect(metrics.durations.medianMs).toBeGreaterThan(0);
-      expect(metrics.durations.p95Ms).toBeGreaterThanOrEqual(metrics.durations.medianMs);
+      expect(metrics.durations.p95Ms).toBeGreaterThanOrEqual(
+        metrics.durations.medianMs,
+      );
 
       // Retry rate tracking
       expect(metrics.retryCount).toBe(1);
@@ -507,7 +513,9 @@ describe("Prompt 10: Analytics, Monitoring, and Operational Intelligence", () =>
   describe("3. Workflow & Node Performance Insights", () => {
     it("ranks workflows by execution volume and latency", async () => {
       const res = await request(app)
-        .get("/api/v1/analytics/workflows?range=24h&sortBy=executionCount&order=desc")
+        .get(
+          "/api/v1/analytics/workflows?range=24h&sortBy=executionCount&order=desc",
+        )
         .set("Cookie", ownerCookieA);
 
       expect(res.status).toBe(200);
@@ -538,7 +546,9 @@ describe("Prompt 10: Analytics, Monitoring, and Operational Intelligence", () =>
       expect(nodes.length).toBeGreaterThanOrEqual(3);
 
       // Find Stripe Charge payment step
-      const paymentNode = nodes.find((n: any) => n.nodeId === "node_payment_charge");
+      const paymentNode = nodes.find(
+        (n: any) => n.nodeId === "node_payment_charge",
+      );
       expect(paymentNode).toBeDefined();
       expect(paymentNode.failureCount).toBe(2);
       expect(paymentNode.executionCount).toBe(3);
@@ -592,13 +602,19 @@ describe("Prompt 10: Analytics, Monitoring, and Operational Intelligence", () =>
       expect(recent.length).toBe(3);
 
       // Verify that Bearer token 'sk_live_secret123456789' is redacted
-      const timeoutFailure = recent.find((f: any) => f.category === "HTTP_TIMEOUT");
+      const timeoutFailure = recent.find(
+        (f: any) => f.category === "HTTP_TIMEOUT",
+      );
       expect(timeoutFailure).toBeDefined();
       expect(timeoutFailure.sanitizedMessage).toContain("[REDACTED]");
-      expect(timeoutFailure.sanitizedMessage).not.toContain("sk_live_secret123456789");
+      expect(timeoutFailure.sanitizedMessage).not.toContain(
+        "sk_live_secret123456789",
+      );
 
       // Verify that JWT token 'eyJhbGciOi...' is redacted
-      const rateLimitFailure = recent.find((f: any) => f.category === "RATE_LIMITED");
+      const rateLimitFailure = recent.find(
+        (f: any) => f.category === "RATE_LIMITED",
+      );
       expect(rateLimitFailure).toBeDefined();
       expect(rateLimitFailure.sanitizedMessage).toContain("[REDACTED]");
       expect(rateLimitFailure.sanitizedMessage).not.toContain("eyJhbGciOi...");
@@ -671,7 +687,9 @@ describe("Prompt 10: Analytics, Monitoring, and Operational Intelligence", () =>
       const alerts = res.body.data.newAlerts;
       expect(alerts.length).toBeGreaterThanOrEqual(1);
 
-      const failAlert = alerts.find((a: any) => a.ruleType === "HIGH_FAILURE_RATE");
+      const failAlert = alerts.find(
+        (a: any) => a.ruleType === "HIGH_FAILURE_RATE",
+      );
       expect(failAlert).toBeDefined();
       expect(failAlert.status).toBe("ACTIVE");
       expect(failAlert.severity).toBe("CRITICAL");
@@ -691,7 +709,10 @@ describe("Prompt 10: Analytics, Monitoring, and Operational Intelligence", () =>
 
       // The alert was not recreated as a duplicate in store
       const allActiveAlerts = Array.from(apiStore.alerts.values()).filter(
-        (a) => a.organizationId === orgIdA && a.ruleType === "HIGH_FAILURE_RATE" && a.status === "ACTIVE"
+        (a) =>
+          a.organizationId === orgIdA &&
+          a.ruleType === "HIGH_FAILURE_RATE" &&
+          a.status === "ACTIVE",
       );
       expect(allActiveAlerts.length).toBe(1);
       expect(allActiveAlerts[0].id).toBe(triggeredAlertId);
@@ -717,7 +738,8 @@ describe("Prompt 10: Analytics, Monitoring, and Operational Intelligence", () =>
         .post(`/api/v1/analytics/alerts/${triggeredAlertId}/resolve`)
         .set("Cookie", ownerCookieA)
         .send({
-          resolutionNote: "Stripe API connectivity restored and upstream rate limits refreshed.",
+          resolutionNote:
+            "Stripe API connectivity restored and upstream rate limits refreshed.",
         });
 
       expect(res.status).toBe(200);
@@ -725,12 +747,14 @@ describe("Prompt 10: Analytics, Monitoring, and Operational Intelligence", () =>
       expect(res.body.data.status).toBe("RESOLVED");
       expect(res.body.data.resolvedAt).toBeDefined();
       expect(res.body.data.resolutionNote).toBe(
-        "Stripe API connectivity restored and upstream rate limits refreshed."
+        "Stripe API connectivity restored and upstream rate limits refreshed.",
       );
 
       // Verify audit log entry was written
       const auditLog = apiStore.auditLogs.find(
-        (log) => log.action === "alert.resolved" && log.resourceId === triggeredAlertId
+        (log) =>
+          log.action === "alert.resolved" &&
+          log.resourceId === triggeredAlertId,
       );
       expect(auditLog).toBeDefined();
       expect(auditLog?.organizationId).toBe(orgIdA);
@@ -810,7 +834,9 @@ describe("Prompt 10: Analytics, Monitoring, and Operational Intelligence", () =>
       expect(resNodesB.status).toBe(404);
 
       // Tenant B cannot resolve Tenant A's alert
-      const anyAlertA = Array.from(apiStore.alerts.values()).find((a) => a.organizationId === orgIdA);
+      const anyAlertA = Array.from(apiStore.alerts.values()).find(
+        (a) => a.organizationId === orgIdA,
+      );
       if (anyAlertA) {
         const resResolveB = await request(app)
           .post(`/api/v1/analytics/alerts/${anyAlertA.id}/resolve`)

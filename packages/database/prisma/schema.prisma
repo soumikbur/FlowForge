@@ -31,6 +31,7 @@ enum TriggerType {
   MANUAL
   WEBHOOK
   SCHEDULE
+  EVENT
 }
 
 enum ExecutionStatus {
@@ -128,6 +129,7 @@ model Organization {
   deployments    WorkflowDeployment[]
   auditLogs      AuditLog[]
   alerts         OperationalAlert[]
+  incidents      OperationalIncident[]
   invitations    OrganizationInvitation[]
   apiKeys        ApiKey[]
   connections    IntegrationConnection[]
@@ -141,6 +143,42 @@ model Organization {
   webhookSubscriptions    WebhookSubscription[]
   webhookDeliveries       WebhookDelivery[]
   workflowImports         WorkflowImport[]
+  subscriptions           Subscription[]
+  usageRecords            UsageRecord[]
+  invoices                Invoice[]
+  workspaces              Workspace[]
+  branding                OrganizationBranding?
+  customDomains           CustomDomain[]
+  enterpriseLicense       EnterpriseLicense?
+  ssoConfiguration        SsoConfiguration?
+  externalIdentities      ExternalIdentity[]
+  groupRoleMappings       GroupRoleMapping[]
+  scimTokens              ScimToken[]
+  oauthClients            OAuthClient[]
+  idempotencyRecords      IdempotencyRecord[]
+  retentionPolicies       RetentionPolicy[]
+  retentionJobs           RetentionJob[]
+  privacyRequests         PrivacyRequest[]
+  legalHolds              LegalHold[]
+  aiConfiguration         AiConfiguration?
+  slos                    WorkflowSlo[]
+  businessOutcomes        BusinessOutcome[]
+  processEvents           ProcessEvent[]
+  streamEvents            StreamEvent[]
+  eventDeduplications     EventDeduplication[]
+  connectorSubscriptions  ConnectorSubscription[]
+  extensionInstallations  ExtensionInstallation[]
+  savedSearches           SavedSearch[]
+  policies                Policy[]
+  policyExceptions        PolicyException[]
+  policyViolations        PolicyViolation[]
+  roiAssumptions          RoiAssumption[]
+  savedReports            SavedReport[]
+  resourceQuotas          ResourceQuota[]
+  workflowTestCases       WorkflowTestCase[]
+  workflowTestRuns        WorkflowTestRun[]
+  testFixtures            TestFixture[]
+  publishingGateConfigs   PublishingGateConfig[]
 
   @@map("organizations")
 }
@@ -151,6 +189,7 @@ model User {
   passwordHash String
   firstName    String?
   lastName     String?
+  active       Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -163,6 +202,8 @@ model User {
   deployments       WorkflowDeployment[]     @relation("DeploymentDeployer")
   auditLogs         AuditLog[]
   resolvedAlerts    OperationalAlert[]       @relation("AlertResolver")
+  resolvedIncidents OperationalIncident[]    @relation("IncidentResolver")
+  assignedIncidents OperationalIncident[]    @relation("IncidentAssignee")
   sentInvitations   OrganizationInvitation[] @relation("InvitationInviter")
   createdApiKeys    ApiKey[]                 @relation("ApiKeyCreator")
   createdConnections IntegrationConnection[] @relation("ConnectionCreator")
@@ -175,6 +216,14 @@ model User {
   notifications     Notification[]
   notificationPreferences NotificationPreference[]
   workflowImports   WorkflowImport[]         @relation("ImportedByUser")
+  workspaceMemberships WorkspaceMember[]
+  createdWorkspaces Workspace[]              @relation("WorkspaceCreator")
+  externalIdentities ExternalIdentity[]
+  privacyRequests   PrivacyRequest[]
+  reviewedPrivacyRequests PrivacyRequest[]     @relation("PrivacyReviewer")
+  createdLegalHolds LegalHold[]                @relation("LegalHoldCreator")
+  releasedLegalHolds LegalHold[]               @relation("LegalHoldReleaser")
+  savedSearches     SavedSearch[]
 
   @@map("users")
 }
@@ -224,6 +273,7 @@ model Workflow {
   lastUpdatedById    String?
   sourceTemplateId   String?
   sourceTemplateVersionId String?
+  workspaceId        String?
   deletedAt          DateTime?
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
@@ -231,6 +281,7 @@ model Workflow {
   organization       Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   createdBy          User?          @relation("WorkflowCreator", fields: [createdById], references: [id], onDelete: SetNull)
   sourceTemplate     WorkflowTemplate? @relation("TemplateWorkflows", fields: [sourceTemplateId], references: [id], onDelete: SetNull)
+  workspace          Workspace?     @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
   versions           WorkflowVersion[]
   executions         WorkflowExecution[]
   webhooks           WebhookEvent[]
@@ -238,12 +289,15 @@ model Workflow {
   schedules          WorkflowSchedule[]
   deployments        WorkflowDeployment[]
   alerts             OperationalAlert[]
+  incidents          OperationalIncident[]
   collaborators      WorkflowCollaborator[]
   comments           WorkflowComment[]
   activities         WorkflowActivity[]
   imports            WorkflowImport[]
+  slos               WorkflowSlo[]
 
   @@index([organizationId])
+  @@index([workspaceId])
   @@index([status])
   @@index([sourceTemplateId])
   @@index([deletedAt])
@@ -447,15 +501,17 @@ model WebhookEvent {
 }
 
 model WebhookConfig {
-  id             String   @id @default(uuid())
-  organizationId String
-  workflowId     String
-  name           String
-  enabled        Boolean  @default(true)
-  signingSecret  String
-  eventFilter    String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                     String    @id @default(uuid())
+  organizationId         String
+  workflowId             String
+  name                   String
+  enabled                Boolean   @default(true)
+  signingSecret          String
+  secondarySigningSecret String?
+  secretRotatedAt        DateTime?
+  eventFilter            String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   workflow       Workflow     @relation(fields: [workflowId], references: [id], onDelete: Cascade)
@@ -492,12 +548,21 @@ model WorkflowSchedule {
 model AuditLog {
   id             String   @id @default(uuid())
   organizationId String
+  workspaceId    String?
   userId         String?
+  actorType      String   @default("USER") // USER | API_KEY | OAUTH_CLIENT | SYSTEM
+  actorId        String?
+  authMethod     String?
   action         String
   resourceType   String
   resourceId     String
+  outcome        String   @default("SUCCESS") // SUCCESS | FAILURE | DENIED
   metadata       Json?
   ipAddress      String?
+  userAgent      String?
+  correlationId  String?
+  recordHash     String?
+  prevRecordHash String?
   createdAt      DateTime @default(now())
 
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -506,6 +571,8 @@ model AuditLog {
   @@index([organizationId])
   @@index([createdAt])
   @@index([organizationId, createdAt])
+  @@index([organizationId, resourceType])
+  @@index([organizationId, action])
   @@map("audit_logs")
 }
 
@@ -535,6 +602,38 @@ model OperationalAlert {
   @@map("operational_alerts")
 }
 
+model OperationalIncident {
+  id                String    @id @default(uuid())
+  organizationId    String
+  title             String
+  description       String
+  severity          String    @default("MEDIUM") // LOW | MEDIUM | HIGH | CRITICAL
+  status            String    @default("OPEN")   // OPEN | INVESTIGATING | MITIGATED | RESOLVED
+  affectedService   String    // api | worker | database | scheduler | connector
+  workflowId        String?
+  fingerprint       String?
+  occurrenceCount   Int       @default(1)
+  correlationIds    String[]
+  firstObservedAt   DateTime  @default(now())
+  lastObservedAt    DateTime  @default(now())
+  assignedToId      String?
+  resolutionSummary String?
+  resolvedAt        DateTime?
+  resolvedById      String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workflow          Workflow?    @relation(fields: [workflowId], references: [id], onDelete: SetNull)
+  assignedTo        User?        @relation("IncidentAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  resolvedBy        User?        @relation("IncidentResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([organizationId, severity])
+  @@index([organizationId, fingerprint])
+  @@map("operational_incidents")
+}
+
 model OrganizationInvitation {
   id             String           @id @default(uuid())
   organizationId String
@@ -560,6 +659,7 @@ model OrganizationInvitation {
 model ApiKey {
   id             String    @id @default(uuid())
   organizationId String
+  workspaceId    String?
   name           String
   keyPrefix      String
   keyHash        String    @unique
@@ -574,6 +674,7 @@ model ApiKey {
   createdBy      User         @relation("ApiKeyCreator", fields: [createdById], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
+  @@index([workspaceId])
   @@index([keyHash])
   @@index([keyPrefix])
   @@map("api_keys")
@@ -766,15 +867,17 @@ model NotificationPreference {
 }
 
 model WebhookSubscription {
-  id             String   @id @default(uuid())
-  organizationId String
-  name           String
-  url            String
-  events         String[] // Array of event types or ["*"]
-  enabled        Boolean  @default(true)
-  secret         String   // HMAC signing secret
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id              String    @id @default(uuid())
+  organizationId  String
+  name            String
+  url             String
+  events          String[] // Array of event types or ["*"]
+  enabled         Boolean  @default(true)
+  secret          String   // HMAC signing secret
+  secondarySecret String?
+  secretRotatedAt DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   deliveries     WebhookDelivery[]
@@ -834,5 +937,1097 @@ model WorkflowImport {
   @@map("workflow_imports")
 }
 
+enum PlanBillingInterval {
+  MONTHLY
+  YEARLY
+}
 
+enum PlanStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELLED
+  EXPIRED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  OPEN
+  PAID
+  VOID
+  UNCOLLECTIBLE
+}
+
+enum BillingWebhookStatus {
+  RECEIVED
+  PROCESSED
+  FAILED
+  IGNORED
+}
+
+model Plan {
+  id              String              @id
+  slug            String              @unique
+  name            String
+  description     String
+  billingInterval PlanBillingInterval @default(MONTHLY)
+  priceCents      Int
+  currency        String              @default("USD")
+  trialDays       Int                 @default(0)
+  status          PlanStatus          @default(ACTIVE)
+  entitlements    Json
+  metadata        Json?               @default("{}")
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id                     String              @id @default(uuid())
+  organizationId         String
+  planId                 String
+  providerCustomerId     String?
+  providerSubscriptionId String?             @unique
+  status                 SubscriptionStatus  @default(ACTIVE)
+  billingInterval        PlanBillingInterval @default(MONTHLY)
+  currentPeriodStart     DateTime
+  currentPeriodEnd       DateTime
+  trialStart             DateTime?
+  trialEnd               DateTime?
+  cancelAtPeriodEnd      Boolean             @default(false)
+  canceledAt             DateTime?
+  gracePeriodEnd         DateTime?
+  metadata               Json?               @default("{}")
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  plan         Plan          @relation(fields: [planId], references: [id], onDelete: Restrict)
+  usageRecords UsageRecord[]
+  invoices     Invoice[]
+
+  @@index([organizationId, status])
+  @@index([providerSubscriptionId])
+  @@map("subscriptions")
+}
+
+model UsageRecord {
+  id             String    @id @default(uuid())
+  organizationId String
+  subscriptionId String?
+  metric         String
+  quantity       Int       @default(1)
+  idempotencyKey String?
+  periodStart    DateTime
+  periodEnd      DateTime
+  metadata       Json?     @default("{}")
+  recordedAt     DateTime  @default(now())
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, metric, idempotencyKey])
+  @@index([organizationId, metric, periodStart, periodEnd])
+  @@map("usage_records")
+}
+
+model Invoice {
+  id                 String        @id @default(uuid())
+  organizationId     String
+  subscriptionId     String?
+  providerInvoiceId  String?       @unique
+  invoiceNumber      String
+  currency           String        @default("USD")
+  subtotal           Int
+  tax                Int           @default(0)
+  total              Int
+  amountPaid         Int           @default(0)
+  status             InvoiceStatus @default(DRAFT)
+  billingPeriodStart DateTime
+  billingPeriodEnd   DateTime
+  invoicePdfUrl      String?
+  hostedInvoiceUrl   String?
+  issuedAt           DateTime      @default(now())
+  paidAt             DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@map("invoices")
+}
+
+model BillingWebhookEvent {
+  id              String               @id @default(uuid())
+  provider        String
+  providerEventId String
+  eventType       String
+  payload         Json
+  status          BillingWebhookStatus @default(RECEIVED)
+  processedAt     DateTime?
+  error           String?
+  createdAt       DateTime             @default(now())
+
+  @@unique([provider, providerEventId])
+  @@map("billing_webhook_events")
+}
+
+// ==========================================
+// ENTERPRISE WORKSPACES, BRANDING & LICENSING
+// ==========================================
+
+enum WorkspaceStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum WorkspaceRole {
+  ADMIN
+  EDITOR
+  OPERATOR
+  VIEWER
+}
+
+enum DomainVerificationStatus {
+  PENDING
+  VERIFIED
+  FAILED
+}
+
+enum DomainSslStatus {
+  PENDING
+  ACTIVE
+  FAILED
+}
+
+enum LicenseStatus {
+  ACTIVE
+  SUSPENDED
+  EXPIRED
+}
+
+model Workspace {
+  id                String          @id @default(uuid())
+  organizationId    String
+  name              String
+  slug              String
+  description       String?
+  status            WorkspaceStatus @default(ACTIVE)
+  isDefault         Boolean         @default(false)
+  timezone          String          @default("UTC")
+  brandingOverrides Json?           @default("{}")
+  createdById       String?
+  archivedAt        DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy         User?           @relation("WorkspaceCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  members           WorkspaceMember[]
+  workflows         Workflow[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, status])
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String        @id @default(uuid())
+  workspaceId String
+  userId      String
+  role        WorkspaceRole @default(EDITOR)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
+  @@index([userId])
+  @@map("workspace_members")
+}
+
+model OrganizationBranding {
+  id                 String       @id @default(uuid())
+  organizationId     String       @unique
+  productName        String       @default("FlowForge")
+  companyName        String?
+  logoUrl            String?
+  faviconUrl         String?
+  primaryColor       String       @default("#0d9488")
+  secondaryColor     String       @default("#0f172a")
+  accentColor        String       @default("#14b8a6")
+  supportEmail       String?
+  documentationUrl   String?
+  customFooterText   String?
+  loginMessage       String?
+  emailSenderName    String?
+  emailSenderAddress String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("organization_brandings")
+}
+
+model CustomDomain {
+  id                 String                   @id @default(uuid())
+  organizationId     String
+  domain             String                   @unique
+  verificationToken  String
+  verificationStatus DomainVerificationStatus @default(PENDING)
+  sslStatus          DomainSslStatus          @default(PENDING)
+  verifiedAt         DateTime?
+  lastCheckedAt      DateTime?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  organization       Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("custom_domains")
+}
+
+model EnterpriseLicense {
+  id                 String        @id @default(uuid())
+  organizationId     String        @unique
+  licenseKey         String        @unique
+  issuedTo           String
+  edition            String        @default("Enterprise Ultimate")
+  customEntitlements Json          @default("{}")
+  status             LicenseStatus @default(ACTIVE)
+  expiresAt          DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  organization       Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("enterprise_licenses")
+}
+
+// ==========================================
+// ENTERPRISE SSO, SAML, OIDC & SCIM
+// ==========================================
+
+enum SsoProtocol {
+  OIDC
+  SAML
+}
+
+enum SsoEnforcementMode {
+  OPTIONAL
+  ENFORCED
+  STRICT
+}
+
+enum ProvisioningSource {
+  LOCAL
+  SSO
+  SCIM
+  INVITATION
+}
+
+model SsoConfiguration {
+  id                 String             @id @default(uuid())
+  organizationId     String             @unique
+  name               String
+  protocol           SsoProtocol
+  enabled            Boolean            @default(true)
+  enforcementMode    SsoEnforcementMode @default(OPTIONAL)
+  bypassUserIds      Json               @default("[]")
+  allowIdpInitiated  Boolean            @default(false)
+  defaultRole        Role               @default(MEMBER)
+  issuerUrl          String?
+  clientId           String?
+  clientSecret       String?
+  authorizationUrl   String?
+  tokenUrl           String?
+  userInfoUrl        String?
+  scopes             Json               @default("[\"openid\",\"profile\",\"email\"]")
+  entityId           String?
+  signOnUrl          String?
+  signingCertificate String?
+  spEntityId         String?
+  acsUrl             String?
+  attributeMapping   Json               @default("{}")
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  groupRoleMappings  GroupRoleMapping[]
+
+  @@map("sso_configurations")
+}
+
+model ExternalIdentity {
+  id                 String             @id @default(uuid())
+  organizationId     String
+  userId             String
+  providerId         String
+  protocol           SsoProtocol
+  externalSubject    String
+  externalIssuer     String
+  email              String
+  provisioningSource ProvisioningSource @default(SSO)
+  claims             Json               @default("{}")
+  lastLoginAt        DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, externalSubject])
+  @@unique([organizationId, userId, providerId])
+  @@index([organizationId])
+  @@index([userId])
+  @@map("external_identities")
+}
+
+model GroupRoleMapping {
+  id                 String           @id @default(uuid())
+  organizationId     String
+  ssoConfigurationId String
+  externalGroupName  String
+  targetRole         Role             @default(MEMBER)
+  workspaceMappings  Json             @default("[]")
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  organization       Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ssoConfiguration   SsoConfiguration @relation(fields: [ssoConfigurationId], references: [id], onDelete: Cascade)
+
+  @@unique([ssoConfigurationId, externalGroupName])
+  @@index([organizationId])
+  @@map("group_role_mappings")
+}
+
+model ScimToken {
+  id             String       @id @default(uuid())
+  organizationId String
+  name           String
+  tokenPrefix    String
+  tokenHash      String       @unique
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+  lastUsedAt     DateTime?
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("scim_tokens")
+}
+
+model OAuthClient {
+  id               String       @id @default(uuid())
+  organizationId   String
+  workspaceId      String?
+  name             String
+  clientId         String       @unique
+  clientSecretHash String
+  scopes           Json         @default("[]")
+  enabled          Boolean      @default(true)
+  createdById      String
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([clientId])
+  @@map("oauth_clients")
+}
+
+model IdempotencyRecord {
+  id              String       @id @default(uuid())
+  organizationId  String
+  principalId     String
+  idempotencyKey  String
+  requestMethod   String
+  requestPath     String
+  requestHash     String
+  responseStatus  Int?
+  responseBody    Json?
+  responseHeaders Json?
+  expiresAt       DateTime
+  createdAt       DateTime     @default(now())
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId])
+  @@index([expiresAt])
+  @@map("idempotency_records")
+}
+
+model RetentionPolicy {
+  id              String       @id @default(uuid())
+  organizationId  String
+  category        String       // AUDIT_LOGS | WORKFLOW_EXECUTIONS | EXECUTION_LOGS | WORKFLOW_VERSIONS | WEBHOOK_DELIVERIES | NOTIFICATION_DELIVERIES | EXPORTS_TEMPORARY | PRIVACY_REQUESTS
+  retentionDays   Int
+  enabled         Boolean      @default(true)
+  legalHoldExempt Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, category])
+  @@index([organizationId])
+  @@map("retention_policies")
+}
+
+model RetentionJob {
+  id               String       @id @default(uuid())
+  organizationId   String
+  category         String?
+  status           String       @default("PENDING") // PENDING | RUNNING | COMPLETED | FAILED
+  recordsEvaluated Int          @default(0)
+  recordsPurged    Int          @default(0)
+  bytesReclaimed   BigInt?
+  errorDetails     String?
+  dryRun           Boolean      @default(false)
+  startedAt        DateTime?
+  completedAt      DateTime?
+  createdAt        DateTime     @default(now())
+
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([organizationId, createdAt])
+  @@map("retention_jobs")
+}
+
+model PrivacyRequest {
+  id                 String       @id @default(uuid())
+  organizationId     String
+  userId             String
+  requestType        String       // ACCESS | EXPORT | CORRECTION | DELETION | RESTRICTION
+  status             String       @default("SUBMITTED") // SUBMITTED | UNDER_REVIEW | APPROVED | REJECTED | PROCESSING | COMPLETED | FAILED
+  reviewedById       String?
+  reviewNote         String?
+  details            Json?
+  outcomeSummary     String?
+  artifactUrl        String?
+  artifactExpiresAt  DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy         User?        @relation("PrivacyReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([userId])
+  @@map("privacy_requests")
+}
+
+model LegalHold {
+  id             String       @id @default(uuid())
+  organizationId String
+  name           String
+  description    String?
+  reason         String
+  targetType     String       @default("ORGANIZATION") // ORGANIZATION | USER | WORKFLOW | CATEGORY
+  targetId       String?
+  categories     Json         // array of string categories: ["AUDIT_LOGS", "WORKFLOW_EXECUTIONS", "EXECUTION_LOGS"]
+  status         String       @default("ACTIVE") // ACTIVE | RELEASED
+  createdById    String
+  releasedById   String?
+  releasedAt     DateTime?
+  releaseReason  String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User         @relation("LegalHoldCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  releasedBy     User?        @relation("LegalHoldReleaser", fields: [releasedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([targetType, targetId])
+  @@map("legal_holds")
+}
+
+model AiConfiguration {
+  id                 String       @id @default(uuid())
+  organizationId     String       @unique
+  provider           String       @default("MOCK") // MOCK | OPENAI | GEMINI | ANTHROPIC | CUSTOM
+  model              String       @default("flowforge-copilot-v1")
+  apiKey             String?
+  endpointUrl        String?
+  temperature        Float        @default(0.7)
+  maxTokens          Int          @default(2048)
+  timeoutSeconds     Int          @default(30)
+  enabled            Boolean      @default(true)
+  monthlyTokenBudget Int          @default(500000)
+  allowedRoles       Json         @default("[\"OWNER\",\"ADMIN\",\"MEMBER\"]")
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("ai_configurations")
+}
+
+model WorkflowSlo {
+  id              String       @id @default(uuid())
+  organizationId  String
+  workflowId      String
+  name            String
+  targetType      String       // SUCCESS_RATE | DURATION_P95 | QUEUE_WAIT_MAX | APPROVAL_WAIT_MAX
+  targetValue     Float
+  windowHours     Int          @default(168)
+  description     String?
+  enabled         Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workflow        Workflow     @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, workflowId])
+  @@map("workflow_slos")
+}
+
+model BusinessOutcome {
+  id              String       @id @default(uuid())
+  organizationId  String
+  workflowId      String
+  executionId     String
+  outcomeType     String
+  status          String       // COMPLETED | REJECTED | FAILED | SLA_BREACHED
+  targetTimeMs    Float?
+  actualTimeMs    Float?
+  metSla          Boolean      @default(true)
+  metadata        Json?        @default("{}")
+  createdAt       DateTime     @default(now())
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, workflowId])
+  @@index([executionId])
+  @@map("business_outcomes")
+}
+
+model ProcessEvent {
+  id                 String       @id @default(uuid())
+  organizationId     String
+  workspaceId        String?
+  workflowId         String
+  workflowVersionId  String?
+  executionId        String
+  nodeId             String?
+  eventType          String
+  durationMs         Float?
+  retryCount         Int?         @default(0)
+  failureCategory    String?
+  connectorCategory  String?
+  correlationId      String?
+  metadata           Json?        @default("{}")
+  timestamp          DateTime     @default(now())
+
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, timestamp])
+  @@index([workflowId, eventType])
+  @@index([executionId])
+  @@map("process_events")
+}
+
+model StreamEvent {
+  id                 String   @id
+  organizationId     String
+  workspaceId        String?
+  type               String
+  specVersion        String   @default("1.0")
+  source             String
+  connectorId        String?
+  subject            String?
+  time               DateTime @default(now())
+  ingestedAt         DateTime @default(now())
+  correlationId      String
+  causationId        String?
+  partitionKey       String?
+  traceId            String?
+  spanId             String?
+  contentType        String   @default("application/json")
+  data               Json
+  metadata           Json?
+  dataClassification String   @default("INTERNAL")
+  status             String   @default("INGESTED")
+  attempts           Int      @default(0)
+  maxAttempts        Int      @default(3)
+  lastAttemptAt      DateTime?
+  nextRetryAt        DateTime?
+  errorMessage       String?
+  errorDetails       Json?
+  executionIds       Json     @default("[]")
+  replayedFromId     String?
+  replayedAt         DateTime?
+  replayedById       String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, type])
+  @@index([organizationId, status])
+  @@index([organizationId, correlationId])
+  @@index([organizationId, partitionKey])
+  @@map("stream_events")
+}
+
+model EventDeduplication {
+  id                 String   @id @default(uuid())
+  organizationId     String
+  deduplicationKey   String
+  eventId            String
+  firstSeenAt        DateTime @default(now())
+  expiresAt          DateTime
+
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, deduplicationKey])
+  @@index([expiresAt])
+  @@map("event_deduplications")
+}
+
+model ConnectorSubscription {
+  id                     String   @id @default(uuid())
+  organizationId         String
+  connectorId            String
+  connectionId           String?
+  name                   String
+  eventTypes             Json
+  status                 String   @default("ACTIVE")
+  deliveryMode           String   @default("PUSH")
+  endpointUrl            String?
+  externalSubscriptionId String?
+  secret                 String?
+  config                 Json?
+  errorMessage           String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  organization           Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([connectorId])
+  @@index([status])
+  @@map("connector_subscriptions")
+}
+
+model ExtensionPackage {
+  id                  String   @id
+  name                String
+  description         String
+  publisherId         String
+  publisherName       String
+  publisherEmail      String
+  isVerifiedPublisher Boolean  @default(false)
+  isPublic            Boolean  @default(true)
+  organizationId      String?
+  status              String   @default("PUBLISHED")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  versions            ExtensionVersion[]
+  installations       ExtensionInstallation[]
+
+  @@index([status])
+  @@index([organizationId])
+  @@map("extension_packages")
+}
+
+model ExtensionVersion {
+  id                         String   @id @default(uuid())
+  extensionId                String
+  version                    String
+  manifest                   Json
+  packageIntegrityHash       String
+  supportedFlowForgeVersions String   @default(">=1.0.0")
+  declaredCapabilities       Json     @default("[]")
+  status                     String   @default("APPROVED")
+  releaseNotes               String?
+  createdAt                  DateTime @default(now())
+
+  extension                  ExtensionPackage @relation(fields: [extensionId], references: [id], onDelete: Cascade)
+
+  @@unique([extensionId, version])
+  @@index([extensionId])
+  @@map("extension_versions")
+}
+
+model ExtensionInstallation {
+  id                  String   @id @default(uuid())
+  organizationId      String
+  extensionId         String
+  installedVersion    String
+  status              String   @default("ACTIVE")
+  grantedCapabilities Json     @default("[]")
+  installedById       String?
+  installedAt         DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  organization        Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  extension           ExtensionPackage @relation(fields: [extensionId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, extensionId])
+  @@index([organizationId])
+  @@index([extensionId])
+  @@index([status])
+  @@map("extension_installations")
+}
+
+model ExecutionLease {
+  id          String   @id @default(uuid())
+  executionId String   @unique
+  workerId    String
+  leaseToken  String
+  renewCount  Int      @default(0)
+  acquiredAt  DateTime @default(now())
+  heartbeatAt DateTime @default(now())
+  expiresAt   DateTime
+
+  @@index([workerId])
+  @@index([expiresAt])
+  @@map("execution_leases")
+}
+
+model ScheduleClaim {
+  id            String   @id @default(uuid())
+  scheduleId    String
+  occurrenceKey String
+  claimedBy     String
+  claimedAt     DateTime @default(now())
+  expiresAt     DateTime
+  executionId   String?
+
+  @@unique([scheduleId, occurrenceKey])
+  @@index([expiresAt])
+  @@map("schedule_claims")
+}
+
+model StepReconciliation {
+  id                String    @id @default(uuid())
+  executionId       String
+  stepId            String    @unique
+  nodeId            String
+  nodeType          String
+  status            String    @default("REQUIRES_RECONCILIATION")
+  reason            String
+  sideEffectDetails String?
+  resolvedAt        DateTime?
+  resolvedBy        String?
+  resolutionAction  String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([executionId])
+  @@index([status])
+  @@map("step_reconciliations")
+}
+
+model SavedSearch {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String
+  name           String
+  description    String?
+  query          String   @default("")
+  types          String[] @default([])
+  filtersJson    String?
+  isShared       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, userId])
+  @@index([organizationId, isShared])
+  @@map("saved_searches")
+}
+
+
+
+
+
+
+
+
+model Policy {
+  id                      String    @id @default(uuid())
+  organizationId          String
+  workspaceId             String?
+  name                    String
+  description             String?
+  category                String    @default("WORKFLOW_SAFETY")
+  version                 Int       @default(1)
+  status                  String    @default("DRAFT")
+  applicableResourceTypes String[]  @default([])
+  applicableOperations    String[]  @default([])
+  priority                Int       @default(100)
+  effectiveStartDate      DateTime?
+  effectiveEndDate        DateTime?
+  rulesJson               String
+  complianceControls      String[]  @default([])
+  createdById             String
+  lastModifiedById        String?
+  approvedById            String?
+  approvedAt              DateTime?
+  changeSummary           String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  organization            Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  versions                PolicyVersion[]
+  exceptions              PolicyException[]
+  violations              PolicyViolation[]
+
+  @@index([organizationId, status])
+  @@index([organizationId, workspaceId])
+  @@map("policies")
+}
+
+model PolicyVersion {
+  id             String   @id @default(uuid())
+  policyId       String
+  organizationId String
+  version        Int
+  definitionJson String
+  approvedById   String
+  approvedAt     DateTime @default(now())
+  changeSummary  String?
+  createdAt      DateTime @default(now())
+
+  policy         Policy   @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@unique([policyId, version])
+  @@index([organizationId])
+  @@map("policy_versions")
+}
+
+model PolicyException {
+  id             String    @id @default(uuid())
+  organizationId String
+  workspaceId    String?
+  policyId       String
+  policyVersion  Int
+  ruleId         String?
+  resourceType   String
+  resourceId     String
+  operation      String
+  reason         String
+  status         String    @default("PENDING")
+  requestedById  String
+  approvedById   String?
+  approvedAt     DateTime?
+  expiresAt      DateTime
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  policy         Policy       @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([resourceType, resourceId])
+  @@map("policy_exceptions")
+}
+
+model PolicyViolation {
+  id               String    @id @default(uuid())
+  organizationId   String
+  workspaceId      String?
+  policyId         String
+  policyVersion    Int
+  ruleId           String
+  resourceType     String
+  resourceId       String
+  operation        String
+  severity         String    @default("HIGH")
+  reasonCode       String
+  message          String
+  status           String    @default("OPEN")
+  assignedToId     String?
+  remediationNotes String?
+  detectedAt       DateTime  @default(now())
+  resolvedAt       DateTime?
+
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  policy           Policy       @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([resourceType, resourceId])
+  @@map("policy_violations")
+}
+
+model RoiAssumption {
+  id                       String       @id @default(uuid())
+  organizationId           String
+  workflowId               String?
+  manualMinutesPerRun      Float        @default(15.0)
+  hourlyWage               Float        @default(45.0)
+  licenseCostMonthly       Float        @default(0.0)
+  infrastructureCostPerRun Float        @default(0.0)
+  currency                 String       @default("USD")
+  updatedById              String?
+  createdAt                DateTime     @default(now())
+  updatedAt                DateTime     @updatedAt
+
+  organization             Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, workflowId])
+  @@index([organizationId])
+  @@map("roi_assumptions")
+}
+
+model SavedReport {
+  id             String       @id @default(uuid())
+  organizationId String
+  workspaceId    String?
+  name           String
+  description    String?
+  reportType     String       @default("EXECUTIVE_ROI")
+  filtersJson    String?
+  metricsJson    String?
+  scheduleCron   String?
+  format         String       @default("JSON")
+  createdById    String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("saved_reports")
+}
+
+model ResourceQuota {
+  id                          String       @id @default(uuid())
+  organizationId              String
+  workspaceId                 String?
+  workflowId                  String?
+  maxMonthlyExecutions        Int          @default(5000)
+  maxConcurrentExecutions     Int          @default(10)
+  maxQueueDepth               Int          @default(50)
+  maxExecutionDurationMs      Int          @default(300000)
+  maxStepCount                Int          @default(100)
+  maxRetries                  Int          @default(3)
+  maxConnectorCallsPerRun     Int          @default(50)
+  monthlyBudgetDollars        Float        @default(500.0)
+  budgetAlertThresholdPercent Float        @default(80.0)
+  fairShareWeight             Int          @default(10)
+  enforcementAction           String       @default("REJECT")
+  updatedById                 String?
+  createdAt                   DateTime     @default(now())
+  updatedAt                   DateTime     @updatedAt
+
+  organization                Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, workspaceId, workflowId])
+  @@index([organizationId])
+  @@map("resource_quotas")
+}
+
+model WorkflowTestCase {
+  id                String       @id @default(uuid())
+  organizationId    String
+  workspaceId       String?
+  workflowId        String
+  workflowVersionId String?
+  name              String
+  description       String?
+  mode              String       @default("SIMULATION")
+  inputData         Json?
+  mockFixtures      Json?
+  failureInjections Json?
+  assertions        Json?
+  createdById       String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, workflowId])
+  @@map("workflow_test_cases")
+}
+
+model WorkflowTestRun {
+  id                String       @id @default(uuid())
+  organizationId    String
+  testCaseId        String?
+  workflowId        String
+  workflowVersionId String?
+  mode              String       @default("SIMULATION")
+  status            String       @default("PASSED")
+  executedPath      Json
+  nodeResults       Json
+  assertionResults  Json
+  failureReason     String?
+  durationMs        Int          @default(0)
+  triggeredById     String?
+  createdAt         DateTime     @default(now())
+
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, workflowId])
+  @@index([organizationId, testCaseId])
+  @@map("workflow_test_runs")
+}
+
+model TestFixture {
+  id              String       @id @default(uuid())
+  organizationId  String
+  name            String
+  connectorType   String
+  operation       String
+  matchPattern    String?
+  responseStatus  Int          @default(200)
+  responsePayload Json?
+  errorDetails    Json?
+  isRateLimited   Boolean      @default(false)
+  isTimeout       Boolean      @default(false)
+  delayMs         Int          @default(0)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, connectorType])
+  @@map("test_fixtures")
+}
+
+model PublishingGateConfig {
+  id                      String       @id @default(uuid())
+  organizationId          String
+  workflowId              String?
+  requireStaticValidation Boolean      @default(true)
+  requireTestSuitePass    Boolean      @default(false)
+  requireRegressionCheck  Boolean      @default(false)
+  requirePolicyCheck      Boolean      @default(true)
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+
+  organization            Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, workflowId])
+  @@index([organizationId])
+  @@map("publishing_gate_configs")
+}
 

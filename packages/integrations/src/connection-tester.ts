@@ -50,11 +50,19 @@ export async function testConnection(
     let category = err.category || "TEST_FAILED";
     const msg = err.message || "Connection test failed";
 
-    if (msg.includes("SSRF") || msg.includes("private") || msg.includes("loopback")) {
+    if (
+      msg.includes("SSRF") ||
+      msg.includes("private") ||
+      msg.includes("loopback")
+    ) {
       category = "SSRF_BLOCKED";
     } else if (msg.includes("timeout") || msg.includes("ETIMEDOUT")) {
       category = "TIMEOUT";
-    } else if (msg.includes("401") || msg.includes("403") || msg.includes("auth")) {
+    } else if (
+      msg.includes("401") ||
+      msg.includes("403") ||
+      msg.includes("auth")
+    ) {
       category = "AUTH_ERROR";
     }
 

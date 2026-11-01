@@ -1,8 +1,5 @@
 import { ConnectorDefinition } from "@flowforge/shared";
-import {
-  ConnectorHandler,
-  ConnectorTester,
-} from "../connector-registry.js";
+import { ConnectorHandler, ConnectorTester } from "../connector-registry.js";
 import { executeSafeHttpRequest } from "../http.js";
 import { resolveAndValidateDestination } from "../ssrf.js";
 import { redactErrorMessage } from "../redaction.js";
@@ -21,7 +18,8 @@ export const slackWebhookConnectorDefinition: ConnectorDefinition = {
       label: "Webhook URL",
       type: "secret",
       required: true,
-      description: "Slack Incoming Webhook URL (e.g. https://hooks.slack.com/services/...)",
+      description:
+        "Slack Incoming Webhook URL (e.g. https://hooks.slack.com/services/...)",
     },
     {
       name: "defaultChannel",
@@ -35,7 +33,8 @@ export const slackWebhookConnectorDefinition: ConnectorDefinition = {
     {
       id: "sendMessage",
       name: "Send Slack Message",
-      description: "Post a message or rich payload block to the designated Slack webhook.",
+      description:
+        "Post a message or rich payload block to the designated Slack webhook.",
       parameters: [
         {
           name: "text",
@@ -70,7 +69,9 @@ export const slackWebhookHandler: ConnectorHandler = async (
   context,
 ) => {
   if (operationId !== "sendMessage") {
-    throw new Error(`Unsupported operation '${operationId}' for slack-webhook connector.`);
+    throw new Error(
+      `Unsupported operation '${operationId}' for slack-webhook connector.`,
+    );
   }
 
   const webhookUrl =
@@ -149,7 +150,8 @@ export const slackWebhookTester: ConnectorTester = async (credentials) => {
   if (!ssrfValidation.isSafe) {
     return {
       success: false,
-      message: `SSRF Violation: Webhook URL '${webhookUrl}' targets blocked or internal IP. ${ssrfValidation.reason || ""}`.trim(),
+      message:
+        `SSRF Violation: Webhook URL '${webhookUrl}' targets blocked or internal IP. ${ssrfValidation.reason || ""}`.trim(),
       latencyMs: Date.now() - start,
       errorCategory: "SSRF_BLOCKED",
     };

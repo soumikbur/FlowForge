@@ -9,4 +9,3 @@ export const ENGINE_LIMITS = {
   MAX_PATH_DEPTH: 10,
   MAX_DIAGNOSTICS: 100,
 } as const;
-

@@ -220,8 +220,18 @@ describe("Prompt 16: Workflow Import, Export, Portability, and Backup/Restore", 
   // =========================================================================
   describe("Package Integrity & Canonical Hashing", () => {
     it("computes deterministic hash regardless of JSON object key ordering", () => {
-      const defA = { nodes: [{ id: "n1", type: "CONDITION" as const, name: "Node 1", config: {} }], edges: [] };
-      const defB = { edges: [], nodes: [{ name: "Node 1", config: {}, type: "CONDITION" as const, id: "n1" }] };
+      const defA = {
+        nodes: [
+          { id: "n1", type: "CONDITION" as const, name: "Node 1", config: {} },
+        ],
+        edges: [],
+      };
+      const defB = {
+        edges: [],
+        nodes: [
+          { name: "Node 1", config: {}, type: "CONDITION" as const, id: "n1" },
+        ],
+      };
 
       const hash1 = computePackageIntegrityHash(defA, {
         exportedAt: "2026-10-31T00:00:00.000Z",
@@ -274,7 +284,9 @@ describe("Prompt 16: Workflow Import, Export, Portability, and Backup/Restore", 
 
       expect(res.status).toBe(200);
       expect(res.headers["content-type"]).toContain("application/json");
-      expect(res.headers["content-disposition"]).toContain("attachment; filename=");
+      expect(res.headers["content-disposition"]).toContain(
+        "attachment; filename=",
+      );
       expect(res.headers["content-disposition"]).toContain(".flowforge.json");
 
       const pkg = res.body;
@@ -290,7 +302,9 @@ describe("Prompt 16: Workflow Import, Export, Portability, and Backup/Restore", 
 
     it("exports published version snapshot when requested", async () => {
       const res = await request(app)
-        .get(`/api/v1/workflows/${publishedWorkflowIdA}/export?target=published`)
+        .get(
+          `/api/v1/workflows/${publishedWorkflowIdA}/export?target=published`,
+        )
         .set("Cookie", ownerCookieA);
 
       expect(res.status).toBe(200);
@@ -302,7 +316,9 @@ describe("Prompt 16: Workflow Import, Export, Portability, and Backup/Restore", 
 
     it("exports specific historical version by versionNumber", async () => {
       const res = await request(app)
-        .get(`/api/v1/workflows/${publishedWorkflowIdA}/export?target=version&versionNumber=1`)
+        .get(
+          `/api/v1/workflows/${publishedWorkflowIdA}/export?target=version&versionNumber=1`,
+        )
         .set("Cookie", ownerCookieA);
 
       expect(res.status).toBe(200);
@@ -310,7 +326,9 @@ describe("Prompt 16: Workflow Import, Export, Portability, and Backup/Restore", 
     });
 
     it("rejects export from unauthenticated user (401)", async () => {
-      const res = await request(app).get(`/api/v1/workflows/${sourceWorkflowIdA}/export`);
+      const res = await request(app).get(
+        `/api/v1/workflows/${sourceWorkflowIdA}/export`,
+      );
       expect(res.status).toBe(401);
     });
 
@@ -349,13 +367,17 @@ describe("Prompt 16: Workflow Import, Export, Portability, and Backup/Restore", 
       expect(rawJson).not.toContain(connIdA); // Internal database UUID must not leak
 
       // Nodes must use portable connection references
-      const slackNode = pkg.definition.nodes.find((n: any) => n.id === "node_slack");
+      const slackNode = pkg.definition.nodes.find(
+        (n: any) => n.id === "node_slack",
+      );
       expect(slackNode.config.connectionId).toBe("conn_ref_1");
 
       // Dependency manifest must capture required connector
       expect(pkg.dependencies.connectors).toHaveLength(1);
       expect(pkg.dependencies.connectors[0].connectorId).toBe("slack-webhook");
-      expect(pkg.dependencies.connectors[0].operationIds).toContain("post_message");
+      expect(pkg.dependencies.connectors[0].operationIds).toContain(
+        "post_message",
+      );
     });
   });
 
@@ -401,9 +423,15 @@ describe("Prompt 16: Workflow Import, Export, Portability, and Backup/Restore", 
 
       // Should find Globex's slack connection as a potential match
       expect(preview.connectorRequirements).toHaveLength(1);
-      expect(preview.connectorRequirements[0].connectorId).toBe("slack-webhook");
-      expect(preview.connectorRequirements[0].matchingOrgConnections).toHaveLength(1);
-      expect(preview.connectorRequirements[0].matchingOrgConnections[0].id).toBe(connIdB);
+      expect(preview.connectorRequirements[0].connectorId).toBe(
+        "slack-webhook",
+      );
+      expect(
+        preview.connectorRequirements[0].matchingOrgConnections,
+      ).toHaveLength(1);
+      expect(
+        preview.connectorRequirements[0].matchingOrgConnections[0].id,
+      ).toBe(connIdB);
     });
 
     it("flags missing connectors with warning when target tenant has no matching connection", async () => {
@@ -414,7 +442,7 @@ describe("Prompt 16: Workflow Import, Export, Portability, and Backup/Restore", 
       customPkg.integrity.hash = computePackageIntegrityHash(
         customPkg.definition,
         customPkg.metadata,
-        customPkg.dependencies
+        customPkg.dependencies,
       );
 
       const previewRes = await request(app)
@@ -424,7 +452,11 @@ describe("Prompt 16: Workflow Import, Export, Portability, and Backup/Restore", 
 
       expect(previewRes.status).toBe(200);
       const preview = previewRes.body.data;
-      expect(["COMPATIBLE_WITH_WARNINGS", "REQUIRES_MAPPING", "UNSUPPORTED"]).toContain(preview.status);
+      expect([
+        "COMPATIBLE_WITH_WARNINGS",
+        "REQUIRES_MAPPING",
+        "UNSUPPORTED",
+      ]).toContain(preview.status);
     });
   });
 
@@ -462,11 +494,15 @@ describe("Prompt 16: Workflow Import, Export, Portability, and Backup/Restore", 
       expect(importedWf.publishedVersionId).toBeFalsy(); // Never published automatically
 
       // Verify connection remapping
-      const slackNode = importedWf.draftDefinition.nodes.find((n: any) => n.id === "node_slack");
+      const slackNode = importedWf.draftDefinition.nodes.find(
+        (n: any) => n.id === "node_slack",
+      );
       expect(slackNode.config.connectionId).toBe(connIdB);
 
       // Verify trigger deactivated for safety
-      const triggerNode = importedWf.draftDefinition.nodes.find((n: any) => n.id === "trigger_1");
+      const triggerNode = importedWf.draftDefinition.nodes.find(
+        (n: any) => n.id === "trigger_1",
+      );
       expect(triggerNode.config.enabled).toBe(false);
       expect(triggerNode.config.active).toBe(false);
     });
@@ -484,7 +520,9 @@ describe("Prompt 16: Workflow Import, Export, Portability, and Backup/Restore", 
         });
 
       expect(secondRes.status).toBe(201);
-      expect(secondRes.body.data.name).toBe("Order Processing Pipeline (Imported 1)");
+      expect(secondRes.body.data.name).toBe(
+        "Order Processing Pipeline (Imported 1)",
+      );
     });
 
     it("respects explicit RENAME strategy with custom target workflow name", async () => {
@@ -499,7 +537,9 @@ describe("Prompt 16: Workflow Import, Export, Portability, and Backup/Restore", 
         });
 
       expect(customNameRes.status).toBe(201);
-      expect(customNameRes.body.data.name).toBe("Globex Custom Ingestion Pipeline");
+      expect(customNameRes.body.data.name).toBe(
+        "Globex Custom Ingestion Pipeline",
+      );
     });
 
     it("replaces editable draft with REPLACE_DRAFT without modifying published immutable versions", async () => {
@@ -516,7 +556,15 @@ describe("Prompt 16: Workflow Import, Export, Portability, and Backup/Restore", 
       // Add a simple node and publish version 1
       const twf = apiStore.workflows.get(targetWfId)!;
       twf.draftDefinition = {
-        nodes: [{ id: "old_n1", type: "TRIGGER", name: "Old Manual", position: { x: 0, y: 0 }, config: { triggerType: "MANUAL" } }],
+        nodes: [
+          {
+            id: "old_n1",
+            type: "TRIGGER",
+            name: "Old Manual",
+            position: { x: 0, y: 0 },
+            config: { triggerType: "MANUAL" },
+          },
+        ],
         edges: [],
       };
       apiStore.workflows.set(targetWfId, twf);
@@ -766,7 +814,9 @@ describe("Prompt 16: Workflow Import, Export, Portability, and Backup/Restore", 
 
       expect([200, 201]).toContain(restoreRes.status);
       expect(restoreRes.body.success).toBe(true);
-      expect(restoreRes.body.data.restoredCount).toBe(backupPackage.workflows.length);
+      expect(restoreRes.body.data.restoredCount).toBe(
+        backupPackage.workflows.length,
+      );
       expect(restoreRes.body.data.errors).toHaveLength(0);
 
       // Verify restored workflows exist in Tenant B in DRAFT status

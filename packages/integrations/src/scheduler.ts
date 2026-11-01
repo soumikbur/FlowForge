@@ -24,18 +24,12 @@ function validateField(field: string, min: number, max: number): boolean {
     return !isNaN(step) && step > 0 && step <= max;
   }
   if (field.includes(",")) {
-    return field
-      .split(",")
-      .every((sub) => validateField(sub.trim(), min, max));
+    return field.split(",").every((sub) => validateField(sub.trim(), min, max));
   }
   if (field.includes("-")) {
     const [start, end] = field.split("-").map(Number);
     return (
-      !isNaN(start) &&
-      !isNaN(end) &&
-      start >= min &&
-      end <= max &&
-      start <= end
+      !isNaN(start) && !isNaN(end) && start >= min && end <= max && start <= end
     );
   }
   const val = parseInt(field, 10);

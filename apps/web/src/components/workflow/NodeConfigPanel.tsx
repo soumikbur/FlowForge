@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React, { useState } from "react";
 import { Node } from "reactflow";
 import {
   X,
@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { getNodeRegistryItem } from "../../lib/node-registry";
 import { NodeType, Role } from "@flowforge/shared";
+import { ConfirmDialog } from "../ui/ConfirmDialog";
 
 const ICON_MAP: Record<string, React.ElementType> = {
   Zap,
@@ -30,7 +31,11 @@ const ICON_MAP: Record<string, React.ElementType> = {
 
 interface NodeConfigPanelProps {
   selectedNode: Node | null;
-  onUpdateNode: (id: string, name: string, config: Record<string, unknown>) => void;
+  onUpdateNode: (
+    id: string,
+    name: string,
+    config: Record<string, unknown>,
+  ) => void;
   onDeleteNode: (id: string) => void;
   onClose: () => void;
   nodeErrors?: string[];
@@ -45,6 +50,8 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
   nodeErrors = [],
   readOnly = false,
 }) => {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
   if (!selectedNode) return null;
 
   const nodeType = (selectedNode.data?.type || "END") as NodeType;
@@ -64,32 +71,40 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
   };
 
   return (
-    <div className="w-88 bg-white border-l border-slate-200 flex flex-col h-full shadow-lg z-20 overflow-hidden">
+    <div className="w-88 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 flex flex-col h-full shadow-lg z-20 overflow-hidden">
       {/* Header */}
-      <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+      <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/60">
         <div className="flex items-center gap-2.5">
-          <div className="p-1.5 rounded bg-white shadow-xs border border-slate-200">
+          <div className="p-1.5 rounded bg-white dark:bg-slate-900 shadow-xs border border-slate-200 dark:border-slate-800">
             <Icon className={`w-4 h-4 ${registryItem.colors.text}`} />
           </div>
           <div>
-            <h2 className="text-xs font-bold text-slate-900">Configure Node</h2>
-            <p className="text-[10px] text-slate-500 font-mono">{selectedNode.id}</p>
+            <h2 className="text-xs font-bold text-slate-900 dark:text-slate-100">
+              Configure Node
+            </h2>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+              {selectedNode.id}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-1">
           {!readOnly && (
             <button
-              onClick={() => onDeleteNode(selectedNode.id)}
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
               title="Delete Node"
-              className="p-1.5 text-slate-400 hover:text-red-600 rounded hover:bg-red-50 transition"
+              aria-label={`Delete ${currentName} node`}
+              className="p-1.5 text-slate-400 hover:text-red-600 rounded hover:bg-red-50 transition focus-ring"
             >
               <Trash2 className="w-4 h-4" />
             </button>
           )}
           <button
+            type="button"
             onClick={onClose}
             title="Close Panel"
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded hover:bg-slate-200 transition"
+            aria-label="Close configuration panel"
+            className="p-1.5 text-slate-400 hover:text-slate-600 dark:text-slate-400 rounded hover:bg-slate-200 transition focus-ring"
           >
             <X className="w-4 h-4" />
           </button>
@@ -115,7 +130,7 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
       <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
         {/* Node Name */}
         <div>
-          <label className="block font-semibold text-slate-700 mb-1">
+          <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
             Display Label
           </label>
           <input
@@ -123,7 +138,7 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
             value={currentName}
             disabled={readOnly}
             onChange={(e) => handleNameChange(e.target.value)}
-            className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100"
+            className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 dark:bg-slate-800"
           />
         </div>
 
@@ -131,14 +146,16 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
         {nodeType === "TRIGGER" && (
           <div className="space-y-3">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Trigger Type
               </label>
               <select
                 value={currentConfig.triggerType || "MANUAL"}
                 disabled={readOnly}
-                onChange={(e) => handleConfigChange("triggerType", e.target.value)}
-                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100"
+                onChange={(e) =>
+                  handleConfigChange("triggerType", e.target.value)
+                }
+                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 dark:bg-slate-800"
               >
                 <option value="MANUAL">Manual Execution</option>
                 <option value="WEBHOOK">Inbound Webhook</option>
@@ -148,7 +165,7 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
 
             {currentConfig.triggerType === "WEBHOOK" && (
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Webhook Path
                 </label>
                 <input
@@ -156,18 +173,21 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
                   placeholder="/orders"
                   value={currentConfig.webhookPath || ""}
                   disabled={readOnly}
-                  onChange={(e) => handleConfigChange("webhookPath", e.target.value)}
-                  className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100 font-mono text-[11px]"
+                  onChange={(e) =>
+                    handleConfigChange("webhookPath", e.target.value)
+                  }
+                  className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 dark:bg-slate-800 font-mono text-[11px]"
                 />
-                <p className="text-[10px] text-slate-500 mt-1">
-                  Webhook path invoked via POST /api/v1/webhooks/:workflowId. Inbound payloads are verified server-side.
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+                  Webhook path invoked via POST /api/v1/webhooks/:workflowId.
+                  Inbound payloads are verified server-side.
                 </p>
               </div>
             )}
 
             {currentConfig.triggerType === "SCHEDULE" && (
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Cron Expression
                 </label>
                 <input
@@ -175,10 +195,12 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
                   placeholder="0 9 * * 1-5"
                   value={currentConfig.cronExpression || ""}
                   disabled={readOnly}
-                  onChange={(e) => handleConfigChange("cronExpression", e.target.value)}
-                  className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100 font-mono text-[11px]"
+                  onChange={(e) =>
+                    handleConfigChange("cronExpression", e.target.value)
+                  }
+                  className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 dark:bg-slate-800 font-mono text-[11px]"
                 />
-                <p className="text-[10px] text-slate-500 mt-1">
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
                   Standard 5-part cron syntax (e.g. daily at 9am: 0 9 * * *).
                 </p>
               </div>
@@ -190,7 +212,7 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
         {nodeType === "CONDITION" && (
           <div className="space-y-3">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Condition Expression
               </label>
               <textarea
@@ -198,11 +220,14 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
                 placeholder="trigger.payload.orderValue > 10000"
                 value={currentConfig.expression || ""}
                 disabled={readOnly}
-                onChange={(e) => handleConfigChange("expression", e.target.value)}
-                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100 font-mono text-[11px]"
+                onChange={(e) =>
+                  handleConfigChange("expression", e.target.value)
+                }
+                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 dark:bg-slate-800 font-mono text-[11px]"
               />
-              <p className="text-[10px] text-slate-500 mt-1">
-                Javascript/boolean expression evaluated against context data. Connect True and False output handles.
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+                Javascript/boolean expression evaluated against context data.
+                Connect True and False output handles.
               </p>
             </div>
           </div>
@@ -213,14 +238,14 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
           <div className="space-y-3">
             <div className="grid grid-cols-3 gap-2">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Method
                 </label>
                 <select
                   value={currentConfig.method || "GET"}
                   disabled={readOnly}
                   onChange={(e) => handleConfigChange("method", e.target.value)}
-                  className="w-full border border-slate-300 rounded px-2 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100 font-semibold text-xs"
+                  className="w-full border border-slate-300 rounded px-2 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 dark:bg-slate-800 font-semibold text-xs"
                 >
                   <option value="GET">GET</option>
                   <option value="POST">POST</option>
@@ -230,21 +255,23 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
                 </select>
               </div>
               <div className="col-span-2">
-                <label className="block font-semibold text-slate-700 mb-1">
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Timeout (ms)
                 </label>
                 <input
                   type="number"
                   value={currentConfig.timeoutMs ?? 10000}
                   disabled={readOnly}
-                  onChange={(e) => handleConfigChange("timeoutMs", Number(e.target.value))}
-                  className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100"
+                  onChange={(e) =>
+                    handleConfigChange("timeoutMs", Number(e.target.value))
+                  }
+                  className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 dark:bg-slate-800"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 URL Endpoint
               </label>
               <input
@@ -253,15 +280,16 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
                 value={currentConfig.url || ""}
                 disabled={readOnly}
                 onChange={(e) => handleConfigChange("url", e.target.value)}
-                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100 font-mono text-[11px]"
+                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 dark:bg-slate-800 font-mono text-[11px]"
               />
-              <p className="text-[10px] text-slate-500 mt-0.5">
-                Protected against SSRF. Private/loopback IPs are blocked server-side.
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                Protected against SSRF. Private/loopback IPs are blocked
+                server-side.
               </p>
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Request Body (JSON)
               </label>
               <textarea
@@ -270,11 +298,11 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
                 value={currentConfig.body || ""}
                 disabled={readOnly}
                 onChange={(e) => handleConfigChange("body", e.target.value)}
-                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100 font-mono text-[11px]"
+                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 dark:bg-slate-800 font-mono text-[11px]"
               />
             </div>
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Connection Reference (Optional)
               </label>
               <input
@@ -282,10 +310,12 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
                 placeholder="conn_12345678"
                 value={currentConfig.connectionId || ""}
                 disabled={readOnly}
-                onChange={(e) => handleConfigChange("connectionId", e.target.value)}
-                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100 font-mono text-[11px]"
+                onChange={(e) =>
+                  handleConfigChange("connectionId", e.target.value)
+                }
+                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 dark:bg-slate-800 font-mono text-[11px]"
               />
-              <p className="text-[10px] text-slate-500 mt-0.5">
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
                 Configured Integration Connection ID from Settings.
               </p>
             </div>
@@ -296,7 +326,7 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
         {nodeType === "EMAIL" && (
           <div className="space-y-3">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Recipient (To)
               </label>
               <input
@@ -305,12 +335,12 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
                 value={currentConfig.to || ""}
                 disabled={readOnly}
                 onChange={(e) => handleConfigChange("to", e.target.value)}
-                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100"
+                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 dark:bg-slate-800"
               />
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Subject
               </label>
               <input
@@ -319,12 +349,12 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
                 value={currentConfig.subject || ""}
                 disabled={readOnly}
                 onChange={(e) => handleConfigChange("subject", e.target.value)}
-                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100"
+                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 dark:bg-slate-800"
               />
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Email Template Body
               </label>
               <textarea
@@ -333,7 +363,7 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
                 value={currentConfig.template || ""}
                 disabled={readOnly}
                 onChange={(e) => handleConfigChange("template", e.target.value)}
-                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100 font-mono text-[11px]"
+                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 dark:bg-slate-800 font-mono text-[11px]"
               />
             </div>
           </div>
@@ -343,7 +373,7 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
         {nodeType === "APPROVAL" && (
           <div className="space-y-3">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Approval Title
               </label>
               <input
@@ -352,19 +382,21 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
                 value={currentConfig.title || ""}
                 disabled={readOnly}
                 onChange={(e) => handleConfigChange("title", e.target.value)}
-                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100"
+                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 dark:bg-slate-800"
               />
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Required Role
               </label>
               <select
                 value={currentConfig.requiredRole || "ADMIN"}
                 disabled={readOnly}
-                onChange={(e) => handleConfigChange("requiredRole", e.target.value as Role)}
-                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100 font-semibold"
+                onChange={(e) =>
+                  handleConfigChange("requiredRole", e.target.value as Role)
+                }
+                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 dark:bg-slate-800 font-semibold"
               >
                 <option value="MEMBER">Member or higher</option>
                 <option value="ADMIN">Admin or higher</option>
@@ -373,23 +405,26 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Timeout (seconds)
               </label>
               <input
                 type="number"
                 value={currentConfig.timeoutSeconds ?? 86400}
                 disabled={readOnly}
-                onChange={(e) => handleConfigChange("timeoutSeconds", Number(e.target.value))}
-                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100"
+                onChange={(e) =>
+                  handleConfigChange("timeoutSeconds", Number(e.target.value))
+                }
+                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 dark:bg-slate-800"
               />
-              <p className="text-[10px] text-slate-500 mt-0.5">
-                Default: 86400s (24h). Pauses execution until an authorized user acts.
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                Default: 86400s (24h). Pauses execution until an authorized user
+                acts.
               </p>
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Instructions / Description
               </label>
               <textarea
@@ -397,8 +432,10 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
                 placeholder="Verify customer line items and confirm budget approval."
                 value={currentConfig.description || ""}
                 disabled={readOnly}
-                onChange={(e) => handleConfigChange("description", e.target.value)}
-                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100"
+                onChange={(e) =>
+                  handleConfigChange("description", e.target.value)
+                }
+                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 dark:bg-slate-800"
               />
             </div>
           </div>
@@ -408,17 +445,19 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
         {nodeType === "DELAY" && (
           <div className="space-y-3">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Duration (Seconds)
               </label>
               <input
                 type="number"
                 value={currentConfig.durationSeconds ?? 60}
                 disabled={readOnly}
-                onChange={(e) => handleConfigChange("durationSeconds", Number(e.target.value))}
-                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100"
+                onChange={(e) =>
+                  handleConfigChange("durationSeconds", Number(e.target.value))
+                }
+                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 dark:bg-slate-800"
               />
-              <p className="text-[10px] text-slate-500 mt-1">
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
                 Durable timer handled by background BullMQ queue.
               </p>
             </div>
@@ -429,7 +468,7 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
         {nodeType === "END" && (
           <div className="space-y-3">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Summary Expression (Optional)
               </label>
               <input
@@ -437,10 +476,12 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
                 placeholder="'Workflow completed for ' + trigger.payload.orderId"
                 value={currentConfig.summaryExpression || ""}
                 disabled={readOnly}
-                onChange={(e) => handleConfigChange("summaryExpression", e.target.value)}
-                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100 font-mono text-[11px]"
+                onChange={(e) =>
+                  handleConfigChange("summaryExpression", e.target.value)
+                }
+                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 dark:bg-slate-800 font-mono text-[11px]"
               />
-              <p className="text-[10px] text-slate-500 mt-1">
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
                 Terminal node. Cannot have outgoing connections.
               </p>
             </div>
@@ -451,23 +492,29 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
         {nodeType === "CONNECTOR_ACTION" && (
           <div className="space-y-3">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Connector Service
               </label>
               <select
                 value={currentConfig.connectorId || "http-api"}
                 disabled={readOnly}
-                onChange={(e) => handleConfigChange("connectorId", e.target.value)}
-                className="w-full border border-slate-300 rounded px-2 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100 text-xs font-semibold"
+                onChange={(e) =>
+                  handleConfigChange("connectorId", e.target.value)
+                }
+                className="w-full border border-slate-300 rounded px-2 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 dark:bg-slate-800 text-xs font-semibold"
               >
                 <option value="http-api">HTTP & REST API (http-api)</option>
-                <option value="smtp-email">SMTP / Email Notifications (smtp-email)</option>
-                <option value="slack-webhook">Slack Incoming Webhook (slack-webhook)</option>
+                <option value="smtp-email">
+                  SMTP / Email Notifications (smtp-email)
+                </option>
+                <option value="slack-webhook">
+                  Slack Incoming Webhook (slack-webhook)
+                </option>
               </select>
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Operation ID
               </label>
               <input
@@ -475,13 +522,15 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
                 placeholder="request, sendEmail, or sendMessage"
                 value={currentConfig.operationId || "request"}
                 disabled={readOnly}
-                onChange={(e) => handleConfigChange("operationId", e.target.value)}
-                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100 font-mono text-[11px]"
+                onChange={(e) =>
+                  handleConfigChange("operationId", e.target.value)
+                }
+                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 dark:bg-slate-800 font-mono text-[11px]"
               />
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Connection Reference ID
               </label>
               <input
@@ -489,16 +538,19 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
                 placeholder="conn_12345678"
                 value={currentConfig.connectionId || ""}
                 disabled={readOnly}
-                onChange={(e) => handleConfigChange("connectionId", e.target.value)}
-                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100 font-mono text-[11px]"
+                onChange={(e) =>
+                  handleConfigChange("connectionId", e.target.value)
+                }
+                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 dark:bg-slate-800 font-mono text-[11px]"
               />
-              <p className="text-[10px] text-slate-500 mt-0.5">
-                Saved Connection ID from Organization Settings. Never store credentials directly in workflows.
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                Saved Connection ID from Organization Settings. Never store
+                credentials directly in workflows.
               </p>
             </div>
 
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">
+              <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                 Parameters (JSON)
               </label>
               <textarea
@@ -512,45 +564,67 @@ export const NodeConfigPanel: React.FC<NodeConfigPanelProps> = ({
                 disabled={readOnly}
                 onChange={(e) => {
                   try {
-                    handleConfigChange("parameters", JSON.parse(e.target.value));
+                    handleConfigChange(
+                      "parameters",
+                      JSON.parse(e.target.value),
+                    );
                   } catch {
                     handleConfigChange("parameters", e.target.value);
                   }
                 }}
-                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100 font-mono text-[11px]"
+                className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 dark:bg-slate-800 font-mono text-[11px]"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Timeout (ms)
                 </label>
                 <input
                   type="number"
                   value={currentConfig.timeoutMs ?? 10000}
                   disabled={readOnly}
-                  onChange={(e) => handleConfigChange("timeoutMs", Number(e.target.value))}
-                  className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 focus:outline-none focus:ring-1 focus:ring-teal-500 disabled:bg-slate-100"
+                  onChange={(e) =>
+                    handleConfigChange("timeoutMs", Number(e.target.value))
+                  }
+                  className="w-full border border-slate-300 rounded px-2.5 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100 dark:bg-slate-800"
                 />
               </div>
               <div className="flex items-center pt-5">
-                <label className="flex items-center gap-1.5 cursor-pointer text-slate-700 select-none">
+                <label className="flex items-center gap-1.5 cursor-pointer text-slate-700 dark:text-slate-300 select-none">
                   <input
                     type="checkbox"
                     checked={Boolean(currentConfig.idempotentRetry)}
                     disabled={readOnly}
-                    onChange={(e) => handleConfigChange("idempotentRetry", e.target.checked)}
-                    className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                    onChange={(e) =>
+                      handleConfigChange("idempotentRetry", e.target.checked)
+                    }
+                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                   />
-                  <span className="text-[11px] font-semibold">Idempotent Retry</span>
+                  <span className="text-[11px] font-semibold">
+                    Idempotent Retry
+                  </span>
                 </label>
               </div>
             </div>
           </div>
         )}
       </div>
+
+      {/* Accessible Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={() => {
+          setShowDeleteConfirm(false);
+          onDeleteNode(selectedNode.id);
+        }}
+        title="Delete Node"
+        message={`Are you sure you want to delete the "${currentName}" node? Any connected edges will also be removed.`}
+        confirmLabel="Delete Node"
+        isDestructive
+      />
     </div>
   );
 };
-

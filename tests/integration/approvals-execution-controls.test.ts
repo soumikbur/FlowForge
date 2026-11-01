@@ -893,7 +893,10 @@ describe("Prompt 8: Human-in-the-Loop Approvals, Execution Controls, and Observa
         triggerPayload: {},
         status: "FAILED",
         currentNodeId: "n_http",
-        errorDetails: { message: "504 Gateway Timeout", failedNodeId: "n_http" },
+        errorDetails: {
+          message: "504 Gateway Timeout",
+          failedNodeId: "n_http",
+        },
         retryCount: 1,
         completedAt: new Date(),
         createdAt: new Date(),

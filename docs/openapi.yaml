@@ -15,6 +15,29 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API Key authentication via X-API-Key header or Bearer token (ff_live_... or ff_test_...)
+    oauth2ClientCredentials:
+      type: oauth2
+      description: OAuth 2.0 Machine-to-Machine Client Credentials Grant (RFC 6749)
+      flows:
+        clientCredentials:
+          tokenUrl: /api/v1/oauth/token
+          scopes:
+            workflows:read: Read workflows and definitions
+            workflows:write: Create and update workflows
+            executions:read: Inspect workflow executions
+            executions:write: Dispatch and cancel workflow executions
+            approvals:read: Inspect pending approvals
+            approvals:write: Decide approval steps
+            connectors:read: List connector metadata
+            connectors:write: Manage connectors
+            usage:read: View usage and analytics
+            webhooks:read: Read webhook subscriptions
+            webhooks:write: Manage webhook subscriptions
   schemas:
     ApiResponseEnvelope:
       type: object
@@ -139,15 +162,15 @@ paths:
     get:
       summary: Liveness health check
       responses:
-        '200':
+        "200":
           description: Service process is running
   /ready:
     get:
       summary: Dependency readiness check
       responses:
-        '200':
+        "200":
           description: Dependencies are connected and ready
-        '503':
+        "503":
           description: Dependencies disconnected
 
   /api/v1/auth/register:
@@ -158,13 +181,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RegisterRequest'
+              $ref: "#/components/schemas/RegisterRequest"
       responses:
-        '201':
+        "201":
           description: User and organization successfully registered
-        '400':
+        "400":
           description: Validation failure
-        '409':
+        "409":
           description: User email already registered
 
   /api/v1/auth/login:
@@ -175,11 +198,11 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LoginRequest'
+              $ref: "#/components/schemas/LoginRequest"
       responses:
-        '200':
+        "200":
           description: Successful authentication
-        '401':
+        "401":
           description: Invalid email or password
 
   /api/v1/auth/logout:
@@ -189,7 +212,7 @@ paths:
         - cookieAuth: []
         - bearerAuth: []
       responses:
-        '200':
+        "200":
           description: Logged out successfully
 
   /api/v1/auth/me:
@@ -199,7 +222,7 @@ paths:
         - cookieAuth: []
         - bearerAuth: []
       responses:
-        '200':
+        "200":
           description: Profile and active organization context
 
   /api/v1/organizations:
@@ -209,7 +232,7 @@ paths:
         - cookieAuth: []
         - bearerAuth: []
       responses:
-        '200':
+        "200":
           description: List of organizations
     post:
       summary: Create new organization and assign caller as OWNER
@@ -221,9 +244,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateOrganizationRequest'
+              $ref: "#/components/schemas/CreateOrganizationRequest"
       responses:
-        '201':
+        "201":
           description: Organization created
 
   /api/v1/organizations/{organizationId}:
@@ -239,11 +262,11 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Organization details
-        '403':
+        "403":
           description: Non-member access denied
-        '404':
+        "404":
           description: Organization not found
     patch:
       summary: Update organization settings
@@ -261,9 +284,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateOrganizationRequest'
+              $ref: "#/components/schemas/UpdateOrganizationRequest"
       responses:
-        '200':
+        "200":
           description: Organization updated
 
   /api/v1/organizations/{organizationId}/members:
@@ -279,7 +302,7 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Member list
     post:
       summary: Invite or add member to organization
@@ -297,13 +320,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/InviteMemberRequest'
+              $ref: "#/components/schemas/InviteMemberRequest"
       responses:
-        '201':
+        "201":
           description: Member added
-        '403':
+        "403":
           description: Insufficient permissions or unauthorized role assignment
-        '409':
+        "409":
           description: User is already a member
 
   /api/v1/organizations/{organizationId}/members/{membershipId}:
@@ -328,13 +351,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateMemberRoleRequest'
+              $ref: "#/components/schemas/UpdateMemberRoleRequest"
       responses:
-        '200':
+        "200":
           description: Member role updated
-        '400':
+        "400":
           description: Cannot demote the last owner
-        '403':
+        "403":
           description: Forbidden
     delete:
       summary: Remove member from organization (enforcing Last Owner Protection)
@@ -353,11 +376,11 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Member removed
-        '400':
+        "400":
           description: Cannot remove the last owner
-        '403':
+        "403":
           description: Forbidden
 
   /api/v1/organizations/{organizationId}/audit-logs:
@@ -383,7 +406,7 @@ paths:
             type: integer
             default: 20
       responses:
-        '200':
+        "200":
           description: Paginated audit log records
 
   /api/v1/workflows:
@@ -413,7 +436,7 @@ paths:
             type: string
             enum: [DRAFT, ACTIVE, ARCHIVED]
       responses:
-        '200':
+        "200":
           description: Paginated workflows
     post:
       summary: Create workflow draft
@@ -425,9 +448,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateWorkflowRequest'
+              $ref: "#/components/schemas/CreateWorkflowRequest"
       responses:
-        '201':
+        "201":
           description: Workflow draft created
 
   /api/v1/workflows/{id}:
@@ -443,9 +466,9 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Workflow details
-        '404':
+        "404":
           description: Workflow not found or archived
     patch:
       summary: Update workflow draft definition
@@ -463,9 +486,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateWorkflowRequest'
+              $ref: "#/components/schemas/UpdateWorkflowRequest"
       responses:
-        '200':
+        "200":
           description: Workflow draft updated
     delete:
       summary: Soft-delete / archive workflow (preserves executions and versions)
@@ -479,7 +502,7 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Workflow archived successfully
 
   /api/v1/workflows/{id}/validate:
@@ -495,7 +518,7 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Validation result object with AST errors
 
   /api/v1/workflows/{id}/publish:
@@ -511,9 +534,9 @@ paths:
           schema:
             type: string
       responses:
-        '201':
+        "201":
           description: Workflow published into immutable version
-        '400':
+        "400":
           description: Graph validation failed
 
   /api/v1/workflows/{id}/versions:
@@ -529,7 +552,7 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: List of published version snapshots
   /api/v1/workflows/{id}/versions/{versionId}:
     get:
@@ -549,6 +572,2331 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Immutable version snapshot definition
 
+  /api/v1/oauth/token:
+    post:
+      summary: Obtain OAuth 2.0 access token via client credentials grant
+      description: Exchanges client_id and client_secret for an OAuth Bearer token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - grant_type
+                - client_id
+                - client_secret
+              properties:
+                grant_type:
+                  type: string
+                  enum: [client_credentials]
+                client_id:
+                  type: string
+                client_secret:
+                  type: string
+                scope:
+                  type: string
+      responses:
+        "200":
+          description: OAuth access token issued successfully
+        "400":
+          description: Invalid request or unauthorized scope
+        "401":
+          description: Client authentication failed
+
+  /api/v1/organizations/{organizationId}/oauth/clients:
+    post:
+      summary: Register confidential OAuth 2.0 client
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: organizationId
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: OAuth client registered
+    get:
+      summary: List registered OAuth clients
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: organizationId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of OAuth clients
+
+  /api/v1/organizations/{organizationId}/api-keys:
+    post:
+      summary: Create new API key
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: organizationId
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: API key created with secret displayed once
+    get:
+      summary: List organization API keys
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: organizationId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of active API keys
+
+  /api/v1/organizations/{organizationId}/api-keys/{keyId}/rotate:
+    post:
+      summary: Rotate API key secret
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: organizationId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: keyId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: API key secret rotated with new secret displayed once
+
+  /api/v1/webhooks/subscriptions:
+    get:
+      summary: List outbound webhook subscriptions
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      responses:
+        "200":
+          description: List of subscriptions
+    post:
+      summary: Create outbound webhook subscription
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      responses:
+        "201":
+          description: Webhook subscription created with signing secret displayed once
+
+  /api/v1/organizations/{organizationId}/ai/config:
+    get:
+      summary: Get AI configuration for organization
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Sanitized AI configuration with redacted credentials
+    put:
+      summary: Update AI configuration for organization
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Updated AI configuration
+
+  /api/v1/organizations/{organizationId}/ai/generate-workflow:
+    post:
+      summary: AI-assisted workflow draft generation
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Validated untrusted workflow draft
+        "400":
+          description: Validation error or prompt injection detected
+        "429":
+          description: Monthly AI token budget exceeded
+
+  /api/v1/organizations/{organizationId}/ai/edit-workflow:
+    post:
+      summary: Conversational workflow draft modification
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Modified workflow draft with structured diff
+        "409":
+          description: Stale draft conflict detected
+
+  /api/v1/organizations/{organizationId}/ai/explain-workflow:
+    post:
+      summary: Workflow topology and risk analysis
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Workflow explanation and risk profile
+
+  /api/v1/organizations/{organizationId}/ai/analyze-failure:
+    post:
+      summary: Read-only execution failure root-cause analysis
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Execution failure diagnostics and suggested remediations
+
+  /api/v1/organizations/{organizationId}/intelligence/metrics:
+    get:
+      summary: Business process metrics and KPIs
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: workflowId
+          in: query
+          schema:
+            type: string
+        - name: window
+          in: query
+          schema:
+            type: string
+            enum: [1h, 24h, 7d, 30d, 90d]
+      responses:
+        "200":
+          description: Process metrics including duration percentiles, volume, error rate, queue/approval/connector latency
+        "400":
+          description: Invalid query parameters
+        "403":
+          description: Insufficient permissions (requires analytics:read)
+
+  /api/v1/organizations/{organizationId}/intelligence/bottlenecks:
+    get:
+      summary: Rule-based process bottleneck detection
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: workflowId
+          in: query
+          schema:
+            type: string
+        - name: window
+          in: query
+          schema:
+            type: string
+            enum: [1h, 24h, 7d, 30d, 90d]
+      responses:
+        "200":
+          description: List of detected bottlenecks with evidence and impact
+        "403":
+          description: Insufficient permissions (requires analytics:read)
+
+  /api/v1/organizations/{organizationId}/intelligence/anomalies:
+    get:
+      summary: Statistical anomaly detection
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: workflowId
+          in: query
+          schema:
+            type: string
+        - name: window
+          in: query
+          schema:
+            type: string
+            enum: [1h, 24h, 7d, 30d, 90d]
+      responses:
+        "200":
+          description: Statistical duration/failure anomalies with z-scores and baseline stats
+        "403":
+          description: Insufficient permissions (requires analytics:read)
+
+  /api/v1/organizations/{organizationId}/intelligence/compare:
+    get:
+      summary: Workflow version comparison and regression detection
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: workflowId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: baseVersion
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: targetVersion
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Version comparison report with duration/reliability deltas and regression flags
+        "403":
+          description: Insufficient permissions (requires analytics:read)
+
+  /api/v1/organizations/{organizationId}/intelligence/outcomes:
+    post:
+      summary: Record business outcome for an execution
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - executionId
+                - workflowId
+                - outcomeName
+                - status
+              properties:
+                executionId:
+                  type: string
+                workflowId:
+                  type: string
+                outcomeName:
+                  type: string
+                status:
+                  type: string
+                  enum: [ACHIEVED, PARTIAL, MISSED, ABANDONED]
+                businessValue:
+                  type: number
+                currency:
+                  type: string
+                targetDurationMs:
+                  type: integer
+                actualDurationMs:
+                  type: integer
+                slaAttained:
+                  type: boolean
+                metadata:
+                  type: object
+      responses:
+        "201":
+          description: Business outcome recorded
+        "403":
+          description: Insufficient permissions (requires analytics:write)
+    get:
+      summary: Query business outcomes and SLA attainment
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: workflowId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of business outcomes with aggregated SLA attainment
+        "403":
+          description: Insufficient permissions (requires analytics:read)
+
+  /api/v1/organizations/{organizationId}/intelligence/slos:
+    post:
+      summary: Create Service Level Objective (SLO) for a workflow
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - workflowId
+                - targetType
+                - targetValue
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                workflowId:
+                  type: string
+                targetType:
+                  type: string
+                  enum: [SUCCESS_RATE, DURATION_P95, DURATION_P99, DURATION_AVG]
+                targetValue:
+                  type: number
+                windowHours:
+                  type: integer
+      responses:
+        "201":
+          description: SLO created successfully
+        "403":
+          description: Insufficient permissions (requires analytics:write)
+    get:
+      summary: List SLOs and compliance evaluations
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: workflowId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of SLOs with live compliance and error budget tracking
+        "403":
+          description: Insufficient permissions (requires analytics:read)
+
+  /api/v1/organizations/{organizationId}/intelligence/slos/{sloId}/evaluation:
+    get:
+      summary: Get live evaluation and error budget for a single SLO
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: sloId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Evaluated SLO status, remaining error budget, and compliance flag
+        "404":
+          description: SLO not found
+
+  /api/v1/organizations/{organizationId}/intelligence/recommendations:
+    get:
+      summary: Actionable workflow optimization recommendations
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: workflowId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Optimization recommendations categorized by PARALLELIZATION, CACHING, TIMEOUT, RETRY, APPROVAL
+        "403":
+          description: Insufficient permissions (requires analytics:read)
+
+  /api/v1/organizations/{organizationId}/intelligence/insights/ai:
+    post:
+      summary: Evidence-grounded advisory AI operational insights
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - workflowId
+              properties:
+                workflowId:
+                  type: string
+                window:
+                  type: string
+                  enum: [1h, 24h, 7d, 30d, 90d]
+      responses:
+        "200":
+          description: Advisory AI operational insight with grounded evidence and suggested actions
+        "403":
+          description: Insufficient permissions (requires analytics:read)
+
+  /api/v1/organizations/{organizationId}/intelligence/export:
+    get:
+      summary: Export business process intelligence report (JSON or formula-sanitized CSV)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [json, csv]
+        - name: workflowId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Process intelligence report exported in requested format
+        "403":
+          description: Insufficient permissions (requires analytics:read)
+
+  /api/v1/organizations/{organizationId}/events/ingest:
+    post:
+      summary: Ingest single event or batch of canonical events
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+                - source
+              properties:
+                id:
+                  type: string
+                type:
+                  type: string
+                specVersion:
+                  type: string
+                  default: "1.0"
+                source:
+                  type: string
+                subject:
+                  type: string
+                partitionKey:
+                  type: string
+                correlationId:
+                  type: string
+                data:
+                  type: object
+                metadata:
+                  type: object
+      responses:
+        "202":
+          description: Event accepted and routed
+        "200":
+          description: Duplicate event acknowledged idempotently
+        "400":
+          description: Malformed event or payload limit exceeded (>1MB)
+        "403":
+          description: Insufficient permissions (requires events:ingest or events:write)
+
+  /api/v1/organizations/{organizationId}/events:
+    get:
+      summary: Query and filter event stream records
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: source
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: partitionKey
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: Paginated stream event records
+        "403":
+          description: Insufficient permissions (requires events:read)
+
+  /api/v1/organizations/{organizationId}/events/metrics:
+    get:
+      summary: Aggregated event streaming metrics
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Event stream processing metrics
+        "403":
+          description: Insufficient permissions (requires events:read)
+
+  /api/v1/organizations/{organizationId}/events/dead-letter:
+    get:
+      summary: List dead-lettered events
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of dead-lettered stream events
+        "403":
+          description: Insufficient permissions (requires events:read)
+
+  /api/v1/organizations/{organizationId}/events/dead-letter/{id}/redrive:
+    post:
+      summary: Redrive dead-lettered event
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Dead-letter event redriven successfully
+        "404":
+          description: Dead-letter event not found
+        "409":
+          description: Event is not in DEAD_LETTERED state
+
+  /api/v1/organizations/{organizationId}/events/replay/preview:
+    post:
+      summary: Preview historical event replay scope
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                types:
+                  type: array
+                  items:
+                    type: string
+                from:
+                  type: string
+                  format: date-time
+                to:
+                  type: string
+                  format: date-time
+      responses:
+        "200":
+          description: Replay preview results
+        "403":
+          description: Insufficient permissions (requires events:replay)
+
+  /api/v1/organizations/{organizationId}/events/replay:
+    post:
+      summary: Execute authorized event replay
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                eventIds:
+                  type: array
+                  items:
+                    type: string
+                types:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Replay executed successfully
+        "403":
+          description: Insufficient permissions (requires events:replay)
+
+  /api/v1/organizations/{organizationId}/events/subscriptions:
+    get:
+      summary: List connector subscriptions
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of connector subscriptions
+    post:
+      summary: Create connector subscription
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - connectorId
+                - name
+                - eventTypes
+              properties:
+                connectorId:
+                  type: string
+                name:
+                  type: string
+                eventTypes:
+                  type: array
+                  items:
+                    type: string
+                deliveryMode:
+                  type: string
+                  enum: [PUSH, POLL]
+      responses:
+        "201":
+          description: Connector subscription created
+
+  /api/v1/organizations/{organizationId}/events/{id}:
+    get:
+      summary: Get single event by ID with optional sensitive field redaction
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+        - in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: redact
+          in: query
+          schema:
+            type: boolean
+            default: true
+      responses:
+        "200":
+          description: Event record details
+        "404":
+          description: Event not found
+
+  /api/v1/organizations/{organizationId}/extensions/catalog:
+    get:
+      summary: List available extension packages for organization
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              [
+                DRAFT,
+                SUBMITTED,
+                APPROVED,
+                PUBLISHED,
+                SUSPENDED,
+                DEPRECATED,
+                RETIRED,
+              ]
+      responses:
+        "200":
+          description: List of extension packages
+        "403":
+          description: Forbidden
+
+  /api/v1/organizations/{organizationId}/extensions/submit:
+    post:
+      summary: Submit extension package for administrative review
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - manifest
+              properties:
+                manifest:
+                  type: object
+                packageIntegrityHash:
+                  type: string
+                isPublic:
+                  type: boolean
+                releaseNotes:
+                  type: string
+      responses:
+        "201":
+          description: Package submitted for review
+        "400":
+          description: Validation error
+
+  /api/v1/organizations/{organizationId}/extensions/{id}/review:
+    post:
+      summary: Review extension package (approve or reject)
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - decision
+              properties:
+                decision:
+                  type: string
+                  enum: [APPROVED, REJECTED]
+                comment:
+                  type: string
+      responses:
+        "200":
+          description: Package review completed
+        "403":
+          description: Requires extensions:admin permission
+
+  /api/v1/organizations/{organizationId}/extensions/{id}/install:
+    post:
+      summary: Install approved extension package into organization
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                version:
+                  type: string
+                grantedCapabilities:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "201":
+          description: Extension installed successfully
+        "400":
+          description: Undeclared capability or unapproved package
+
+  /api/v1/organizations/{organizationId}/extensions/installed:
+    get:
+      summary: List installed extensions for organization
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of installed extension records
+
+  /api/v1/organizations/{organizationId}/extensions/installed/{extensionId}/suspend:
+    post:
+      summary: Suspend installed extension
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: extensionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Extension suspended
+
+  /api/v1/organizations/{organizationId}/extensions/installed/{extensionId}/reactivate:
+    post:
+      summary: Reactivate suspended extension
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: extensionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Extension reactivated
+
+  /api/v1/organizations/{organizationId}/extensions/installed/{extensionId}/upgrade-preview:
+    get:
+      summary: Preview upgrade impact and workflow regressions
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: extensionId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: targetVersion
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Upgrade preview with affected workflows and breaking changes
+
+  /ready:
+    get:
+      summary: Cluster readiness and dependency status probe
+      responses:
+        "200":
+          description: All critical dependencies connected and ready to accept traffic
+        "503":
+          description: Dependencies disconnected or server draining connections
+
+  /health/ready:
+    get:
+      summary: Detailed readiness breakdown probe
+      responses:
+        "200":
+          description: Detailed breakdown of database, circuit breakers, worker load, and memory
+        "503":
+          description: Degraded or draining status
+
+  /api/v1/organizations/{organizationId}/resilience/leases:
+    get:
+      summary: Inspect active distributed execution leases and scheduler occurrence claims
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of active leases and claims
+        "403":
+          description: Requires resilience:read permission
+
+  /api/v1/organizations/{organizationId}/resilience/reconciliations:
+    get:
+      summary: List pending uncertain side-effect step reconciliations
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of pending reconciliations
+
+  /api/v1/organizations/{organizationId}/resilience/reconcile/{executionId}:
+    post:
+      summary: Reconcile an interrupted uncertain external side-effect step
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: executionId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - action
+                - reason
+              properties:
+                stepId:
+                  type: string
+                action:
+                  type: string
+                  enum: [RESUME, FAIL, SKIP]
+                reason:
+                  type: string
+                notes:
+                  type: string
+      responses:
+        "200":
+          description: Step reconciled successfully
+        "400":
+          description: Invalid reconciliation action or parameters
+        "403":
+          description: Requires resilience:admin permission
+        "404":
+          description: Execution or step not found
+
+  /api/v1/organizations/{organizationId}/resilience/failover/simulate:
+    post:
+      summary: Simulate regional failover and connection draining
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sourceRegion:
+                  type: string
+                targetRegion:
+                  type: string
+                drainTimeoutMs:
+                  type: number
+      responses:
+        "200":
+          description: Failover exercise simulated and audited
+        "403":
+          description: Requires resilience:admin permission
+
+  /api/v1/organizations/{organizationId}/resilience/backup/verify:
+    post:
+      summary: Cryptographically verify point-in-time recovery backup snapshot integrity
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - snapshotId
+                - snapshotContent
+                - expectedSha256
+              properties:
+                snapshotId:
+                  type: string
+                snapshotContent:
+                  type: string
+                expectedSha256:
+                  type: string
+      responses:
+        "200":
+          description: Snapshot verification result
+        "400":
+          description: Missing required fields
+        "403":
+          description: Requires resilience:admin permission
+
+  /api/v1/organizations/{organizationId}/search:
+    get:
+      summary: Unified enterprise search and discovery across tenant resources
+      description: Search workflows, workflow versions, executions, events, connectors, extensions, templates, approvals, and audit records with relevance scoring and RBAC filtering.
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: query
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: types
+          in: query
+          required: false
+          description: Comma-separated list of resource types (workflow, workflow_version, execution, event, connector, extension, template, approval, audit_log)
+          schema:
+            type: string
+        - name: workspaceId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+        - name: sortBy
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [relevance, createdAt, updatedAt, title]
+            default: relevance
+        - name: sortOrder
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        "200":
+          description: Search results with pagination and facets
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden - requires search:read permission
+
+  /api/v1/organizations/{organizationId}/search/saved:
+    get:
+      summary: List saved search queries
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of user-scoped and organization-shared saved searches
+    post:
+      summary: Save a reusable search query
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - query
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                isShared:
+                  type: boolean
+                workspaceId:
+                  type: string
+                query:
+                  type: object
+      responses:
+        "201":
+          description: Saved search created
+        "400":
+          description: Invalid request payload
+        "403":
+          description: Requires search:saved:write permission
+
+  /api/v1/organizations/{organizationId}/search/saved/{id}:
+    delete:
+      summary: Delete a saved search
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Saved search deleted
+        "403":
+          description: Forbidden
+        "404":
+          description: Saved search not found
+
+  /api/v1/organizations/{organizationId}/search/metrics:
+    get:
+      summary: Search latency and query metrics
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Search observability metrics
+        "403":
+          description: Forbidden
+
+  /api/v1/organizations/{organizationId}/policies:
+    get:
+      summary: List organization governance policies
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of policies
+    post:
+      summary: Create a draft governance policy
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - applicableResourceTypes
+                - applicableOperations
+                - rules
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                category:
+                  type: string
+                applicableResourceTypes:
+                  type: array
+                  items:
+                    type: string
+                applicableOperations:
+                  type: array
+                  items:
+                    type: string
+                priority:
+                  type: integer
+                rules:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        "201":
+          description: Draft policy created
+        "400":
+          description: Validation error
+
+  /api/v1/organizations/{organizationId}/policies/{id}:
+    get:
+      summary: Get policy details by ID
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Policy details
+        "404":
+          description: Policy not found
+
+  /api/v1/organizations/{organizationId}/policies/evaluate:
+    post:
+      summary: Authoritative server-side policy evaluation
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - resourceType
+                - operation
+              properties:
+                resourceType:
+                  type: string
+                operation:
+                  type: string
+                resourceId:
+                  type: string
+                attributes:
+                  type: object
+      responses:
+        "200":
+          description: Evaluation decision
+
+  /api/v1/organizations/{organizationId}/policies/simulate:
+    post:
+      summary: Dry-run simulation of draft policy rules
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - context
+              properties:
+                policy:
+                  type: object
+                policyId:
+                  type: string
+                context:
+                  type: object
+      responses:
+        "200":
+          description: Simulated decision
+
+  /api/v1/organizations/{organizationId}/policies/exceptions:
+    get:
+      summary: List policy exceptions
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of exceptions
+    post:
+      summary: Request a time-limited policy exception
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - policyId
+                - resourceType
+                - resourceId
+                - operation
+                - reason
+              properties:
+                policyId:
+                  type: string
+                ruleId:
+                  type: string
+                resourceType:
+                  type: string
+                resourceId:
+                  type: string
+                operation:
+                  type: string
+                reason:
+                  type: string
+                expiresInHours:
+                  type: integer
+      responses:
+        "201":
+          description: Exception requested
+
+  /api/v1/organizations/{organizationId}/policies/violations:
+    get:
+      summary: List detected policy violations
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: organizationId
+        - in: path
+          required: true
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of violations
+
+  /api/v1/analytics/roi:
+    get:
+      summary: Calculate business automation ROI and labor savings
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: range
+          in: query
+          schema:
+            type: string
+            enum: [1h, 24h, 7d, 30d, custom]
+        - name: workflowId
+          in: query
+          schema:
+            type: string
+        - name: manualMinutes
+          in: query
+          schema:
+            type: number
+        - name: hourlyWage
+          in: query
+          schema:
+            type: number
+      responses:
+        "200":
+          description: ROI calculation results with workflow breakdowns
+
+  /api/v1/analytics/roi/assumptions:
+    get:
+      summary: Get organization or workflow ROI assumptions
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: workflowId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: ROI assumption record
+    post:
+      summary: Configure organization or workflow ROI assumptions
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                workflowId:
+                  type: string
+                manualMinutesPerRun:
+                  type: number
+                hourlyWage:
+                  type: number
+                licenseCostMonthly:
+                  type: number
+                infrastructureCostPerRun:
+                  type: number
+                currency:
+                  type: string
+      responses:
+        "201":
+          description: ROI assumption saved
+
+  /api/v1/analytics/data-quality:
+    get:
+      summary: Audit data quality, schema integrity, and negative durations
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      responses:
+        "200":
+          description: Data quality diagnostic report
+
+  /api/v1/analytics/governance:
+    get:
+      summary: Aggregated governance, policy enforcement, and approval bottlenecks
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      responses:
+        "200":
+          description: Governance analytics summary
+
+  /api/v1/analytics/integrations:
+    get:
+      summary: Connector reliability, error rates, and latency telemetry
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      responses:
+        "200":
+          description: Integration analytics summary
+
+  /api/v1/analytics/reports:
+    get:
+      summary: List saved report definitions
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      responses:
+        "200":
+          description: List of saved reports
+    post:
+      summary: Create a saved report definition
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                reportType:
+                  type: string
+                  enum:
+                    [
+                      EXECUTIVE_ROI,
+                      OPERATIONAL_HEALTH,
+                      INTEGRATION_RELIABILITY,
+                      GOVERNANCE_AUDIT,
+                      DATA_QUALITY,
+                      CUSTOM,
+                    ]
+                format:
+                  type: string
+                  enum: [JSON, CSV]
+                scheduleCron:
+                  type: string
+                filters:
+                  type: object
+      responses:
+        "201":
+          description: Saved report created
+
+  /api/v1/analytics/reports/{id}:
+    get:
+      summary: Get saved report definition
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Saved report definition
+        "404":
+          description: Not found
+    delete:
+      summary: Delete saved report definition
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Report deleted
+        "404":
+          description: Not found
+
+  /api/v1/analytics/reports/{id}/export:
+    get:
+      summary: Execute saved report and download export artifact
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: format
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [JSON, CSV]
+      responses:
+        "200":
+          description: Exported report file (CSV or JSON)
+          content:
+            text/csv:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "404":
+          description: Report not found
+
+  /api/v1/governance/quotas:
+    get:
+      summary: List configured resource quota policies
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      responses:
+        "200":
+          description: List of quota policies
+    post:
+      summary: Create or update a resource quota policy
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                scopeType:
+                  type: string
+                  enum: [ORGANIZATION, WORKSPACE, WORKFLOW]
+                workspaceId:
+                  type: string
+                workflowId:
+                  type: string
+                maxConcurrentExecutions:
+                  type: integer
+                maxQueueDepth:
+                  type: integer
+                maxMonthlyExecutions:
+                  type: integer
+                maxExecutionDurationMs:
+                  type: integer
+                maxStepCount:
+                  type: integer
+                maxConnectorCallsPerRun:
+                  type: integer
+                monthlyBudgetDollars:
+                  type: number
+                budgetAlertThresholdPercent:
+                  type: number
+                fairShareWeight:
+                  type: integer
+                enforcementAction:
+                  type: string
+                  enum: [REJECT, DEGRADE, WARN]
+      responses:
+        "201":
+          description: Quota policy created or updated
+
+  /api/v1/governance/quotas/effective:
+    get:
+      summary: Resolve effective hierarchical quota policy
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      parameters:
+        - name: workspaceId
+          in: query
+          schema:
+            type: string
+        - name: workflowId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Effective resolved quota policy
+
+  /api/v1/governance/quotas/utilization:
+    get:
+      summary: Retrieve real-time resource utilization, concurrency, and queue depths
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      responses:
+        "200":
+          description: Resource utilization summary
+
+  /api/v1/governance/quotas/budget:
+    get:
+      summary: Retrieve cost budget tracking, threshold alerts, and spend estimates
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      responses:
+        "200":
+          description: Cost budget status and threshold alerts
+
+  /api/v1/governance/quotas/reconcile:
+    post:
+      summary: Trigger administrative resource state reconciliation
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+        - apiKeyAuth: []
+      responses:
+        "200":
+          description: Reconciliation results and cleared resource counts
+
+  /api/v1/workflows/{id}/simulate:
+    post:
+      summary: Execute deterministic workflow simulation or safe validation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Simulation execution outcome, path trace, and node outputs
+
+  /api/v1/workflows/{id}/tests:
+    get:
+      summary: List test cases for workflow
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of test case records
+    post:
+      summary: Create reusable workflow test case with assertions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "201":
+          description: Created test case record
+
+  /api/v1/workflows/{id}/tests/{testId}/run:
+    post:
+      summary: Execute single test case and evaluate assertions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: testId
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Test execution results and assertion checklist
+
+  /api/v1/workflows/{id}/tests/run-all:
+    post:
+      summary: Execute full workflow test suite
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Test suite execution summary and test runs
+
+  /api/v1/workflows/{id}/compare:
+    post:
+      summary: Compare workflow execution behavior and detect regressions between versions
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Regression analysis, path differences, and output divergences
+
+  /api/v1/workflows/{id}/debug/session:
+    post:
+      summary: Create stepwise interactive debugging session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "201":
+          description: Initialized debug session record
+
+  /api/v1/workflows/{id}/debug/session/{sessionId}/step:
+    post:
+      summary: Step debug session forward by one node
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Stepped debug session and current node outputs
+
+  /api/v1/workflows/{id}/debug/session/{sessionId}/resume:
+    post:
+      summary: Resume debug session to completion or next breakpoint
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Resumed debug session record
+
+  /api/v1/workflows/{id}/gate-status:
+    get:
+      summary: Evaluate pre-release publishing gate status for workflow draft
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Gate status, check results, and blocking reasons
+
+  /api/v1/testing/fixtures:
+    get:
+      summary: List integration test fixtures
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of test fixture doubles
+    post:
+      summary: Create integration test fixture double
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "201":
+          description: Created test fixture
+
+  /api/v1/testing/contracts/validate:
+    post:
+      summary: Validate connector operation contract without external invocation
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Schema validation outcome and validation errors
+
+  /api/v1/version:
+    get:
+      summary: Retrieve current API version and supported negotiation capabilities
+      responses:
+        "200":
+          description: API version specification
+
+  /api/v1/deprecations:
+    get:
+      summary: List active endpoint deprecations, successor routes, and sunset schedules
+      responses:
+        "200":
+          description: Active deprecation notices
+
+  /api/v1/metrics/reliability:
+    get:
+      summary: Real-time API reliability, rate limit, idempotency, and webhook metrics
+      responses:
+        "200":
+          description: Reliability telemetry data
+
+  /api/v1/webhooks/deliveries/dead-letter:
+    get:
+      summary: List dead-lettered webhook deliveries for tenant
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Deliveries exceeding retry threshold
+
+  /api/v1/webhooks/deliveries/{id}/replay:
+    post:
+      summary: Replay a failed or dead-lettered webhook delivery immediately
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Webhook delivery replayed
+
+  /api/v1/webhooks/subscriptions/{id}/rotate-secret:
+    post:
+      summary: Rotate outbound webhook HMAC signing secret with secondary grace period
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Outbound secret rotated
+
+  /api/v1/webhooks/{id}/rotate-secret:
+    post:
+      summary: Rotate inbound webhook HMAC signing secret with dual-secret grace period
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Inbound secret rotated

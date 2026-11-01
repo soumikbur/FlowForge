@@ -768,9 +768,9 @@ describe("Phase 5: Workflow Execution Runtime, Scheduling, Retries, and Recovery
       expect(res2.body.meta?.idempotent).toBe(true);
 
       // Verify in store that only 1 execution was recorded
-      const matchingExecutions = Array.from(apiStore.executions.values()).filter(
-        (e) => e.idempotencyKey === idempotencyKey,
-      );
+      const matchingExecutions = Array.from(
+        apiStore.executions.values(),
+      ).filter((e) => e.idempotencyKey === idempotencyKey);
       expect(matchingExecutions).toHaveLength(1);
     });
   });

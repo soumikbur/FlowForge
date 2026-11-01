@@ -40,15 +40,13 @@ describe("Prompt 18: End-to-End Integration Testing, Security Audit, and Release
     resetRateLimits();
 
     // 1. Provision Tenant A (Acme Corp)
-    const regResA = await request(app)
-      .post("/api/v1/auth/register")
-      .send({
-        email: ownerEmailA,
-        password: "Password123!Secure",
-        firstName: "Alice",
-        lastName: "Admin",
-        organizationName: "Acme Corp QA",
-      });
+    const regResA = await request(app).post("/api/v1/auth/register").send({
+      email: ownerEmailA,
+      password: "Password123!Secure",
+      firstName: "Alice",
+      lastName: "Admin",
+      organizationName: "Acme Corp QA",
+    });
 
     expect(regResA.status).toBe(201);
     ownerCookieA = regResA.headers["set-cookie"][0];
@@ -56,15 +54,13 @@ describe("Prompt 18: End-to-End Integration Testing, Security Audit, and Release
     orgIdA = regResA.body.data.organization.id;
 
     // 2. Provision Tenant B (Globex Inc)
-    const regResB = await request(app)
-      .post("/api/v1/auth/register")
-      .send({
-        email: ownerEmailB,
-        password: "Password123!Secure",
-        firstName: "Bob",
-        lastName: "Admin",
-        organizationName: "Globex Inc QA",
-      });
+    const regResB = await request(app).post("/api/v1/auth/register").send({
+      email: ownerEmailB,
+      password: "Password123!Secure",
+      firstName: "Bob",
+      lastName: "Admin",
+      organizationName: "Globex Inc QA",
+    });
 
     expect(regResB.status).toBe(201);
     ownerCookieB = regResB.headers["set-cookie"][0];
@@ -82,7 +78,8 @@ describe("Prompt 18: End-to-End Integration Testing, Security Audit, and Release
         .set("Cookie", ownerCookieA)
         .send({
           name: "Invoice Processing Pipeline",
-          description: "Automated invoice review and external webhook notification",
+          description:
+            "Automated invoice review and external webhook notification",
         });
 
       expect(res.status).toBe(201);
@@ -156,8 +153,18 @@ describe("Prompt 18: End-to-End Integration Testing, Security Audit, and Release
     it("validates workflow graph and rejects invalid disconnected/cyclic graphs", async () => {
       const cyclicDef: WorkflowDefinition = {
         nodes: [
-          { id: "t", type: "TRIGGER", name: "Trigger", config: { triggerType: "MANUAL" } },
-          { id: "h", type: "HTTP_REQUEST", name: "Http", config: { url: "https://example.com" } },
+          {
+            id: "t",
+            type: "TRIGGER",
+            name: "Trigger",
+            config: { triggerType: "MANUAL" },
+          },
+          {
+            id: "h",
+            type: "HTTP_REQUEST",
+            name: "Http",
+            config: { url: "https://example.com" },
+          },
           { id: "e", type: "END", name: "End", config: {} },
         ],
         edges: [
@@ -168,7 +175,12 @@ describe("Prompt 18: End-to-End Integration Testing, Security Audit, and Release
 
       const val = validateWorkflowGraph(cyclicDef);
       expect(val.isValid).toBe(false);
-      expect(val.errors.some((err) => err.code.includes("CYCLE") || err.code.includes("GRAPH_CYCLE"))).toBe(true);
+      expect(
+        val.errors.some(
+          (err) =>
+            err.code.includes("CYCLE") || err.code.includes("GRAPH_CYCLE"),
+        ),
+      ).toBe(true);
     });
 
     it("publishes workflow draft as immutable Version 1", async () => {
@@ -195,14 +207,18 @@ describe("Prompt 18: End-to-End Integration Testing, Security Audit, and Release
       expect(putRes.body.error.code).toBe("VERSION_IMMUTABLE");
 
       const patchRes = await request(app)
-        .patch(`/api/v1/workflows/${workflowIdA}/versions/${publishedVersionIdA}`)
+        .patch(
+          `/api/v1/workflows/${workflowIdA}/versions/${publishedVersionIdA}`,
+        )
         .set("Cookie", ownerCookieA)
         .send({ name: "Tampered" });
       expect(patchRes.status).toBe(405);
       expect(patchRes.body.error.code).toBe("VERSION_IMMUTABLE");
 
       const delRes = await request(app)
-        .delete(`/api/v1/workflows/${workflowIdA}/versions/${publishedVersionIdA}`)
+        .delete(
+          `/api/v1/workflows/${workflowIdA}/versions/${publishedVersionIdA}`,
+        )
         .set("Cookie", ownerCookieA);
       expect(delRes.status).toBe(405);
       expect(delRes.body.error.code).toBe("VERSION_IMMUTABLE");
@@ -520,13 +536,22 @@ describe("Prompt 18: End-to-End Integration Testing, Security Audit, and Release
       }
 
       // Safe public URLs pass
-      expect(isPrivateOrBlockedDestination("https://api.stripe.com/v1/charges")).toBe(false);
-      expect(isPrivateOrBlockedDestination("https://hooks.slack.com/services/T00/B00/X00")).toBe(false);
+      expect(
+        isPrivateOrBlockedDestination("https://api.stripe.com/v1/charges"),
+      ).toBe(false);
+      expect(
+        isPrivateOrBlockedDestination(
+          "https://hooks.slack.com/services/T00/B00/X00",
+        ),
+      ).toBe(false);
     });
 
     it("verifies webhook signature authentication and rejects forged signatures", async () => {
       const secret = "whsec_test_secret_key_1234567890";
-      const payload = JSON.stringify({ event: "order.paid", orderId: "ord_100" });
+      const payload = JSON.stringify({
+        event: "order.paid",
+        orderId: "ord_100",
+      });
       const nowSec = Math.floor(Date.now() / 1000);
 
       // Valid HMAC signature
@@ -559,7 +584,10 @@ describe("Prompt 18: End-to-End Integration Testing, Security Audit, and Release
       const invalidRes = await request(app)
         .post(`/api/v1/webhooks/incoming/${whId}`)
         .set("Content-Type", "application/json")
-        .set("X-Signature-256", "sha256=0000000000000000000000000000000000000000000000000000000000000000")
+        .set(
+          "X-Signature-256",
+          "sha256=0000000000000000000000000000000000000000000000000000000000000000",
+        )
         .set("X-Webhook-Timestamp", String(nowSec))
         .send(JSON.parse(payload));
 
@@ -574,8 +602,16 @@ describe("Prompt 18: End-to-End Integration Testing, Security Audit, and Release
       });
 
       // Fail 2 times to trip breaker
-      await breaker.execute(async () => { throw new Error("Connection refused"); }).catch(() => null);
-      await breaker.execute(async () => { throw new Error("Connection refused"); }).catch(() => null);
+      await breaker
+        .execute(async () => {
+          throw new Error("Connection refused");
+        })
+        .catch(() => null);
+      await breaker
+        .execute(async () => {
+          throw new Error("Connection refused");
+        })
+        .catch(() => null);
 
       expect(breaker.getState()).toBe("OPEN");
 
@@ -622,7 +658,9 @@ describe("Prompt 18: End-to-End Integration Testing, Security Audit, and Release
 
       const reconciled = apiStore.executions.get(staleId);
       expect(reconciled?.status).toBe("FAILED");
-      expect(reconciled?.errorDetails?.message).toContain("stale running recovery");
+      expect(reconciled?.errorDetails?.message).toContain(
+        "stale running recovery",
+      );
     });
 
     it("verifies diagnostic health endpoints and correlation ID propagation", async () => {

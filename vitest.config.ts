@@ -5,7 +5,11 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
-    include: ["packages/**/*.test.ts", "tests/**/*.test.ts", "tests/**/*.spec.ts"],
+    include: [
+      "packages/**/*.test.ts",
+      "tests/**/*.test.ts",
+      "tests/**/*.spec.ts",
+    ],
   },
   resolve: {
     alias: {
@@ -33,6 +37,17 @@ export default defineConfig({
         __dirname,
         "./packages/test-utils/src/index.ts",
       ),
+      react: path.resolve(__dirname, "./apps/web/node_modules/react"),
+      "react/jsx-runtime": path.resolve(
+        __dirname,
+        "./apps/web/node_modules/react/jsx-runtime.js",
+      ),
+      "react-dom": path.resolve(__dirname, "./apps/web/node_modules/react-dom"),
+      "lucide-react": path.resolve(
+        __dirname,
+        "./apps/web/node_modules/lucide-react",
+      ),
+      "@": path.resolve(__dirname, "./apps/web/src"),
     },
   },
 });

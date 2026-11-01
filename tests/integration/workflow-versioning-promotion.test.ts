@@ -300,7 +300,9 @@ describe("Prompt 9: Workflow Versioning, Publishing, Environment Promotion & Rol
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
     expect(res.body.data.version.versionNumber).toBe(1);
-    expect(res.body.data.version.releaseNotes).toBe("Initial Production Release v1");
+    expect(res.body.data.version.releaseNotes).toBe(
+      "Initial Production Release v1",
+    );
 
     version1Id = res.body.data.version.id;
     version1Hash = res.body.data.version.contentHash;
@@ -425,13 +427,19 @@ describe("Prompt 9: Workflow Versioning, Publishing, Environment Promotion & Rol
   // ==========================================
   it("restores Version 1 snapshot back into workflow draft", async () => {
     const res = await request(app)
-      .post(`/api/v1/workflows/${workflowIdA}/versions/${version1Id}/create-draft`)
+      .post(
+        `/api/v1/workflows/${workflowIdA}/versions/${version1Id}/create-draft`,
+      )
       .set("Cookie", ownerCookieA);
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.data.draftDefinition.nodes.length).toBe(3);
-    expect(res.body.data.draftDefinition.nodes.find((n: any) => n.id === "node_http")).toBeUndefined();
+    expect(
+      res.body.data.draftDefinition.nodes.find(
+        (n: any) => n.id === "node_http",
+      ),
+    ).toBeUndefined();
   });
 
   // ==========================================

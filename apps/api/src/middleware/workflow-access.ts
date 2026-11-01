@@ -23,7 +23,7 @@ declare global {
 
 export function resolveWorkflowAccess(
   workflow: WorkflowRecord,
-  req: Request
+  req: Request,
 ): WorkflowAccessContext | null {
   // 1. Strict cross-tenant check
   if (workflow.organizationId !== req.organizationId || workflow.deletedAt) {
@@ -62,7 +62,7 @@ export function resolveWorkflowAccess(
   // 4. Check explicit workflow collaborator assignment
   if (userId) {
     const collaborator = Array.from(apiStore.collaborators.values()).find(
-      (c) => c.workflowId === workflow.id && c.userId === userId
+      (c) => c.workflowId === workflow.id && c.userId === userId,
     );
 
     if (collaborator) {
@@ -131,14 +131,19 @@ export function resolveWorkflowAccess(
   return null;
 }
 
-export function requireWorkflowAccess(minLevel: WorkflowAccessLevel = "VIEWER") {
+export function requireWorkflowAccess(
+  minLevel: WorkflowAccessLevel = "VIEWER",
+) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const workflowId = req.params.id || req.params.workflowId;
     if (!workflowId) {
       res.status(400).json({
         success: false,
         data: null,
-        error: { code: "BAD_REQUEST", message: "Workflow ID parameter required." },
+        error: {
+          code: "BAD_REQUEST",
+          message: "Workflow ID parameter required.",
+        },
       });
       return;
     }
@@ -158,7 +163,10 @@ export function requireWorkflowAccess(minLevel: WorkflowAccessLevel = "VIEWER") 
       res.status(404).json({
         success: false,
         data: null,
-        error: { code: "NOT_FOUND", message: "Workflow not found or access denied." },
+        error: {
+          code: "NOT_FOUND",
+          message: "Workflow not found or access denied.",
+        },
       });
       return;
     }

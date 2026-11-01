@@ -11,31 +11,27 @@ export const credentialRouter = Router();
 credentialRouter.use(requireAuth);
 
 // List credentials for organization (encrypted secrets never exposed)
-credentialRouter.get(
-  "/",
-  requirePermission("credentials:read"),
-  (req, res) => {
-    const orgId = req.organizationId!;
-    const creds = Array.from(apiStore.credentials.values())
-      .filter((c) => c.organizationId === orgId)
-      .map((c) => ({
-        id: c.id,
-        organizationId: c.organizationId,
-        name: c.name,
-        type: c.type,
-        createdAt: c.createdAt,
-        updatedAt: c.updatedAt,
-      }))
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+credentialRouter.get("/", requirePermission("credentials:read"), (req, res) => {
+  const orgId = req.organizationId!;
+  const creds = Array.from(apiStore.credentials.values())
+    .filter((c) => c.organizationId === orgId)
+    .map((c) => ({
+      id: c.id,
+      organizationId: c.organizationId,
+      name: c.name,
+      type: c.type,
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
+    }))
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
-    res.json({
-      success: true,
-      data: creds,
-      error: null,
-      meta: { total: creds.length },
-    });
-  },
-);
+  res.json({
+    success: true,
+    data: creds,
+    error: null,
+    meta: { total: creds.length },
+  });
+});
 
 // Create new encrypted credential
 credentialRouter.post(
@@ -161,4 +157,3 @@ credentialRouter.delete(
     });
   },
 );
-

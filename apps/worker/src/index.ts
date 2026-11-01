@@ -23,11 +23,21 @@ const server = http.createServer((req, res) => {
   res.end();
 });
 
-server.listen(port, () => {
-  console.log(
-    `[FlowForge Worker] Worker service running and healthy on port ${port}`,
-  );
+server.on("error", (err: any) => {
+  if (err.code === "EADDRINUSE" && process.env.NODE_ENV === "test") {
+    // In test runs when worker is already running in background, ignore port collision
+    return;
+  }
+  throw err;
 });
+
+if (process.env.NODE_ENV !== "test") {
+  server.listen(port, () => {
+    console.log(
+      `[FlowForge Worker] Worker service running and healthy on port ${port}`,
+    );
+  });
+}
 
 export { WorkflowExecutionRunner };
 export { WorkflowSchedulerService } from "./scheduler.js";

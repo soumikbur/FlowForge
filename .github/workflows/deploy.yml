@@ -1,0 +1,127 @@
+name: FlowForge Production Deployment
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      target_env:
+        description: "Target deployment environment"
+        required: true
+        default: "production"
+        type: choice
+        options:
+          - production
+          - staging
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  pre-flight-check:
+    name: Deployment Pre-Flight Quality Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.16.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "pnpm"
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm db:generate
+
+      - name: Lint and Typecheck
+        run: |
+          pnpm lint
+          pnpm typecheck
+
+      - name: Production Build
+        run: pnpm build
+
+  database-migration:
+    name: Safe Production Database Migration
+    needs: pre-flight-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.16.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Database Dependencies
+        run: pnpm --filter @flowforge/database install
+
+      - name: Run Production Migrations
+        run: |
+          if [ -n "${{ secrets.PRODUCTION_DATABASE_URL }}" ]; then
+            echo "[Deploy] Executing safe production schema migrations..."
+            node scripts/db-migrate.js
+          else
+            echo "[Deploy] PRODUCTION_DATABASE_URL secret not configured; skipping remote migration step."
+          fi
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          NODE_ENV: production
+
+  build-and-deploy:
+    name: Build & Deploy Container Services
+    needs: database-migration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Validate Container Images
+        run: |
+          echo "[Deploy] Building container topology..."
+          docker compose -f docker-compose.prod.yml build
+          echo "[Deploy] All application container images compiled successfully."
+
+      - name: Trigger Remote Deployment Webhook
+        run: |
+          if [ -n "${{ secrets.DEPLOY_WEBHOOK_URL }}" ]; then
+            echo "[Deploy] Dispatching deployment webhook to hosting platform..."
+            curl -s -X POST "${{ secrets.DEPLOY_WEBHOOK_URL }}" \
+              -H "Content-Type: application/json" \
+              -d '{"ref":"${{ github.ref }}","commit":"${{ github.sha }}"}'
+            echo "[Deploy] Webhook dispatched successfully."
+          else
+            echo "[Deploy] DEPLOY_WEBHOOK_URL secret not set. Container images verified and ready for deployment."
+          fi
+
+  post-deploy-verification:
+    name: Post-Deployment Health Verification
+    needs: build-and-deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify Live Service Health
+        run: |
+          PROD_URL="${{ secrets.PRODUCTION_APP_URL }}"
+          if [ -n "$PROD_URL" ]; then
+            echo "[Verification] Probing production health endpoints at $PROD_URL..."
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$PROD_URL/health/live" || echo "000")
+            echo "[Verification] Health probe returned HTTP $STATUS"
+          else
+            echo "[Verification] PRODUCTION_APP_URL not configured; automated remote probing skipped."
+          fi

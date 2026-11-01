@@ -25,11 +25,17 @@ describe("Node Registry Specifications & Contract Verification", () => {
     expect(registeredTypes).toContain("DELAY");
     expect(registeredTypes).toContain("END");
     expect(registeredTypes).toContain("CONNECTOR_ACTION");
-    expect(registeredTypes.length).toBe(8);
+    expect(registeredTypes).toContain("EXTENSION_NODE");
+    expect(registeredTypes.length).toBe(9);
   });
 
   it("organizes nodes into standard UI categories", () => {
-    expect(PALETTE_CATEGORIES).toEqual(["Triggers", "Logic", "Actions", "Control"]);
+    expect(PALETTE_CATEGORIES).toEqual([
+      "Triggers",
+      "Logic",
+      "Actions",
+      "Control",
+    ]);
     expect(NODE_REGISTRY.TRIGGER.category).toBe("Triggers");
     expect(NODE_REGISTRY.CONDITION.category).toBe("Logic");
     expect(NODE_REGISTRY.DELAY.category).toBe("Logic");
@@ -65,7 +71,9 @@ describe("Node Registry Specifications & Contract Verification", () => {
     ).not.toThrow();
 
     expect(() =>
-      HttpRequestNodeConfigSchema.parse(NODE_REGISTRY.HTTP_REQUEST.defaultConfig),
+      HttpRequestNodeConfigSchema.parse(
+        NODE_REGISTRY.HTTP_REQUEST.defaultConfig,
+      ),
     ).not.toThrow();
 
     expect(() =>
@@ -91,4 +99,3 @@ describe("Node Registry Specifications & Contract Verification", () => {
     expect(item.type).toBe("END");
   });
 });
-

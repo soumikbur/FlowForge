@@ -6,8 +6,47 @@ on:
   pull_request:
     branches: [main, master]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  lint-and-test:
+  quality-gates:
+    name: Code Quality & Static Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.16.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "pnpm"
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm db:generate
+
+      - name: Formatting Check
+        run: pnpm format
+
+      - name: ESLint
+        run: pnpm lint
+
+      - name: TypeScript Check
+        run: pnpm typecheck
+
+  test-suite:
+    name: Automated Unit, Integration & Security Tests
+    needs: quality-gates
     runs-on: ubuntu-latest
 
     services:
@@ -36,13 +75,16 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v3
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v4
         with:
           version: 12.16.1
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: "pnpm"
@@ -50,19 +92,64 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck
-        run: pnpm typecheck
+      - name: Generate Prisma Client
+        run: pnpm db:generate
 
-      - name: Run Unit Tests
-        run: pnpm test:unit
+      - name: Deploy Database Migrations
+        run: pnpm db:migrate
+        env:
+          DATABASE_URL: "postgresql://flowforge:flowforge_password@localhost:5432/flowforge_db?schema=public"
 
-      - name: Run Integration Tests
-        run: pnpm test:integration
+      - name: Run Test Suites
+        run: pnpm test
         env:
           DATABASE_URL: "postgresql://flowforge:flowforge_password@localhost:5432/flowforge_db?schema=public"
           REDIS_URL: "redis://localhost:6379"
           SESSION_SECRET: "flowforge-super-secret-session-key-change-in-production-min-32-chars"
           ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+          NODE_ENV: test
+
+  build-artifacts:
+    name: Production Monorepo Build
+    needs: test-suite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.16.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "pnpm"
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm db:generate
 
       - name: Build Packages & Apps
         run: pnpm build
+
+  container-validation:
+    name: Container Build & Topology Dry Run
+    needs: build-artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Validate API Dockerfile
+        run: docker build --dry-run -f apps/api/Dockerfile . || docker build -t flowforge-api:ci -f apps/api/Dockerfile .
+
+      - name: Validate Worker Dockerfile
+        run: docker build --dry-run -f apps/worker/Dockerfile . || docker build -t flowforge-worker:ci -f apps/worker/Dockerfile .
+
+      - name: Validate Web Dockerfile
+        run: docker build --dry-run -f apps/web/Dockerfile . || docker build -t flowforge-web:ci -f apps/web/Dockerfile .

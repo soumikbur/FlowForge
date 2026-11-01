@@ -4,12 +4,19 @@ import {
   ScheduleRecord,
   WorkflowExecutionRecord,
 } from "@flowforge/test-utils";
+import { ScheduleExecutionClaimRecord } from "@flowforge/shared";
 import { calculateNextScheduleRun } from "@flowforge/integrations";
 
 export class WorkflowSchedulerService {
   private processedOccurrences = new Set<string>();
+  public readonly workerId: string;
 
-  constructor(private db: InMemoryDatabase) {}
+  constructor(
+    private db: InMemoryDatabase,
+    workerId?: string,
+  ) {
+    this.workerId = workerId || `scheduler_${crypto.randomUUID()}`;
+  }
 
   /**
    * Finds all schedules that are enabled and due to run at or before the given timestamp.
@@ -26,8 +33,7 @@ export class WorkflowSchedulerService {
       }
     }
     due.sort(
-      (a, b) =>
-        (a.nextRunAt?.getTime() || 0) - (b.nextRunAt?.getTime() || 0),
+      (a, b) => (a.nextRunAt?.getTime() || 0) - (b.nextRunAt?.getTime() || 0),
     );
     return due;
   }
@@ -40,15 +46,40 @@ export class WorkflowSchedulerService {
     now: Date = new Date(),
   ): Promise<WorkflowExecutionRecord | null> {
     const schedule = this.db.schedules.get(scheduleId);
-    if (!schedule || !schedule.enabled || !schedule.nextRunAt) {
+    if (
+      !schedule ||
+      !schedule.enabled ||
+      !schedule.nextRunAt ||
+      schedule.nextRunAt.getTime() > now.getTime()
+    ) {
       return null;
     }
 
     const targetRunTime = schedule.nextRunAt;
     const occurrenceKey = `occ_${schedule.id}_${targetRunTime.toISOString()}`;
+    const claimId = `claim_${schedule.id}_${targetRunTime.toISOString()}`;
+
+    // Distributed claim check across scheduler replicas
+    const existingClaim = this.db.scheduleClaims?.get(claimId);
+    if (existingClaim && existingClaim.expiresAt.getTime() > now.getTime()) {
+      return null;
+    }
 
     if (this.processedOccurrences.has(occurrenceKey)) {
       return null;
+    }
+
+    // Atomically claim the occurrence
+    const claim: ScheduleExecutionClaimRecord = {
+      id: claimId,
+      scheduleId: schedule.id,
+      occurrenceKey,
+      claimedBy: this.workerId,
+      claimedAt: now,
+      expiresAt: new Date(now.getTime() + 60_000),
+    };
+    if (this.db.scheduleClaims) {
+      this.db.scheduleClaims.set(claimId, claim);
     }
 
     const workflow = this.db.workflows.get(schedule.workflowId);
@@ -69,6 +100,22 @@ export class WorkflowSchedulerService {
     // Mark occurrence processed
     this.processedOccurrences.add(occurrenceKey);
 
+    // Check queue backpressure before dispatching
+    const quota = Array.from(this.db.resourceQuotas?.values() || []).find(
+      (q) =>
+        q.organizationId === schedule.organizationId &&
+        (!q.workflowId || q.workflowId === workflow.id),
+    );
+    const maxQueue = quota?.maxQueueDepth ?? 50;
+    const currentQueued = Array.from(this.db.executions.values()).filter(
+      (e) =>
+        e.organizationId === schedule.organizationId && e.status === "QUEUED",
+    ).length;
+
+    if (currentQueued >= maxQueue) {
+      return null;
+    }
+
     // Advance schedule timestamps
     schedule.lastRunAt = targetRunTime;
     schedule.nextRunAt = calculateNextScheduleRun(schedule, now);
@@ -81,6 +128,11 @@ export class WorkflowSchedulerService {
 
     // Create durable execution record
     const executionId = `exec_${crypto.randomUUID()}`;
+    if (this.db.scheduleClaims && this.db.scheduleClaims.has(claimId)) {
+      const activeClaim = this.db.scheduleClaims.get(claimId)!;
+      activeClaim.executionId = executionId;
+      this.db.scheduleClaims.set(claimId, activeClaim);
+    }
     const execution: WorkflowExecutionRecord = {
       id: executionId,
       organizationId: schedule.organizationId,
@@ -110,6 +162,20 @@ export class WorkflowSchedulerService {
     };
 
     this.db.executions.set(executionId, execution);
+
+    if (this.db.resourceReservations) {
+      this.db.resourceReservations.set(`res_${executionId}`, {
+        id: `res_${executionId}`,
+        organizationId: schedule.organizationId,
+        workspaceId: workflow.workspaceId || null,
+        workflowId: workflow.id,
+        executionId,
+        reservedAt: now,
+        expiresAt: new Date(now.getTime() + 10 * 60 * 1000),
+        status: "ACTIVE",
+      });
+    }
+
     return execution;
   }
 
@@ -136,4 +202,3 @@ export class WorkflowSchedulerService {
     };
   }
 }
-

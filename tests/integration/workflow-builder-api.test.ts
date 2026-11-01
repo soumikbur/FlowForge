@@ -169,7 +169,9 @@ describe("Workflow Builder Visual Graph API Integration Tests", () => {
     // Verify coordinates and handles are intact
     const condNode = nodes.find((n) => n.id === "rf_condition_1");
     expect(condNode?.position).toEqual({ x: 200, y: 180 });
-    expect(condNode?.data.config.expression).toBe("trigger.payload.total > 5000");
+    expect(condNode?.data.config.expression).toBe(
+      "trigger.payload.total > 5000",
+    );
 
     const trueEdge = edges.find((e) => e.sourceHandle === "true");
     expect(trueEdge?.target).toBe("rf_approval_1");
@@ -205,7 +207,9 @@ describe("Workflow Builder Visual Graph API Integration Tests", () => {
     expect(verRes.status).toBe(200);
     expect(verRes.body.data.versionNumber).toBe(1);
 
-    const { nodes } = workflowDefinitionToReactFlow(verRes.body.data.definition);
+    const { nodes } = workflowDefinitionToReactFlow(
+      verRes.body.data.definition,
+    );
     expect(nodes.length).toBe(5);
     expect(nodes[0].data.name).toBe("Inbound Order Webhook");
   });
@@ -229,4 +233,3 @@ describe("Workflow Builder Visual Graph API Integration Tests", () => {
     expect(verRes.body.data.definition.nodes.length).toBe(5);
   });
 });
-

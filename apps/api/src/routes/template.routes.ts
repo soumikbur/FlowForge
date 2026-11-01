@@ -30,12 +30,17 @@ templateRouter.use(requireAuth);
 /**
  * Helper to check whether a template is visible to the current request context.
  */
-function isTemplateVisible(template: WorkflowTemplateRecord, req: Request): boolean {
+function isTemplateVisible(
+  template: WorkflowTemplateRecord,
+  req: Request,
+): boolean {
   if (template.visibility === "PLATFORM") {
     return true;
   }
   if (template.visibility === "ORGANIZATION") {
-    return !!req.organizationId && template.organizationId === req.organizationId;
+    return (
+      !!req.organizationId && template.organizationId === req.organizationId
+    );
   }
   if (template.visibility === "PRIVATE") {
     return !!req.user && template.createdById === req.user.id;
@@ -62,7 +67,8 @@ templateRouter.get("/", (req: Request, res: Response) => {
     return;
   }
 
-  const { category, tag, search, visibility, status, page, pageSize } = queryResult.data;
+  const { category, tag, search, visibility, status, page, pageSize } =
+    queryResult.data;
 
   const allTemplates = Array.from(apiStore.templates.values());
 
@@ -101,7 +107,9 @@ templateRouter.get("/", (req: Request, res: Response) => {
     if (search && search.trim().length > 0) {
       const q = search.trim().toLowerCase();
       const matchName = t.name.toLowerCase().includes(q);
-      const matchDesc = t.shortDescription.toLowerCase().includes(q) || (t.description || "").toLowerCase().includes(q);
+      const matchDesc =
+        t.shortDescription.toLowerCase().includes(q) ||
+        (t.description || "").toLowerCase().includes(q);
       const matchTag = t.tags.some((tg) => tg.toLowerCase().includes(q));
       if (!matchName && !matchDesc && !matchTag) return false;
     }
@@ -167,7 +175,9 @@ templateRouter.get("/:templateId", (req: Request, res: Response) => {
 
   let publishedVersion: WorkflowTemplateVersionRecord | undefined;
   if (template.publishedVersionId) {
-    publishedVersion = apiStore.templateVersions.get(template.publishedVersionId);
+    publishedVersion = apiStore.templateVersions.get(
+      template.publishedVersionId,
+    );
   }
 
   res.json({
@@ -218,12 +228,17 @@ templateRouter.post("/", (req: Request, res: Response) => {
         data: null,
         error: {
           code: "ORGANIZATION_REQUIRED",
-          message: "Organization context required to publish templates at the organization level.",
+          message:
+            "Organization context required to publish templates at the organization level.",
         },
       });
       return;
     }
-    if (req.role && !hasPermission(req.role, "templates:write") && !hasPermission(req.role, "workflow:write")) {
+    if (
+      req.role &&
+      !hasPermission(req.role, "templates:write") &&
+      !hasPermission(req.role, "workflow:write")
+    ) {
       res.status(403).json({
         success: false,
         data: null,
@@ -276,7 +291,8 @@ templateRouter.post("/", (req: Request, res: Response) => {
 
   const newTemplate: WorkflowTemplateRecord = {
     id: templateId,
-    organizationId: visibility === "PLATFORM" ? null : req.organizationId || null,
+    organizationId:
+      visibility === "PLATFORM" ? null : req.organizationId || null,
     name,
     shortDescription,
     description: description || null,
@@ -371,7 +387,8 @@ templateRouter.patch("/:templateId", (req: Request, res: Response) => {
   const data = parseResult.data;
 
   if (data.name !== undefined) template.name = data.name;
-  if (data.shortDescription !== undefined) template.shortDescription = data.shortDescription;
+  if (data.shortDescription !== undefined)
+    template.shortDescription = data.shortDescription;
   if (data.description !== undefined) template.description = data.description;
   if (data.category !== undefined) template.category = data.category;
   if (data.tags !== undefined) template.tags = data.tags;
@@ -429,7 +446,11 @@ templateRouter.post("/:templateId/publish", (req: Request, res: Response) => {
 
   // Check publish permissions
   const isCreator = req.user && template.createdById === req.user.id;
-  const canPublish = isCreator || (req.role && (hasPermission(req.role, "templates:publish") || hasPermission(req.role, "workflow:publish")));
+  const canPublish =
+    isCreator ||
+    (req.role &&
+      (hasPermission(req.role, "templates:publish") ||
+        hasPermission(req.role, "workflow:publish")));
   if (!canPublish) {
     res.status(403).json({
       success: false,
@@ -457,11 +478,13 @@ templateRouter.post("/:templateId/publish", (req: Request, res: Response) => {
   }
 
   // Find all existing versions for this template to calculate next version number
-  const existingVersions = Array.from(apiStore.templateVersions.values())
-    .filter((v) => v.templateId === template.id);
-  const nextVersionNumber = existingVersions.length > 0
-    ? Math.max(...existingVersions.map((v) => v.versionNumber)) + 1
-    : 1;
+  const existingVersions = Array.from(
+    apiStore.templateVersions.values(),
+  ).filter((v) => v.templateId === template.id);
+  const nextVersionNumber =
+    existingVersions.length > 0
+      ? Math.max(...existingVersions.map((v) => v.versionNumber)) + 1
+      : 1;
 
   // Compute deterministic SHA-256 content hash
   const contentHash = computeWorkflowContentHash(template.draftDefinition);
@@ -545,41 +568,44 @@ templateRouter.get("/:templateId/versions", (req: Request, res: Response) => {
  * GET /api/v1/templates/:templateId/versions/:versionId
  * Get a specific version definition.
  */
-templateRouter.get("/:templateId/versions/:versionId", (req: Request, res: Response) => {
-  const { templateId, versionId } = req.params;
-  const template = apiStore.templates.get(templateId);
+templateRouter.get(
+  "/:templateId/versions/:versionId",
+  (req: Request, res: Response) => {
+    const { templateId, versionId } = req.params;
+    const template = apiStore.templates.get(templateId);
 
-  if (!template || !isTemplateVisible(template, req)) {
-    res.status(404).json({
-      success: false,
-      data: null,
-      error: {
-        code: "TEMPLATE_NOT_FOUND",
-        message: "Template not found.",
-      },
+    if (!template || !isTemplateVisible(template, req)) {
+      res.status(404).json({
+        success: false,
+        data: null,
+        error: {
+          code: "TEMPLATE_NOT_FOUND",
+          message: "Template not found.",
+        },
+      });
+      return;
+    }
+
+    const version = apiStore.templateVersions.get(versionId);
+    if (!version || version.templateId !== template.id) {
+      res.status(404).json({
+        success: false,
+        data: null,
+        error: {
+          code: "VERSION_NOT_FOUND",
+          message: "Template version not found.",
+        },
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      data: version,
+      error: null,
     });
-    return;
-  }
-
-  const version = apiStore.templateVersions.get(versionId);
-  if (!version || version.templateId !== template.id) {
-    res.status(404).json({
-      success: false,
-      data: null,
-      error: {
-        code: "VERSION_NOT_FOUND",
-        message: "Template version not found.",
-      },
-    });
-    return;
-  }
-
-  res.json({
-    success: true,
-    data: version,
-    error: null,
-  });
-});
+  },
+);
 
 /**
  * GET /api/v1/templates/:templateId/compare
@@ -615,7 +641,10 @@ templateRouter.get("/:templateId/compare", (req: Request, res: Response) => {
       res.status(404).json({
         success: false,
         data: null,
-        error: { code: "SOURCE_NOT_FOUND", message: "Source version not found." },
+        error: {
+          code: "SOURCE_NOT_FOUND",
+          message: "Source version not found.",
+        },
       });
       return;
     }
@@ -630,7 +659,10 @@ templateRouter.get("/:templateId/compare", (req: Request, res: Response) => {
       res.status(404).json({
         success: false,
         data: null,
-        error: { code: "TARGET_NOT_FOUND", message: "Target version not found." },
+        error: {
+          code: "TARGET_NOT_FOUND",
+          message: "Target version not found.",
+        },
       });
       return;
     }
@@ -708,187 +740,199 @@ templateRouter.delete("/:templateId", (req: Request, res: Response) => {
  * POST /api/v1/templates/:templateId/instantiate
  * Instantiate a new workflow from a template into the caller's active organization.
  */
-templateRouter.post("/:templateId/instantiate", (req: Request, res: Response) => {
-  const { templateId } = req.params;
-  const template = apiStore.templates.get(templateId);
+templateRouter.post(
+  "/:templateId/instantiate",
+  (req: Request, res: Response) => {
+    const { templateId } = req.params;
+    const template = apiStore.templates.get(templateId);
 
-  // 1. Strict Tenant Isolation on Template Access
-  if (!template || !isTemplateVisible(template, req)) {
-    res.status(404).json({
-      success: false,
-      data: null,
-      error: {
-        code: "TEMPLATE_NOT_FOUND",
-        message: "Template not found or cross-tenant access denied.",
-      },
-    });
-    return;
-  }
-
-  // 2. Target organization check
-  if (!req.organizationId) {
-    res.status(400).json({
-      success: false,
-      data: null,
-      error: {
-        code: "ORGANIZATION_REQUIRED",
-        message: "Target organization context is required to instantiate workflows.",
-      },
-    });
-    return;
-  }
-
-  // 3. User permission check in target organization: requires workflow creation right
-  if (req.role && !hasPermission(req.role, "workflow:write")) {
-    res.status(403).json({
-      success: false,
-      data: null,
-      error: {
-        code: "FORBIDDEN",
-        message: "You lack permission to create workflows in this organization.",
-      },
-    });
-    return;
-  }
-
-  const parseResult = InstantiateTemplateSchema.safeParse(req.body);
-  if (!parseResult.success) {
-    res.status(400).json({
-      success: false,
-      data: null,
-      error: {
-        code: "VALIDATION_ERROR",
-        message: "Invalid instantiation request.",
-        details: parseResult.error.format(),
-      },
-    });
-    return;
-  }
-
-  const { name, description, versionId, connectionMappings, inputValues } = parseResult.data;
-
-  // 4. Resolve the version definition to instantiate
-  let sourceDefinition: WorkflowDefinition;
-  let usedVersionId: string | undefined = versionId;
-
-  if (versionId) {
-    const ver = apiStore.templateVersions.get(versionId);
-    if (!ver || ver.templateId !== template.id) {
+    // 1. Strict Tenant Isolation on Template Access
+    if (!template || !isTemplateVisible(template, req)) {
       res.status(404).json({
         success: false,
         data: null,
-        error: { code: "VERSION_NOT_FOUND", message: "Template version not found." },
+        error: {
+          code: "TEMPLATE_NOT_FOUND",
+          message: "Template not found or cross-tenant access denied.",
+        },
       });
       return;
     }
-    sourceDefinition = ver.definition;
-  } else if (template.publishedVersionId) {
-    const ver = apiStore.templateVersions.get(template.publishedVersionId);
-    if (ver) {
+
+    // 2. Target organization check
+    if (!req.organizationId) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: {
+          code: "ORGANIZATION_REQUIRED",
+          message:
+            "Target organization context is required to instantiate workflows.",
+        },
+      });
+      return;
+    }
+
+    // 3. User permission check in target organization: requires workflow creation right
+    if (req.role && !hasPermission(req.role, "workflow:write")) {
+      res.status(403).json({
+        success: false,
+        data: null,
+        error: {
+          code: "FORBIDDEN",
+          message:
+            "You lack permission to create workflows in this organization.",
+        },
+      });
+      return;
+    }
+
+    const parseResult = InstantiateTemplateSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Invalid instantiation request.",
+          details: parseResult.error.format(),
+        },
+      });
+      return;
+    }
+
+    const { name, description, versionId, connectionMappings, inputValues } =
+      parseResult.data;
+
+    // 4. Resolve the version definition to instantiate
+    let sourceDefinition: WorkflowDefinition;
+    let usedVersionId: string | undefined = versionId;
+
+    if (versionId) {
+      const ver = apiStore.templateVersions.get(versionId);
+      if (!ver || ver.templateId !== template.id) {
+        res.status(404).json({
+          success: false,
+          data: null,
+          error: {
+            code: "VERSION_NOT_FOUND",
+            message: "Template version not found.",
+          },
+        });
+        return;
+      }
       sourceDefinition = ver.definition;
-      usedVersionId = ver.id;
+    } else if (template.publishedVersionId) {
+      const ver = apiStore.templateVersions.get(template.publishedVersionId);
+      if (ver) {
+        sourceDefinition = ver.definition;
+        usedVersionId = ver.id;
+      } else {
+        sourceDefinition = template.draftDefinition;
+      }
     } else {
+      // Fall back to draft definition if template creator is instantiating draft
       sourceDefinition = template.draftDefinition;
     }
-  } else {
-    // Fall back to draft definition if template creator is instantiating draft
-    sourceDefinition = template.draftDefinition;
-  }
 
-  // 5. Enforce connection security & tenant isolation on connectionMappings
-  if (connectionMappings) {
-    for (const [connectorKey, connectionId] of Object.entries(connectionMappings)) {
-      if (!connectionId) continue;
-      const conn = apiStore.connections.get(connectionId);
-      if (!conn) {
-        res.status(400).json({
-          success: false,
-          data: null,
-          error: {
-            code: "CONNECTION_NOT_FOUND",
-            message: `Connection '${connectionId}' mapped for '${connectorKey}' not found.`,
-          },
-        });
-        return;
-      }
-      // Cross-tenant connection access check
-      if (conn.organizationId !== req.organizationId) {
-        res.status(403).json({
-          success: false,
-          data: null,
-          error: {
-            code: "CROSS_TENANT_CONNECTION_FORBIDDEN",
-            message: `Connection '${connectionId}' belongs to another organization and cannot be bound.`,
-          },
-        });
-        return;
+    // 5. Enforce connection security & tenant isolation on connectionMappings
+    if (connectionMappings) {
+      for (const [connectorKey, connectionId] of Object.entries(
+        connectionMappings,
+      )) {
+        if (!connectionId) continue;
+        const conn = apiStore.connections.get(connectionId);
+        if (!conn) {
+          res.status(400).json({
+            success: false,
+            data: null,
+            error: {
+              code: "CONNECTION_NOT_FOUND",
+              message: `Connection '${connectionId}' mapped for '${connectorKey}' not found.`,
+            },
+          });
+          return;
+        }
+        // Cross-tenant connection access check
+        if (conn.organizationId !== req.organizationId) {
+          res.status(403).json({
+            success: false,
+            data: null,
+            error: {
+              code: "CROSS_TENANT_CONNECTION_FORBIDDEN",
+              message: `Connection '${connectionId}' belongs to another organization and cannot be bound.`,
+            },
+          });
+          return;
+        }
       }
     }
-  }
 
-  // 6. Instantiate fresh graph: regenerates node/edge UUIDs, maps connections, ensures inactive triggers
-  let instantiatedDefinition: WorkflowDefinition;
-  try {
-    instantiatedDefinition = instantiateGraphFromTemplate(sourceDefinition, {
-      connectionMappings,
-      inputValues,
-    });
-  } catch (err: any) {
-    res.status(400).json({
-      success: false,
-      data: null,
-      error: {
-        code: "GRAPH_INSTANTIATION_FAILED",
-        message: err.message || "Failed to instantiate workflow from template.",
+    // 6. Instantiate fresh graph: regenerates node/edge UUIDs, maps connections, ensures inactive triggers
+    let instantiatedDefinition: WorkflowDefinition;
+    try {
+      instantiatedDefinition = instantiateGraphFromTemplate(sourceDefinition, {
+        connectionMappings,
+        inputValues,
+      });
+    } catch (err: any) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: {
+          code: "GRAPH_INSTANTIATION_FAILED",
+          message:
+            err.message || "Failed to instantiate workflow from template.",
+        },
+      });
+      return;
+    }
+
+    // 7. Create new Workflow in target organization in DRAFT status
+    const workflowId = `wf_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
+    const now = new Date();
+
+    const newWorkflow: WorkflowRecord = {
+      id: workflowId,
+      organizationId: req.organizationId,
+      name: name || `${template.name} (from Template)`,
+      description: description || template.shortDescription,
+      status: "DRAFT", // Always draft upon instantiation
+      draftDefinition: instantiatedDefinition,
+      draftRevision: 1,
+      publishedVersionId: undefined, // Unpublished initially
+      createdById: req.user?.id,
+      sourceTemplateId: template.id,
+      sourceTemplateVersionId: usedVersionId,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    apiStore.workflows.set(workflowId, newWorkflow);
+
+    // 8. Increment template usage counter
+    template.usageCount = (template.usageCount || 0) + 1;
+    apiStore.templates.set(template.id, template);
+
+    // 9. Record audit event
+    apiStore.recordAudit({
+      organizationId: req.organizationId,
+      userId: req.user?.id,
+      action: "workflow:instantiate_from_template",
+      resourceType: "workflow",
+      resourceId: workflowId,
+      metadata: {
+        templateId: template.id,
+        templateVersionId: usedVersionId || null,
+        templateName: template.name,
+        connectionMappings: connectionMappings || {},
       },
     });
-    return;
-  }
 
-  // 7. Create new Workflow in target organization in DRAFT status
-  const workflowId = `wf_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
-  const now = new Date();
-
-  const newWorkflow: WorkflowRecord = {
-    id: workflowId,
-    organizationId: req.organizationId,
-    name: name || `${template.name} (from Template)`,
-    description: description || template.shortDescription,
-    status: "DRAFT", // Always draft upon instantiation
-    draftDefinition: instantiatedDefinition,
-    draftRevision: 1,
-    publishedVersionId: undefined, // Unpublished initially
-    createdById: req.user?.id,
-    sourceTemplateId: template.id,
-    sourceTemplateVersionId: usedVersionId,
-    createdAt: now,
-    updatedAt: now,
-  };
-
-  apiStore.workflows.set(workflowId, newWorkflow);
-
-  // 8. Increment template usage counter
-  template.usageCount = (template.usageCount || 0) + 1;
-  apiStore.templates.set(template.id, template);
-
-  // 9. Record audit event
-  apiStore.recordAudit({
-    organizationId: req.organizationId,
-    userId: req.user?.id,
-    action: "workflow:instantiate_from_template",
-    resourceType: "workflow",
-    resourceId: workflowId,
-    metadata: {
-      templateId: template.id,
-      templateVersionId: usedVersionId || null,
-      templateName: template.name,
-      connectionMappings: connectionMappings || {},
-    },
-  });
-
-  res.status(201).json({
-    success: true,
-    data: newWorkflow,
-    error: null,
-  });
-});
+    res.status(201).json({
+      success: true,
+      data: newWorkflow,
+      error: null,
+    });
+  },
+);

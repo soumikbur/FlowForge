@@ -1,6 +1,12 @@
-"use client";
+﻿"use client";
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+} from "react";
 import ReactFlow, {
   Controls,
   Background,
@@ -19,6 +25,7 @@ import ReactFlow, {
 import { useSearchParams, useRouter } from "next/navigation";
 import { validateWorkflowGraph } from "@flowforge/workflow-engine";
 import { NodeType } from "@flowforge/shared";
+import { getApiBaseUrl } from "@/lib/api-client";
 
 import { WorkflowCustomNode } from "../../../../components/workflow/WorkflowCustomNode";
 import { NodePalette } from "../../../../components/workflow/NodePalette";
@@ -49,9 +56,15 @@ function WorkflowBuilderContent({ params }: { params: { id: string } }) {
   const versionIdParam = searchParams.get("versionId");
 
   const [workflow, setWorkflow] = useState<WorkflowData | null>(null);
-  const [workflowName, setWorkflowName] = useState<string>("Loading Workflow...");
-  const [versionNumber, setVersionNumber] = useState<number | undefined>(undefined);
-  const [isReadOnly, setIsReadOnly] = useState<boolean>(Boolean(versionIdParam));
+  const [workflowName, setWorkflowName] = useState<string>(
+    "Loading Workflow...",
+  );
+  const [versionNumber, setVersionNumber] = useState<number | undefined>(
+    undefined,
+  );
+  const [isReadOnly, setIsReadOnly] = useState<boolean>(
+    Boolean(versionIdParam),
+  );
 
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
@@ -71,9 +84,8 @@ function WorkflowBuilderContent({ params }: { params: { id: string } }) {
   const historyRef = useRef<Array<{ nodes: Node[]; edges: Edge[] }>>([]);
   const futureRef = useRef<Array<{ nodes: Node[]; edges: Edge[] }>>([]);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(
-    null,
-  );
+  const [reactFlowInstance, setReactFlowInstance] =
+    useState<ReactFlowInstance | null>(null);
 
   const nodeTypes = useMemo(() => ({ customNode: WorkflowCustomNode }), []);
 
@@ -89,13 +101,16 @@ function WorkflowBuilderContent({ params }: { params: { id: string } }) {
   // Load Workflow on Mount or on versionId change
   useEffect(() => {
     setIsLoading(true);
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+    const apiUrl = getApiBaseUrl();
 
     if (versionIdParam) {
       // Historical published version
-      fetch(`${apiUrl}/api/v1/workflows/${params.id}/versions/${versionIdParam}`, {
-        credentials: "include",
-      })
+      fetch(
+        `${apiUrl}/api/v1/workflows/${params.id}/versions/${versionIdParam}`,
+        {
+          credentials: "include",
+        },
+      )
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           if (data?.success && data?.data) {
@@ -244,7 +259,9 @@ function WorkflowBuilderContent({ params }: { params: { id: string } }) {
       event.preventDefault();
       if (isReadOnly || !reactFlowWrapper.current || !reactFlowInstance) return;
 
-      const type = event.dataTransfer.getData("application/reactflow") as NodeType;
+      const type = event.dataTransfer.getData(
+        "application/reactflow",
+      ) as NodeType;
       if (!type) return;
 
       const position = reactFlowInstance.screenToFlowPosition({
@@ -335,7 +352,9 @@ function WorkflowBuilderContent({ params }: { params: { id: string } }) {
       // Attach error indicators to node data
       setNodes((nds) =>
         nds.map((n) => {
-          const matchingErr = localValidation.errors.find((e) => e.nodeId === n.id);
+          const matchingErr = localValidation.errors.find(
+            (e) => e.nodeId === n.id,
+          );
           return {
             ...n,
             data: {
@@ -355,11 +374,14 @@ function WorkflowBuilderContent({ params }: { params: { id: string } }) {
 
     // Call server-side validation endpoint
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-      const res = await fetch(`${apiUrl}/api/v1/workflows/${params.id}/validate`, {
-        method: "POST",
-        credentials: "include",
-      });
+      const apiUrl = getApiBaseUrl();
+      const res = await fetch(
+        `${apiUrl}/api/v1/workflows/${params.id}/validate`,
+        {
+          method: "POST",
+          credentials: "include",
+        },
+      );
 
       if (res.ok) {
         const body = await res.json();
@@ -397,7 +419,7 @@ function WorkflowBuilderContent({ params }: { params: { id: string } }) {
     setSaveStatus("saving");
 
     const ast = reactFlowToWorkflowDefinition(nodes, edges);
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+    const apiUrl = getApiBaseUrl();
 
     try {
       const res = await fetch(`${apiUrl}/api/v1/workflows/${params.id}`, {
@@ -436,12 +458,15 @@ function WorkflowBuilderContent({ params }: { params: { id: string } }) {
     if (!isSaved) return;
 
     // 3. Publish
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+    const apiUrl = getApiBaseUrl();
     try {
-      const res = await fetch(`${apiUrl}/api/v1/workflows/${params.id}/publish`, {
-        method: "POST",
-        credentials: "include",
-      });
+      const res = await fetch(
+        `${apiUrl}/api/v1/workflows/${params.id}/publish`,
+        {
+          method: "POST",
+          credentials: "include",
+        },
+      );
 
       if (res.ok) {
         const body = await res.json();
@@ -481,7 +506,10 @@ function WorkflowBuilderContent({ params }: { params: { id: string } }) {
       } else if (e.ctrlKey && e.key === "z") {
         e.preventDefault();
         handleUndo();
-      } else if (e.ctrlKey && (e.key === "y" || (e.shiftKey && e.key === "Z"))) {
+      } else if (
+        e.ctrlKey &&
+        (e.key === "y" || (e.shiftKey && e.key === "Z"))
+      ) {
         e.preventDefault();
         handleRedo();
       } else if (e.ctrlKey && e.key === "s") {
@@ -582,7 +610,10 @@ function WorkflowBuilderContent({ params }: { params: { id: string } }) {
       <div className="flex-1 flex overflow-hidden">
         {/* Left Node Palette */}
         {!isReadOnly && (
-          <NodePalette onAddNode={(type) => handleAddNode(type)} disabled={isReadOnly} />
+          <NodePalette
+            onAddNode={(type) => handleAddNode(type)}
+            disabled={isReadOnly}
+          />
         )}
 
         {/* Central React Flow Canvas */}
@@ -625,19 +656,20 @@ function WorkflowBuilderContent({ params }: { params: { id: string } }) {
           {nodes.length === 0 && (
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
               <div className="bg-white/90 backdrop-blur-xs p-6 rounded-xl border border-slate-200 shadow-md max-w-sm text-center space-y-3 pointer-events-auto">
-                <div className="w-10 h-10 rounded-full bg-teal-50 border border-teal-200 flex items-center justify-center mx-auto text-teal-600">
+                <div className="w-10 h-10 rounded-full bg-indigo-50 border border-indigo-200 flex items-center justify-center mx-auto text-indigo-600">
                   <Zap className="w-5 h-5" />
                 </div>
                 <h3 className="text-sm font-bold text-slate-800">
                   Empty Workflow Canvas
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Drag a node from the left palette or click below to start building your automated process.
+                  Drag a node from the left palette or click below to start
+                  building your automated process.
                 </p>
                 {!isReadOnly && (
                   <button
                     onClick={() => handleAddNode("TRIGGER")}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-md text-xs font-semibold shadow-xs transition"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs font-semibold shadow-xs transition"
                   >
                     <Zap className="w-3.5 h-3.5" />
                     <span>Add Webhook / Trigger</span>

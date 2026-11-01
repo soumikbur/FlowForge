@@ -19,7 +19,10 @@ export class BoundedCache<K, V> {
     maxCapacityOrOptions: number | BoundedCacheOptions = 500,
     defaultTtlMs = 1800000,
   ) {
-    if (typeof maxCapacityOrOptions === "object" && maxCapacityOrOptions !== null) {
+    if (
+      typeof maxCapacityOrOptions === "object" &&
+      maxCapacityOrOptions !== null
+    ) {
       this.maxCapacity =
         maxCapacityOrOptions.maxEntries ??
         maxCapacityOrOptions.maxCapacity ??
@@ -61,7 +64,10 @@ export class BoundedCache<K, V> {
         this.evictions++;
       }
     }
-    this.store.set(key, { value, expiresAt: Date.now() + (ttlMs ?? this.defaultTtlMs) });
+    this.store.set(key, {
+      value,
+      expiresAt: Date.now() + (ttlMs ?? this.defaultTtlMs),
+    });
   }
 
   public has(key: K): boolean {
@@ -86,7 +92,8 @@ export class BoundedCache<K, V> {
       hits: this.hits,
       misses: this.misses,
       evictions: this.evictions,
-      hitRate: this.hits + this.misses > 0 ? this.hits / (this.hits + this.misses) : 0,
+      hitRate:
+        this.hits + this.misses > 0 ? this.hits / (this.hits + this.misses) : 0,
     };
   }
 }
@@ -95,4 +102,7 @@ export class BoundedCache<K, V> {
  * Global cache for published immutable workflow definitions.
  * Keyed by version snapshot ID or content hash.
  */
-export const publishedVersionCache = new BoundedCache<string, unknown>(500, 3600000);
+export const publishedVersionCache = new BoundedCache<string, unknown>(
+  500,
+  3600000,
+);

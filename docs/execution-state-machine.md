@@ -80,7 +80,6 @@ stateDiagram-v2
 - `SKIPPED`: Branch was not chosen (e.g., negative branch of condition)
 - `WAITING`: Paused for human approval or delay timer
 
-
 ## 4. Graph Validation & Execution Planning Interaction
 
 1. **Pre-Execution Invariant**: An execution row can only be created from a published `WorkflowVersion` whose graph has passed `validateWorkflowDefinition`.

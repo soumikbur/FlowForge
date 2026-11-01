@@ -69,7 +69,11 @@ export const connectionRouter = Router({ mergeParams: true });
 
 connectionRouter.use(requireAuth);
 
-function resolveOrgRole(req: Request, res: Response, orgId: string): Role | null {
+function resolveOrgRole(
+  req: Request,
+  res: Response,
+  orgId: string,
+): Role | null {
   if (req.isApiKey) {
     if (req.organizationId !== orgId) {
       res.status(403).json({
@@ -138,7 +142,10 @@ connectionRouter.get("/", (req: Request, res: Response) => {
   const role = resolveOrgRole(req, res, orgId);
   if (!role) return;
 
-  if (!hasPermission(role, "connections:read") && !hasPermission(role, "org:read")) {
+  if (
+    !hasPermission(role, "connections:read") &&
+    !hasPermission(role, "org:read")
+  ) {
     res.status(403).json({
       success: false,
       data: null,
@@ -194,7 +201,11 @@ connectionRouter.post("/test-draft", async (req: Request, res: Response) => {
     return;
   }
 
-  const result = await testConnection(connectorId, credentialData || {}, config);
+  const result = await testConnection(
+    connectorId,
+    credentialData || {},
+    config,
+  );
   res.json({
     success: true,
     data: result,
@@ -234,7 +245,8 @@ connectionRouter.post("/", (req: Request, res: Response) => {
     return;
   }
 
-  const { connectorId, name, authType, credentialData, metadata } = parseResult.data;
+  const { connectorId, name, authType, credentialData, metadata } =
+    parseResult.data;
 
   if (!defaultConnectorRegistry.has(connectorId)) {
     res.status(400).json({
@@ -296,7 +308,10 @@ connectionRouter.get("/:connectionId", (req: Request, res: Response) => {
   const role = resolveOrgRole(req, res, orgId);
   if (!role) return;
 
-  if (!hasPermission(role, "connections:read") && !hasPermission(role, "org:read")) {
+  if (
+    !hasPermission(role, "connections:read") &&
+    !hasPermission(role, "org:read")
+  ) {
     res.status(403).json({
       success: false,
       data: null,
@@ -370,7 +385,8 @@ connectionRouter.patch("/:connectionId", (req: Request, res: Response) => {
   const { name, status, metadata } = parseResult.data;
   if (name !== undefined) conn.name = name;
   if (status !== undefined) conn.status = status;
-  if (metadata !== undefined) conn.metadata = { ...(conn.metadata || {}), ...metadata };
+  if (metadata !== undefined)
+    conn.metadata = { ...(conn.metadata || {}), ...metadata };
   conn.updatedAt = new Date();
 
   apiStore.connections.set(conn.id, conn);
@@ -393,142 +409,158 @@ connectionRouter.patch("/:connectionId", (req: Request, res: Response) => {
 });
 
 // 6. Rotate connection credentials
-connectionRouter.post("/:connectionId/rotate", (req: Request, res: Response) => {
-  const orgId = req.params.organizationId;
-  const role = resolveOrgRole(req, res, orgId);
-  if (!role) return;
+connectionRouter.post(
+  "/:connectionId/rotate",
+  (req: Request, res: Response) => {
+    const orgId = req.params.organizationId;
+    const role = resolveOrgRole(req, res, orgId);
+    if (!role) return;
 
-  if (!hasPermission(role, "connections:write")) {
-    res.status(403).json({
-      success: false,
-      data: null,
-      error: {
-        code: "FORBIDDEN",
-        message: "Requires permission 'connections:write'.",
-      },
+    if (!hasPermission(role, "connections:write")) {
+      res.status(403).json({
+        success: false,
+        data: null,
+        error: {
+          code: "FORBIDDEN",
+          message: "Requires permission 'connections:write'.",
+        },
+      });
+      return;
+    }
+
+    const conn = apiStore.connections.get(req.params.connectionId);
+    if (!conn || conn.organizationId !== orgId) {
+      res.status(404).json({
+        success: false,
+        data: null,
+        error: { code: "NOT_FOUND", message: "Connection not found." },
+      });
+      return;
+    }
+
+    const parseResult = RotateConnectionCredentialSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: {
+          code: "VALIDATION_FAILED",
+          message: "Invalid rotation payload. credentialData is required.",
+          details: parseResult.error.issues,
+        },
+      });
+      return;
+    }
+
+    // Re-encrypt credentials using AES-256-GCM
+    conn.encryptedData = encryptCredentialData(parseResult.data.credentialData);
+    conn.lastTestedAt = undefined;
+    conn.lastTestStatus = undefined;
+    conn.updatedAt = new Date();
+
+    apiStore.connections.set(conn.id, conn);
+
+    apiStore.recordAudit({
+      organizationId: orgId,
+      userId: req.user?.id,
+      action: "connection:rotate",
+      resourceType: "IntegrationConnection",
+      resourceId: conn.id,
+      metadata: { rotatedAt: conn.updatedAt },
+      ipAddress: req.ip,
     });
-    return;
-  }
 
-  const conn = apiStore.connections.get(req.params.connectionId);
-  if (!conn || conn.organizationId !== orgId) {
-    res.status(404).json({
-      success: false,
-      data: null,
-      error: { code: "NOT_FOUND", message: "Connection not found." },
+    res.json({
+      success: true,
+      data: formatConnectionResponse(conn),
+      error: null,
     });
-    return;
-  }
-
-  const parseResult = RotateConnectionCredentialSchema.safeParse(req.body);
-  if (!parseResult.success) {
-    res.status(400).json({
-      success: false,
-      data: null,
-      error: {
-        code: "VALIDATION_FAILED",
-        message: "Invalid rotation payload. credentialData is required.",
-        details: parseResult.error.issues,
-      },
-    });
-    return;
-  }
-
-  // Re-encrypt credentials using AES-256-GCM
-  conn.encryptedData = encryptCredentialData(parseResult.data.credentialData);
-  conn.lastTestedAt = undefined;
-  conn.lastTestStatus = undefined;
-  conn.updatedAt = new Date();
-
-  apiStore.connections.set(conn.id, conn);
-
-  apiStore.recordAudit({
-    organizationId: orgId,
-    userId: req.user?.id,
-    action: "connection:rotate",
-    resourceType: "IntegrationConnection",
-    resourceId: conn.id,
-    metadata: { rotatedAt: conn.updatedAt },
-    ipAddress: req.ip,
-  });
-
-  res.json({
-    success: true,
-    data: formatConnectionResponse(conn),
-    error: null,
-  });
-});
+  },
+);
 
 // 7. Test configured connection
-connectionRouter.post("/:connectionId/test", async (req: Request, res: Response) => {
-  const orgId = req.params.organizationId;
-  const role = resolveOrgRole(req, res, orgId);
-  if (!role) return;
+connectionRouter.post(
+  "/:connectionId/test",
+  async (req: Request, res: Response) => {
+    const orgId = req.params.organizationId;
+    const role = resolveOrgRole(req, res, orgId);
+    if (!role) return;
 
-  if (!hasPermission(role, "connections:read") && !hasPermission(role, "connections:write")) {
-    res.status(403).json({
-      success: false,
-      data: null,
-      error: {
-        code: "FORBIDDEN",
-        message: "Requires permission 'connections:read'.",
+    if (
+      !hasPermission(role, "connections:read") &&
+      !hasPermission(role, "connections:write")
+    ) {
+      res.status(403).json({
+        success: false,
+        data: null,
+        error: {
+          code: "FORBIDDEN",
+          message: "Requires permission 'connections:read'.",
+        },
+      });
+      return;
+    }
+
+    const conn = apiStore.connections.get(req.params.connectionId);
+    if (!conn || conn.organizationId !== orgId) {
+      res.status(404).json({
+        success: false,
+        data: null,
+        error: { code: "NOT_FOUND", message: "Connection not found." },
+      });
+      return;
+    }
+
+    let decrypted: Record<string, unknown> = {};
+    try {
+      decrypted = decryptCredentialData(conn.encryptedData) as Record<
+        string,
+        unknown
+      >;
+    } catch (err: any) {
+      res.status(500).json({
+        success: false,
+        data: null,
+        error: {
+          code: "DECRYPTION_FAILED",
+          message: `Failed to decrypt stored credentials: ${err.message}`,
+        },
+      });
+      return;
+    }
+
+    const result = await testConnection(
+      conn.connectorId,
+      decrypted,
+      req.body.config,
+    );
+
+    // Update last test diagnostics
+    conn.lastTestedAt = new Date();
+    conn.lastTestStatus = result.success ? "SUCCESS" : "FAILED";
+    apiStore.connections.set(conn.id, conn);
+
+    apiStore.recordAudit({
+      organizationId: orgId,
+      userId: req.user?.id,
+      action: "connection:test",
+      resourceType: "IntegrationConnection",
+      resourceId: conn.id,
+      metadata: {
+        success: result.success,
+        latencyMs: result.latencyMs,
+        errorCategory: result.errorCategory,
       },
+      ipAddress: req.ip,
     });
-    return;
-  }
 
-  const conn = apiStore.connections.get(req.params.connectionId);
-  if (!conn || conn.organizationId !== orgId) {
-    res.status(404).json({
-      success: false,
-      data: null,
-      error: { code: "NOT_FOUND", message: "Connection not found." },
+    res.json({
+      success: true,
+      data: result,
+      error: null,
     });
-    return;
-  }
-
-  let decrypted: Record<string, unknown> = {};
-  try {
-    decrypted = decryptCredentialData(conn.encryptedData) as Record<string, unknown>;
-  } catch (err: any) {
-    res.status(500).json({
-      success: false,
-      data: null,
-      error: {
-        code: "DECRYPTION_FAILED",
-        message: `Failed to decrypt stored credentials: ${err.message}`,
-      },
-    });
-    return;
-  }
-
-  const result = await testConnection(conn.connectorId, decrypted, req.body.config);
-
-  // Update last test diagnostics
-  conn.lastTestedAt = new Date();
-  conn.lastTestStatus = result.success ? "SUCCESS" : "FAILED";
-  apiStore.connections.set(conn.id, conn);
-
-  apiStore.recordAudit({
-    organizationId: orgId,
-    userId: req.user?.id,
-    action: "connection:test",
-    resourceType: "IntegrationConnection",
-    resourceId: conn.id,
-    metadata: {
-      success: result.success,
-      latencyMs: result.latencyMs,
-      errorCategory: result.errorCategory,
-    },
-    ipAddress: req.ip,
-  });
-
-  res.json({
-    success: true,
-    data: result,
-    error: null,
-  });
-});
+  },
+);
 
 // 8. Revoke / Delete connection
 connectionRouter.delete("/:connectionId", (req: Request, res: Response) => {

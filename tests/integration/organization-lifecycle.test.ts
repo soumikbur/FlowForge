@@ -166,7 +166,9 @@ describe("Organization Lifecycle & Membership Management Integration Tests", () 
 
   it("prevents demoting the last owner (Last Owner Protection Invariant)", async () => {
     const res = await request(app)
-      .patch(`/api/v1/organizations/${primaryOrgId}/members/${ownerMembershipId}`)
+      .patch(
+        `/api/v1/organizations/${primaryOrgId}/members/${ownerMembershipId}`,
+      )
       .set("Cookie", ownerCookie)
       .send({
         role: "MEMBER",
@@ -178,7 +180,9 @@ describe("Organization Lifecycle & Membership Management Integration Tests", () 
 
   it("prevents removing the last owner", async () => {
     const res = await request(app)
-      .delete(`/api/v1/organizations/${primaryOrgId}/members/${ownerMembershipId}`)
+      .delete(
+        `/api/v1/organizations/${primaryOrgId}/members/${ownerMembershipId}`,
+      )
       .set("Cookie", ownerCookie);
 
     expect(res.status).toBe(400);
@@ -187,7 +191,9 @@ describe("Organization Lifecycle & Membership Management Integration Tests", () 
 
   it("allows updating member role", async () => {
     const res = await request(app)
-      .patch(`/api/v1/organizations/${primaryOrgId}/members/${invitedMembershipId}`)
+      .patch(
+        `/api/v1/organizations/${primaryOrgId}/members/${invitedMembershipId}`,
+      )
       .set("Cookie", ownerCookie)
       .send({
         role: "MEMBER",
@@ -199,7 +205,9 @@ describe("Organization Lifecycle & Membership Management Integration Tests", () 
 
   it("allows removing a member and confirms member is deleted", async () => {
     const res = await request(app)
-      .delete(`/api/v1/organizations/${primaryOrgId}/members/${invitedMembershipId}`)
+      .delete(
+        `/api/v1/organizations/${primaryOrgId}/members/${invitedMembershipId}`,
+      )
       .set("Cookie", ownerCookie);
 
     expect(res.status).toBe(200);
@@ -232,4 +240,3 @@ describe("Organization Lifecycle & Membership Management Integration Tests", () 
     expect(actions).toContain("organization.member.removed");
   });
 });
-

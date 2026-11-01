@@ -25,7 +25,8 @@ export const NODE_REGISTRY: Record<NodeType, NodeRegistryItem> = {
     type: "TRIGGER",
     label: "Trigger Event",
     category: "Triggers",
-    description: "Initiates workflow execution upon manual, webhook, or scheduled events.",
+    description:
+      "Initiates workflow execution upon manual, webhook, or scheduled events.",
     icon: "Zap",
     defaultConfig: {
       triggerType: "MANUAL",
@@ -44,7 +45,8 @@ export const NODE_REGISTRY: Record<NodeType, NodeRegistryItem> = {
     type: "CONDITION",
     label: "Condition Rule",
     category: "Logic",
-    description: "Evaluates an expression and branches execution down True or False paths.",
+    description:
+      "Evaluates an expression and branches execution down True or False paths.",
     icon: "GitBranch",
     defaultConfig: {
       expression: "trigger.payload.amount > 1000",
@@ -66,7 +68,8 @@ export const NODE_REGISTRY: Record<NodeType, NodeRegistryItem> = {
     type: "HTTP_REQUEST",
     label: "HTTP Request",
     category: "Actions",
-    description: "Dispatches an external REST/HTTP request with SSRF guard protection.",
+    description:
+      "Dispatches an external REST/HTTP request with SSRF guard protection.",
     icon: "Globe",
     defaultConfig: {
       method: "GET",
@@ -108,7 +111,8 @@ export const NODE_REGISTRY: Record<NodeType, NodeRegistryItem> = {
     type: "APPROVAL",
     label: "Human Approval",
     category: "Actions",
-    description: "Suspends execution until an authorized human decides to Approve or Reject.",
+    description:
+      "Suspends execution until an authorized human decides to Approve or Reject.",
     icon: "UserCheck",
     defaultConfig: {
       title: "Approval Required",
@@ -149,7 +153,8 @@ export const NODE_REGISTRY: Record<NodeType, NodeRegistryItem> = {
     type: "END",
     label: "End Terminal",
     category: "Control",
-    description: "Terminal node marking successful completion of an execution branch.",
+    description:
+      "Terminal node marking successful completion of an execution branch.",
     icon: "Flag",
     defaultConfig: {},
     hasInput: true,
@@ -166,7 +171,8 @@ export const NODE_REGISTRY: Record<NodeType, NodeRegistryItem> = {
     type: "CONNECTOR_ACTION",
     label: "Connector Action",
     category: "Actions",
-    description: "Invokes an external connector operation (HTTP, Email, Slack) via secure connection.",
+    description:
+      "Invokes an external connector operation (HTTP, Email, Slack) via secure connection.",
     icon: "Plug",
     defaultConfig: {
       connectorId: "http-api",
@@ -178,10 +184,33 @@ export const NODE_REGISTRY: Record<NodeType, NodeRegistryItem> = {
     outputs: [{ id: "output" }],
     isSupported: true,
     colors: {
-      bg: "bg-teal-50",
-      border: "border-teal-500",
-      text: "text-teal-900",
-      badge: "bg-teal-100 text-teal-800",
+      bg: "bg-cyan-50",
+      border: "border-cyan-500",
+      text: "text-cyan-900",
+      badge: "bg-cyan-100 text-cyan-800",
+    },
+  },
+  EXTENSION_NODE: {
+    type: "EXTENSION_NODE",
+    label: "Custom Node",
+    category: "Actions",
+    description:
+      "Executes a custom node from an installed and approved extension package.",
+    icon: "Boxes",
+    defaultConfig: {
+      extensionId: "",
+      nodeType: "",
+      version: "1.0.0",
+      parameters: {},
+    },
+    hasInput: true,
+    outputs: [{ id: "output" }],
+    isSupported: true,
+    colors: {
+      bg: "bg-indigo-50",
+      border: "border-indigo-500",
+      text: "text-indigo-900",
+      badge: "bg-indigo-100 text-indigo-800",
     },
   },
 };
@@ -196,4 +225,3 @@ export const PALETTE_CATEGORIES: NodeCategory[] = [
 export function getNodeRegistryItem(type: NodeType): NodeRegistryItem {
   return NODE_REGISTRY[type] || NODE_REGISTRY.END;
 }
-

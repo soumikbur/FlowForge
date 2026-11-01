@@ -22,6 +22,7 @@ const SENSITIVE_PATTERNS =
  */
 export function deepScrubSecrets(obj: unknown, keyPath = ""): unknown {
   if (obj === null || obj === undefined) return obj;
+  if (obj instanceof Date) return obj;
   if (typeof obj === "string") {
     if (SENSITIVE_PATTERNS.test(keyPath)) {
       return "[REDACTED]";
@@ -75,9 +76,7 @@ export function computePackageIntegrityHash(
 /**
  * Verifies that the package integrity hash matches its contents.
  */
-export function verifyPackageIntegrity(
-  pkg: FlowForgeWorkflowPackage,
-): boolean {
+export function verifyPackageIntegrity(pkg: FlowForgeWorkflowPackage): boolean {
   if (!pkg.integrity || !pkg.integrity.hash) {
     return false;
   }
@@ -103,7 +102,11 @@ export function extractWorkflowDependencies(
   const nodeTypesSet = new Set<string>();
   const connectorMap = new Map<
     string,
-    { connectorId: string; operationIds: Set<string>; sourceConnectionId?: string }
+    {
+      connectorId: string;
+      operationIds: Set<string>;
+      sourceConnectionId?: string;
+    }
   >();
   const triggers: Array<{
     type: "MANUAL" | "WEBHOOK" | "SCHEDULE";
@@ -117,8 +120,10 @@ export function extractWorkflowDependencies(
     const config = node.config || {};
 
     if (node.type === "CONNECTOR_ACTION") {
-      const connectorId = typeof config.connectorId === "string" ? config.connectorId.trim() : "";
-      const operationId = typeof config.operationId === "string" ? config.operationId.trim() : "";
+      const connectorId =
+        typeof config.connectorId === "string" ? config.connectorId.trim() : "";
+      const operationId =
+        typeof config.operationId === "string" ? config.operationId.trim() : "";
       const sourceConnectionId =
         typeof config.connectionId === "string" && config.connectionId.trim()
           ? config.connectionId.trim()
@@ -142,7 +147,9 @@ export function extractWorkflowDependencies(
           connectorId: "smtp-email",
           operationIds: new Set<string>(["send"]),
           sourceConnectionId:
-            typeof config.connectionId === "string" ? config.connectionId : undefined,
+            typeof config.connectionId === "string"
+              ? config.connectionId
+              : undefined,
         });
       }
     } else if (node.type === "HTTP_REQUEST") {
@@ -153,7 +160,9 @@ export function extractWorkflowDependencies(
             connectorId: cId,
             operationIds: new Set<string>(["request"]),
             sourceConnectionId:
-              typeof config.connectionId === "string" ? config.connectionId : undefined,
+              typeof config.connectionId === "string"
+                ? config.connectionId
+                : undefined,
           });
         }
       }
@@ -164,18 +173,28 @@ export function extractWorkflowDependencies(
           : "MANUAL";
       triggers.push({
         type: tType,
-        cronExpression: typeof config.cronExpression === "string" ? config.cronExpression : undefined,
-        webhookPath: typeof config.webhookPath === "string" ? config.webhookPath : undefined,
+        cronExpression:
+          typeof config.cronExpression === "string"
+            ? config.cronExpression
+            : undefined,
+        webhookPath:
+          typeof config.webhookPath === "string"
+            ? config.webhookPath
+            : undefined,
       });
     }
 
     // Scan config for environment variables / template expressions {{env.FOO}}
     const configString = JSON.stringify(config);
-    const envMatches = configString.matchAll(/\{\{\s*(?:env\.|secrets\.)([a-zA-Z0-9_-]+)\s*\}\}/g);
+    const envMatches = configString.matchAll(
+      /\{\{\s*(?:env\.|secrets\.)([a-zA-Z0-9_-]+)\s*\}\}/g,
+    );
     for (const match of envMatches) {
       if (match[1]) envVarsSet.add(match[1]);
     }
-    const processEnvMatches = configString.matchAll(/process\.env\.([a-zA-Z0-9_]+)/g);
+    const processEnvMatches = configString.matchAll(
+      /process\.env\.([a-zA-Z0-9_]+)/g,
+    );
     for (const match of processEnvMatches) {
       if (match[1]) envVarsSet.add(match[1]);
     }
@@ -203,55 +222,70 @@ export function sanitizeWorkflowDefinitionForExport(
   const connectionMappingTracker = new Map<string, string>();
   let connRefCounter = 1;
 
-  const sanitizedNodes: WorkflowNode[] = (definition.nodes || []).map((node) => {
-    const rawConfig = node.config ? JSON.parse(JSON.stringify(node.config)) : {};
+  const sanitizedNodes: WorkflowNode[] = (definition.nodes || []).map(
+    (node) => {
+      const rawConfig = node.config
+        ? JSON.parse(JSON.stringify(node.config))
+        : {};
 
-    // Remove execution / runtime artifacts
-    delete rawConfig.executionId;
-    delete rawConfig.runCount;
-    delete rawConfig.lastRun;
-    delete rawConfig.lastOutput;
-    delete rawConfig.testResult;
-    delete rawConfig.audit;
+      // Remove execution / runtime artifacts
+      delete rawConfig.executionId;
+      delete rawConfig.runCount;
+      delete rawConfig.lastRun;
+      delete rawConfig.lastOutput;
+      delete rawConfig.testResult;
+      delete rawConfig.audit;
 
-    // Convert tenant-specific connectionId to abstract portable reference
-    if (typeof rawConfig.connectionId === "string" && rawConfig.connectionId.trim().length > 0) {
-      const origConnId = rawConfig.connectionId.trim();
-      if (!connectionMappingTracker.has(origConnId)) {
-        connectionMappingTracker.set(origConnId, `conn_ref_${connRefCounter++}`);
+      // Convert tenant-specific connectionId to abstract portable reference
+      if (
+        typeof rawConfig.connectionId === "string" &&
+        rawConfig.connectionId.trim().length > 0
+      ) {
+        const origConnId = rawConfig.connectionId.trim();
+        if (!connectionMappingTracker.has(origConnId)) {
+          connectionMappingTracker.set(
+            origConnId,
+            `conn_ref_${connRefCounter++}`,
+          );
+        }
+        rawConfig.connectionId = connectionMappingTracker.get(origConnId);
       }
-      rawConfig.connectionId = connectionMappingTracker.get(origConnId);
-    }
 
-    // Deactivate triggers in export so imported workflows never execute immediately
-    if (node.type === "TRIGGER") {
-      rawConfig.enabled = false;
-      rawConfig.active = false;
-      delete rawConfig.signingSecret;
-      if (rawConfig.triggerType === "WEBHOOK") {
-        rawConfig.webhookPath = "";
+      // Deactivate triggers in export so imported workflows never execute immediately
+      if (node.type === "TRIGGER") {
+        rawConfig.enabled = false;
+        rawConfig.active = false;
+        delete rawConfig.signingSecret;
+        if (rawConfig.triggerType === "WEBHOOK") {
+          rawConfig.webhookPath = "";
+        }
       }
-    }
 
-    // Deep-scrub any passwords, API keys, credentials, or bearer tokens
-    const scrubbedConfig = deepScrubSecrets(rawConfig) as Record<string, unknown>;
+      // Deep-scrub any passwords, API keys, credentials, or bearer tokens
+      const scrubbedConfig = deepScrubSecrets(rawConfig) as Record<
+        string,
+        unknown
+      >;
 
-    return {
-      id: node.id,
-      type: node.type,
-      name: node.name,
-      config: scrubbedConfig,
-      position: node.position ? { ...node.position } : undefined,
-    };
-  });
+      return {
+        id: node.id,
+        type: node.type,
+        name: node.name,
+        config: scrubbedConfig,
+        position: node.position ? { ...node.position } : undefined,
+      };
+    },
+  );
 
-  const sanitizedEdges: WorkflowEdge[] = (definition.edges || []).map((edge) => ({
-    id: edge.id,
-    source: edge.source,
-    sourceHandle: edge.sourceHandle,
-    target: edge.target,
-    targetHandle: edge.targetHandle,
-  }));
+  const sanitizedEdges: WorkflowEdge[] = (definition.edges || []).map(
+    (edge) => ({
+      id: edge.id,
+      source: edge.source,
+      sourceHandle: edge.sourceHandle,
+      target: edge.target,
+      targetHandle: edge.targetHandle,
+    }),
+  );
 
   return {
     nodes: sanitizedNodes,
@@ -273,7 +307,9 @@ export function createWorkflowExportPackage(options: {
   definition: WorkflowDefinition;
   sourceAppVersion?: string;
 }): FlowForgeWorkflowPackage {
-  const sanitizedDefinition = sanitizeWorkflowDefinitionForExport(options.definition);
+  const sanitizedDefinition = sanitizeWorkflowDefinitionForExport(
+    options.definition,
+  );
   const dependencies = extractWorkflowDependencies(sanitizedDefinition);
 
   const metadata = {
@@ -344,13 +380,19 @@ export function analyzeWorkflowPackageCompatibility(options: {
   packageData: unknown;
   availableConnectors?: string[];
   orgConnections?: Array<{ id: string; name: string; connectorId: string }>;
-  existingWorkflows?: Array<{ id: string; name: string; draftRevision: number }>;
+  existingWorkflows?: Array<{
+    id: string;
+    name: string;
+    draftRevision: number;
+  }>;
 }): ImportPreviewResponse {
   const warnings: string[] = [];
   const blockingErrors: string[] = [];
 
   // 1. Validate Schema
-  const parseResult = FlowForgeWorkflowPackageSchema.safeParse(options.packageData);
+  const parseResult = FlowForgeWorkflowPackageSchema.safeParse(
+    options.packageData,
+  );
   if (!parseResult.success) {
     return {
       workflowName: "Unknown",
@@ -365,7 +407,9 @@ export function analyzeWorkflowPackageCompatibility(options: {
       suggestedName: "Imported Workflow",
       availableConflictStrategies: ["CREATE_NEW"],
       warnings: [],
-      blockingErrors: ["The provided file is not a valid FlowForge workflow package."],
+      blockingErrors: [
+        "The provided file is not a valid FlowForge workflow package.",
+      ],
       validationErrors: parseResult.error.issues.map((i) => ({
         path: i.path.join("."),
         message: i.message,
@@ -377,29 +421,39 @@ export function analyzeWorkflowPackageCompatibility(options: {
 
   // 2. Format Version Check
   if (pkg.formatVersion !== "flowforge.package/v1") {
-    blockingErrors.push(`Unsupported package format version '${pkg.formatVersion}'.`);
+    blockingErrors.push(
+      `Unsupported package format version '${pkg.formatVersion}'.`,
+    );
   }
 
   // 3. Verify Integrity
   const integrityVerified = verifyPackageIntegrity(pkg);
   if (!integrityVerified) {
-    blockingErrors.push("Package cryptographic integrity check failed. The file may have been altered.");
+    blockingErrors.push(
+      "Package cryptographic integrity check failed. The file may have been altered.",
+    );
   }
 
   // 4. Node Complexity & Size Guards
   const nodeCount = pkg.definition.nodes.length;
   const edgeCount = pkg.definition.edges.length;
   if (nodeCount > 200) {
-    blockingErrors.push(`Package exceeds maximum allowed node limit (200). Found ${nodeCount} nodes.`);
+    blockingErrors.push(
+      `Package exceeds maximum allowed node limit (200). Found ${nodeCount} nodes.`,
+    );
   }
   if (edgeCount > 500) {
-    blockingErrors.push(`Package exceeds maximum allowed edge limit (500). Found ${edgeCount} edges.`);
+    blockingErrors.push(
+      `Package exceeds maximum allowed edge limit (500). Found ${edgeCount} edges.`,
+    );
   }
 
   // 5. Node Registry Check
   const nodeTypesSet = new Set<string>();
   const unsupportedNodeTypesSet = new Set<string>();
-  const supportedTypesSet = new Set<string>(defaultRegistry.listSupportedTypes());
+  const supportedTypesSet = new Set<string>(
+    defaultRegistry.listSupportedTypes(),
+  );
 
   for (const node of pkg.definition.nodes) {
     nodeTypesSet.add(node.type);
@@ -425,33 +479,47 @@ export function analyzeWorkflowPackageCompatibility(options: {
 
   // 7. Connector Compatibility & Matching Destination Connections
   const availableConnectorsSet = new Set(
-    options.availableConnectors || ["http-api", "slack", "smtp-email", "stripe"],
+    options.availableConnectors || [
+      "http-api",
+      "slack",
+      "smtp-email",
+      "stripe",
+    ],
   );
   const orgConnections = options.orgConnections || [];
 
-  const connectorRequirements = (pkg.dependencies.connectors || []).map((req) => {
-    const isSupported = availableConnectorsSet.has(req.connectorId);
-    if (!isSupported) {
-      blockingErrors.push(`Required connector '${req.connectorId}' is not installed in the platform.`);
-    }
+  const connectorRequirements = (pkg.dependencies.connectors || []).map(
+    (req) => {
+      const isSupported = availableConnectorsSet.has(req.connectorId);
+      if (!isSupported) {
+        blockingErrors.push(
+          `Required connector '${req.connectorId}' is not installed in the platform.`,
+        );
+      }
 
-    const matching = orgConnections.filter((c) => c.connectorId === req.connectorId);
-    const isResolved = matching.length > 0;
-
-    if (!isResolved && isSupported) {
-      warnings.push(
-        `Connector '${req.connectorId}' has no configured connections in this organization. You will need to create or map one before publishing.`,
+      const matching = orgConnections.filter(
+        (c) => c.connectorId === req.connectorId,
       );
-    }
+      const isResolved = matching.length > 0;
 
-    return {
-      connectorId: req.connectorId,
-      supportedByRegistry: isSupported,
-      sourceConnectionId: req.sourceConnectionId,
-      matchingOrgConnections: matching.map((c) => ({ id: c.id, name: c.name })),
-      isResolved,
-    };
-  });
+      if (!isResolved && isSupported) {
+        warnings.push(
+          `Connector '${req.connectorId}' has no configured connections in this organization. You will need to create or map one before publishing.`,
+        );
+      }
+
+      return {
+        connectorId: req.connectorId,
+        supportedByRegistry: isSupported,
+        sourceConnectionId: req.sourceConnectionId,
+        matchingOrgConnections: matching.map((c) => ({
+          id: c.id,
+          name: c.name,
+        })),
+        isResolved,
+      };
+    },
+  );
 
   // 8. Triggers Notice
   if (pkg.dependencies.triggers && pkg.dependencies.triggers.length > 0) {
@@ -473,13 +541,17 @@ export function analyzeWorkflowPackageCompatibility(options: {
     let suffix = 1;
     while (
       existingWorkflows.some(
-        (w) => w.name.toLowerCase() === `${targetName} (Imported ${suffix})`.toLowerCase(),
+        (w) =>
+          w.name.toLowerCase() ===
+          `${targetName} (Imported ${suffix})`.toLowerCase(),
       )
     ) {
       suffix++;
     }
     suggestedName = `${targetName} (Imported ${suffix})`;
-    warnings.push(`A workflow named '${targetName}' already exists in this organization.`);
+    warnings.push(
+      `A workflow named '${targetName}' already exists in this organization.`,
+    );
   }
 
   // 10. Status Computation
@@ -541,11 +613,21 @@ export function applyImportConnectorMappings(
   connectorMappings: Record<string, string> = {},
 ): WorkflowDefinition {
   const mappedNodes: WorkflowNode[] = (definition.nodes || []).map((node) => {
-    const rawConfig = node.config ? JSON.parse(JSON.stringify(node.config)) : {};
+    const rawConfig = node.config
+      ? JSON.parse(JSON.stringify(node.config))
+      : {};
 
-    if (node.type === "CONNECTOR_ACTION" || node.type === "EMAIL" || node.type === "HTTP_REQUEST") {
-      const origRef = typeof rawConfig.connectionId === "string" ? rawConfig.connectionId : "";
-      const connectorId = typeof rawConfig.connectorId === "string" ? rawConfig.connectorId : "";
+    if (
+      node.type === "CONNECTOR_ACTION" ||
+      node.type === "EMAIL" ||
+      node.type === "HTTP_REQUEST"
+    ) {
+      const origRef =
+        typeof rawConfig.connectionId === "string"
+          ? rawConfig.connectionId
+          : "";
+      const connectorId =
+        typeof rawConfig.connectorId === "string" ? rawConfig.connectorId : "";
 
       // Try mapping by specific source connection reference or connector ID
       if (origRef && connectorMappings[origRef]) {

@@ -114,7 +114,9 @@ describe("Prompt 12: Enterprise Integration Management, Connector Registry, and 
     });
 
     it("should return 404 for unknown connector ID", async () => {
-      const res = await request(app).get("/api/v1/connectors/unknown-connector-xyz");
+      const res = await request(app).get(
+        "/api/v1/connectors/unknown-connector-xyz",
+      );
       expect(res.status).toBe(404);
       expect(res.body.error.code).toBe("CONNECTOR_NOT_FOUND");
     });
@@ -134,7 +136,10 @@ describe("Prompt 12: Enterprise Integration Management, Connector Registry, and 
       customRegistry.register(def, async () => ({ success: true, data: null }));
 
       expect(() => {
-        customRegistry.register(def, async () => ({ success: true, data: null }));
+        customRegistry.register(def, async () => ({
+          success: true,
+          data: null,
+        }));
       }).toThrow(/already registered/i);
     });
 
@@ -143,7 +148,9 @@ describe("Prompt 12: Enterprise Integration Management, Connector Registry, and 
       expect(httpConnectors.every((c) => c.category === "HTTP")).toBe(true);
 
       const notifConnectors = defaultConnectorRegistry.list("NOTIFICATION");
-      expect(notifConnectors.every((c) => c.category === "NOTIFICATION")).toBe(true);
+      expect(notifConnectors.every((c) => c.category === "NOTIFICATION")).toBe(
+        true,
+      );
     });
   });
 
@@ -191,7 +198,8 @@ describe("Prompt 12: Enterprise Integration Management, Connector Registry, and 
     });
 
     it("should redact URL passwords and sensitive query params with redactUrl", () => {
-      const dirtyUrl = "https://user:mypassword@api.example.com/v1?apiKey=secretKey123&page=1";
+      const dirtyUrl =
+        "https://user:mypassword@api.example.com/v1?apiKey=secretKey123&page=1";
       const cleanUrl = redactUrl(dirtyUrl);
       expect(cleanUrl).not.toContain("mypassword");
       expect(cleanUrl).not.toContain("secretKey123");
@@ -199,7 +207,8 @@ describe("Prompt 12: Enterprise Integration Management, Connector Registry, and 
     });
 
     it("should redact sensitive tokens in error messages", () => {
-      const dirtyError = "Request to https://api.com?token=xyz failed with Bearer eyJhbGciOiJIUzI1NiJ9";
+      const dirtyError =
+        "Request to https://api.com?token=xyz failed with Bearer eyJhbGciOiJIUzI1NiJ9";
       const cleanError = redactErrorMessage(dirtyError);
       expect(cleanError).not.toContain("xyz");
       expect(cleanError).not.toContain("eyJhbGciOiJIUzI1NiJ9");
@@ -207,13 +216,19 @@ describe("Prompt 12: Enterprise Integration Management, Connector Registry, and 
     });
 
     it("should block loopback, link-local, and private addresses via resolveAndValidateDestination", async () => {
-      const loopback = await resolveAndValidateDestination("http://127.0.0.1:8080/admin");
+      const loopback = await resolveAndValidateDestination(
+        "http://127.0.0.1:8080/admin",
+      );
       expect(loopback.isSafe).toBe(false);
 
-      const metadata = await resolveAndValidateDestination("http://169.254.169.254/latest/meta-data");
+      const metadata = await resolveAndValidateDestination(
+        "http://169.254.169.254/latest/meta-data",
+      );
       expect(metadata.isSafe).toBe(false);
 
-      const privateSubnet = await resolveAndValidateDestination("http://10.0.1.5/internal");
+      const privateSubnet = await resolveAndValidateDestination(
+        "http://10.0.1.5/internal",
+      );
       expect(privateSubnet.isSafe).toBe(false);
     });
   });
@@ -283,7 +298,9 @@ describe("Prompt 12: Enterprise Integration Management, Connector Registry, and 
       // Verify stored record in database is encrypted
       const record = apiStore.connections.get(createdHttpConnIdA);
       expect(record).toBeDefined();
-      expect(record!.encryptedData).not.toContain("sk_live_verysecretstripekey1234");
+      expect(record!.encryptedData).not.toContain(
+        "sk_live_verysecretstripekey1234",
+      );
       const parts = record!.encryptedData.split(":");
       expect(parts.length).toBe(3); // iv:authTag:ciphertext
 
@@ -326,7 +343,9 @@ describe("Prompt 12: Enterprise Integration Management, Connector Registry, and 
 
     it("should test existing saved connection", async () => {
       const res = await request(app)
-        .post(`/api/v1/organizations/${orgIdA}/connections/${createdHttpConnIdA}/test`)
+        .post(
+          `/api/v1/organizations/${orgIdA}/connections/${createdHttpConnIdA}/test`,
+        )
         .set("Cookie", ownerCookieA)
         .send({});
 
@@ -341,7 +360,9 @@ describe("Prompt 12: Enterprise Integration Management, Connector Registry, and 
 
     it("should rotate credentials and record audit event", async () => {
       const res = await request(app)
-        .post(`/api/v1/organizations/${orgIdA}/connections/${createdHttpConnIdA}/rotate`)
+        .post(
+          `/api/v1/organizations/${orgIdA}/connections/${createdHttpConnIdA}/rotate`,
+        )
         .set("Cookie", ownerCookieA)
         .send({
           credentialData: {
@@ -361,14 +382,18 @@ describe("Prompt 12: Enterprise Integration Management, Connector Registry, and 
 
       // Verify audit log
       const audit = apiStore.auditLogs.find(
-        (a) => a.action === "connection:rotate" && a.resourceId === createdHttpConnIdA,
+        (a) =>
+          a.action === "connection:rotate" &&
+          a.resourceId === createdHttpConnIdA,
       );
       expect(audit).toBeDefined();
     });
 
     it("should update connection status to DISABLED", async () => {
       const res = await request(app)
-        .patch(`/api/v1/organizations/${orgIdA}/connections/${createdHttpConnIdA}`)
+        .patch(
+          `/api/v1/organizations/${orgIdA}/connections/${createdHttpConnIdA}`,
+        )
         .set("Cookie", ownerCookieA)
         .send({
           status: "DISABLED",
@@ -554,7 +579,8 @@ describe("Prompt 12: Enterprise Integration Management, Connector Registry, and 
 
       const outcome = await runner.processExecution(executionId);
       expect(outcome.status).toBe("SUCCEEDED");
-      const stepOutput = (outcome.contextData as any).steps["node_notify"]?.output;
+      const stepOutput = (outcome.contextData as any).steps["node_notify"]
+        ?.output;
       expect(stepOutput).toBeDefined();
       expect(stepOutput.delivered).toBe(true);
     });
@@ -653,7 +679,9 @@ describe("Prompt 12: Enterprise Integration Management, Connector Registry, and 
   describe("5. Multi-Tenant Isolation & Role Authorization", () => {
     it("should prevent Tenant B from accessing Tenant A's connection", async () => {
       const res = await request(app)
-        .get(`/api/v1/organizations/${orgIdB}/connections/${createdHttpConnIdA}`)
+        .get(
+          `/api/v1/organizations/${orgIdB}/connections/${createdHttpConnIdA}`,
+        )
         .set("Cookie", ownerCookieB);
 
       // Org mismatch returns 404
@@ -662,7 +690,9 @@ describe("Prompt 12: Enterprise Integration Management, Connector Registry, and 
 
     it("should prevent Tenant B from rotating Tenant A's connection", async () => {
       const res = await request(app)
-        .post(`/api/v1/organizations/${orgIdB}/connections/${createdHttpConnIdA}/rotate`)
+        .post(
+          `/api/v1/organizations/${orgIdB}/connections/${createdHttpConnIdA}/rotate`,
+        )
         .set("Cookie", ownerCookieB)
         .send({
           credentialData: { apiKey: "hacked_key" },
@@ -673,7 +703,9 @@ describe("Prompt 12: Enterprise Integration Management, Connector Registry, and 
 
     it("should prevent Tenant B from testing Tenant A's connection", async () => {
       const res = await request(app)
-        .post(`/api/v1/organizations/${orgIdB}/connections/${createdHttpConnIdA}/test`)
+        .post(
+          `/api/v1/organizations/${orgIdB}/connections/${createdHttpConnIdA}/test`,
+        )
         .set("Cookie", ownerCookieB)
         .send({});
 
@@ -694,7 +726,9 @@ describe("Prompt 12: Enterprise Integration Management, Connector Registry, and 
       expect(createRes.body.error.code).toBe("FORBIDDEN");
 
       const deleteRes = await request(app)
-        .delete(`/api/v1/organizations/${orgIdA}/connections/${createdHttpConnIdA}`)
+        .delete(
+          `/api/v1/organizations/${orgIdA}/connections/${createdHttpConnIdA}`,
+        )
         .set("Cookie", viewerCookieA);
 
       expect(deleteRes.status).toBe(403);
@@ -703,14 +737,18 @@ describe("Prompt 12: Enterprise Integration Management, Connector Registry, and 
 
     it("should successfully revoke connection when authorized", async () => {
       const res = await request(app)
-        .delete(`/api/v1/organizations/${orgIdA}/connections/${createdSlackConnIdA}`)
+        .delete(
+          `/api/v1/organizations/${orgIdA}/connections/${createdSlackConnIdA}`,
+        )
         .set("Cookie", ownerCookieA);
 
       expect(res.status).toBe(200);
 
       // Re-fetching revoked connection returns 404
       const fetchRes = await request(app)
-        .get(`/api/v1/organizations/${orgIdA}/connections/${createdSlackConnIdA}`)
+        .get(
+          `/api/v1/organizations/${orgIdA}/connections/${createdSlackConnIdA}`,
+        )
         .set("Cookie", ownerCookieA);
       expect(fetchRes.status).toBe(404);
     });

@@ -10,6 +10,7 @@ import {
   CreateInvitationSchema,
   AcceptInvitationSchema,
   CreateApiKeySchema,
+  RotateApiKeySchema,
   RetentionCleanupSchema,
   PaginationQuerySchema,
   hasPermission,
@@ -30,6 +31,14 @@ import {
 } from "@flowforge/workflow-engine";
 import { FlowForgeBackupPackageSchema } from "@flowforge/shared";
 import { connectionRouter } from "./connection.routes.js";
+import { workspaceRouter } from "./workspace.routes.js";
+import { brandingRouter } from "./branding.routes.js";
+import { customDomainRouter } from "./custom-domain.routes.js";
+import { licensingRouter } from "./licensing.routes.js";
+import { ssoAdminRouter } from "./sso-admin.routes.js";
+import { scimTokenAdminRouter } from "./scim.routes.js";
+import { sessionGovernanceRouter } from "./session-governance.routes.js";
+import { entitlementService } from "../services/entitlement.service.js";
 
 export const organizationRouter = Router();
 
@@ -37,152 +46,162 @@ export const organizationRouter = Router();
 // 0. PUBLIC / SEMI-PUBLIC INVITATION ACCEPTANCE
 // (Mounted before requireAuth to support token-based acceptance)
 // ==========================================
-organizationRouter.post("/invitations/accept", (req: Request, res: Response) => {
-  const parseResult = AcceptInvitationSchema.safeParse(req.body);
-  if (!parseResult.success) {
-    res.status(400).json({
-      success: false,
-      data: null,
-      error: {
-        code: "VALIDATION_FAILED",
-        message: "Valid invitation token required.",
-        details: parseResult.error.issues,
-      },
-    });
-    return;
-  }
+organizationRouter.post(
+  "/invitations/accept",
+  (req: Request, res: Response) => {
+    const parseResult = AcceptInvitationSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: {
+          code: "VALIDATION_FAILED",
+          message: "Valid invitation token required.",
+          details: parseResult.error.issues,
+        },
+      });
+      return;
+    }
 
-  const { token } = parseResult.data;
-  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const { token } = parseResult.data;
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
 
-  const invitation = Array.from(apiStore.invitations.values()).find(
-    (inv) => inv.tokenHash === tokenHash,
-  );
+    const invitation = Array.from(apiStore.invitations.values()).find(
+      (inv) => inv.tokenHash === tokenHash,
+    );
 
-  if (!invitation) {
-    res.status(404).json({
-      success: false,
-      data: null,
-      error: {
-        code: "INVITATION_NOT_FOUND",
-        message: "Invitation token is invalid or has expired.",
-      },
-    });
-    return;
-  }
+    if (!invitation) {
+      res.status(404).json({
+        success: false,
+        data: null,
+        error: {
+          code: "INVITATION_NOT_FOUND",
+          message: "Invitation token is invalid or has expired.",
+        },
+      });
+      return;
+    }
 
-  if (invitation.status === "ACCEPTED") {
-    res.status(400).json({
-      success: false,
-      data: null,
-      error: {
-        code: "INVITATION_ALREADY_USED",
-        message: "This invitation has already been accepted.",
-      },
-    });
-    return;
-  }
+    if (invitation.status === "ACCEPTED") {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: {
+          code: "INVITATION_ALREADY_USED",
+          message: "This invitation has already been accepted.",
+        },
+      });
+      return;
+    }
 
-  if (invitation.status === "REVOKED") {
-    res.status(400).json({
-      success: false,
-      data: null,
-      error: {
-        code: "INVITATION_REVOKED",
-        message: "This invitation has been revoked by an administrator.",
-      },
-    });
-    return;
-  }
+    if (invitation.status === "REVOKED") {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: {
+          code: "INVITATION_REVOKED",
+          message: "This invitation has been revoked by an administrator.",
+        },
+      });
+      return;
+    }
 
-  if (new Date() > new Date(invitation.expiresAt)) {
-    invitation.status = "EXPIRED";
+    if (new Date() > new Date(invitation.expiresAt)) {
+      invitation.status = "EXPIRED";
+      apiStore.invitations.set(invitation.id, invitation);
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: {
+          code: "INVITATION_EXPIRED",
+          message: "This invitation has expired.",
+        },
+      });
+      return;
+    }
+
+    // Find or create target user for invitation email
+    let targetUser = Array.from(apiStore.users.values()).find(
+      (u) => u.email.toLowerCase() === invitation.email.toLowerCase(),
+    );
+
+    if (!targetUser) {
+      const newUserId = `usr_${crypto.randomUUID()}`;
+      targetUser = {
+        id: newUserId,
+        email: invitation.email.toLowerCase(),
+        passwordHash: "pending_setup",
+        firstName: invitation.email.split("@")[0],
+      };
+      apiStore.users.set(newUserId, targetUser);
+    }
+
+    // Check if membership already exists
+    let membership = Array.from(apiStore.memberships.values()).find(
+      (m) =>
+        m.organizationId === invitation.organizationId &&
+        m.userId === targetUser!.id,
+    );
+
+    if (!membership) {
+      const membershipId = `mem_${crypto.randomUUID()}`;
+      membership = {
+        id: membershipId,
+        organizationId: invitation.organizationId,
+        userId: targetUser.id,
+        role: invitation.role,
+      };
+      apiStore.memberships.set(membershipId, membership);
+    } else {
+      membership.role = invitation.role;
+      apiStore.memberships.set(membership.id, membership);
+    }
+
+    // Mark invitation accepted
+    invitation.status = "ACCEPTED";
+    invitation.acceptedAt = new Date();
+    invitation.updatedAt = new Date();
     apiStore.invitations.set(invitation.id, invitation);
-    res.status(400).json({
-      success: false,
-      data: null,
-      error: {
-        code: "INVITATION_EXPIRED",
-        message: "This invitation has expired.",
-      },
-    });
-    return;
-  }
 
-  // Find or create target user for invitation email
-  let targetUser = Array.from(apiStore.users.values()).find(
-    (u) => u.email.toLowerCase() === invitation.email.toLowerCase(),
-  );
-
-  if (!targetUser) {
-    const newUserId = `usr_${crypto.randomUUID()}`;
-    targetUser = {
-      id: newUserId,
-      email: invitation.email.toLowerCase(),
-      passwordHash: "pending_setup",
-      firstName: invitation.email.split("@")[0],
-    };
-    apiStore.users.set(newUserId, targetUser);
-  }
-
-  // Check if membership already exists
-  let membership = Array.from(apiStore.memberships.values()).find(
-    (m) =>
-      m.organizationId === invitation.organizationId &&
-      m.userId === targetUser!.id,
-  );
-
-  if (!membership) {
-    const membershipId = `mem_${crypto.randomUUID()}`;
-    membership = {
-      id: membershipId,
+    apiStore.recordAudit({
       organizationId: invitation.organizationId,
       userId: targetUser.id,
-      role: invitation.role,
-    };
-    apiStore.memberships.set(membershipId, membership);
-  } else {
-    membership.role = invitation.role;
-    apiStore.memberships.set(membership.id, membership);
-  }
+      action: "organization.invitation.accepted",
+      resourceType: "invitation",
+      resourceId: invitation.id,
+      metadata: {
+        email: invitation.email,
+        role: invitation.role,
+        membershipId: membership.id,
+      },
+      ipAddress: req.ip,
+    });
 
-  // Mark invitation accepted
-  invitation.status = "ACCEPTED";
-  invitation.acceptedAt = new Date();
-  invitation.updatedAt = new Date();
-  apiStore.invitations.set(invitation.id, invitation);
+    res.json({
+      success: true,
+      data: {
+        organizationId: invitation.organizationId,
+        membershipId: membership.id,
+        role: invitation.role,
+        acceptedAt: invitation.acceptedAt,
+      },
+      error: null,
+    });
+  },
+);
 
-  apiStore.recordAudit({
-    organizationId: invitation.organizationId,
-    userId: targetUser.id,
-    action: "organization.invitation.accepted",
-    resourceType: "invitation",
-    resourceId: invitation.id,
-    metadata: {
-      email: invitation.email,
-      role: invitation.role,
-      membershipId: membership.id,
-    },
-    ipAddress: req.ip,
-  });
-
-  res.json({
-    success: true,
-    data: {
-      organizationId: invitation.organizationId,
-      membershipId: membership.id,
-      role: invitation.role,
-      acceptedAt: invitation.acceptedAt,
-    },
-    error: null,
-  });
-});
-
+organizationRouter.use("/:organizationId/branding", brandingRouter);
 // Protect all subsequent administrative routes
 organizationRouter.use(requireAuth);
 
 // Mount Connections Sub-router
 organizationRouter.use("/:organizationId/connections", connectionRouter);
+organizationRouter.use("/:organizationId/workspaces", workspaceRouter);
+organizationRouter.use("/:organizationId/custom-domains", customDomainRouter);
+organizationRouter.use("/:organizationId/license", licensingRouter);
+organizationRouter.use("/:organizationId/sso", ssoAdminRouter);
+organizationRouter.use("/:organizationId/scim/tokens", scimTokenAdminRouter);
+organizationRouter.use("/:organizationId/sessions", sessionGovernanceRouter);
 
 /**
  * Helper to resolve the authenticated caller's membership and verify organization boundaries.
@@ -202,7 +221,7 @@ function resolveCallerMembership(req: Request, res: Response, orgId: string) {
       return null;
     }
     return {
-      id: `mem_api_key_${req.apiKey!.id}`,
+      id: `mem_api_key_${req.apiKey?.id || req.user?.id || "client"}`,
       organizationId: orgId,
       userId: req.user!.id,
       role: "MEMBER" as Role,
@@ -471,9 +490,11 @@ organizationRouter.patch("/:organizationId/settings", (req, res) => {
     org.slug = updates.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   }
   if (updates.timezone !== undefined) org.timezone = updates.timezone;
-  if (updates.billingEmail !== undefined) org.billingEmail = updates.billingEmail;
+  if (updates.billingEmail !== undefined)
+    org.billingEmail = updates.billingEmail;
   if (updates.enforce2FA !== undefined) org.enforce2FA = updates.enforce2FA;
-  if (updates.allowedIpRanges !== undefined) org.allowedIpRanges = updates.allowedIpRanges;
+  if (updates.allowedIpRanges !== undefined)
+    org.allowedIpRanges = updates.allowedIpRanges;
   if (updates.executionRetentionDays !== undefined)
     org.executionRetentionDays = updates.executionRetentionDays;
   if (updates.auditRetentionDays !== undefined)
@@ -750,7 +771,10 @@ organizationRouter.get("/:organizationId/members", (req, res) => {
 
   const total = mappedMembers.length;
   const startIndex = (page - 1) * pageSize;
-  const paginatedMembers = mappedMembers.slice(startIndex, startIndex + pageSize);
+  const paginatedMembers = mappedMembers.slice(
+    startIndex,
+    startIndex + pageSize,
+  );
 
   res.json({
     success: true,
@@ -812,6 +836,23 @@ organizationRouter.post("/:organizationId/members", async (req, res) => {
   }
 
   const { email, role } = parseResult.data;
+
+  const seatQuota = entitlementService.checkSeatQuota(orgId, 1);
+  if (!seatQuota.allowed) {
+    res.status(402).json({
+      success: false,
+      data: null,
+      error: {
+        code: seatQuota.reason,
+        message: seatQuota.message,
+        details: {
+          limit: seatQuota.limit,
+          currentUsage: seatQuota.currentUsage,
+        },
+      },
+    });
+    return;
+  }
 
   // Non-owners cannot assign OWNER role
   if (role === "OWNER" && callerMem.role !== "OWNER") {
@@ -1156,6 +1197,23 @@ organizationRouter.post("/:organizationId/invitations", (req, res) => {
 
   const { email, role } = parseResult.data;
 
+  const seatQuota = entitlementService.checkSeatQuota(orgId, 1);
+  if (!seatQuota.allowed) {
+    res.status(402).json({
+      success: false,
+      data: null,
+      error: {
+        code: seatQuota.reason,
+        message: seatQuota.message,
+        details: {
+          limit: seatQuota.limit,
+          currentUsage: seatQuota.currentUsage,
+        },
+      },
+    });
+    return;
+  }
+
   // Non-owners cannot invite someone as OWNER
   if (role === "OWNER" && callerMem.role !== "OWNER") {
     res.status(403).json({
@@ -1205,7 +1263,8 @@ organizationRouter.post("/:organizationId/invitations", (req, res) => {
       data: null,
       error: {
         code: "INVITATION_ALREADY_EXISTS",
-        message: "An active invitation has already been sent to this email address.",
+        message:
+          "An active invitation has already been sent to this email address.",
       },
     });
     return;
@@ -1287,7 +1346,10 @@ organizationRouter.get("/:organizationId/invitations", (req, res) => {
   }
 
   const safeInvitations = invitations
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )
     .map((inv) => ({
       id: inv.id,
       organizationId: inv.organizationId,
@@ -1347,7 +1409,8 @@ organizationRouter.post(
         data: null,
         error: {
           code: "INVALID_STATE",
-          message: "Cannot revoke an invitation that has already been accepted.",
+          message:
+            "Cannot revoke an invitation that has already been accepted.",
         },
       });
       return;
@@ -1427,8 +1490,12 @@ organizationRouter.post("/:organizationId/api-keys", (req, res) => {
     return;
   }
 
-  const { name, scopes, expiresInDays } = parseResult.data;
-  const rawToken = "ff_live_" + crypto.randomBytes(24).toString("hex");
+  const { name, scopes, expiresInDays, workspaceId } = parseResult.data;
+  const isSandbox =
+    req.headers["x-flowforge-environment"] === "sandbox" || req.isSandbox;
+  const rawToken =
+    (isSandbox ? "ff_test_" : "ff_live_") +
+    crypto.randomBytes(24).toString("hex");
   const keyPrefix = rawToken.slice(0, 16);
   const keyHash = crypto.createHash("sha256").update(rawToken).digest("hex");
 
@@ -1440,6 +1507,7 @@ organizationRouter.post("/:organizationId/api-keys", (req, res) => {
   const apiKeyRecord: ApiKeyRecord = {
     id: keyId,
     organizationId: orgId,
+    workspaceId,
     name,
     keyPrefix,
     keyHash,
@@ -1457,7 +1525,7 @@ organizationRouter.post("/:organizationId/api-keys", (req, res) => {
     action: "organization.api_key.created",
     resourceType: "api_key",
     resourceId: keyId,
-    metadata: { name, keyPrefix, scopes, expiresAt },
+    metadata: { name, keyPrefix, scopes, expiresAt, workspaceId },
     ipAddress: req.ip,
   });
 
@@ -1466,6 +1534,7 @@ organizationRouter.post("/:organizationId/api-keys", (req, res) => {
     data: {
       id: keyId,
       organizationId: orgId,
+      workspaceId,
       name,
       keyPrefix,
       scopes,
@@ -1476,6 +1545,154 @@ organizationRouter.post("/:organizationId/api-keys", (req, res) => {
     error: null,
   });
 });
+
+// Get Single API Key Metadata
+organizationRouter.get("/:organizationId/api-keys/:keyId", (req, res) => {
+  const orgId = req.params.organizationId;
+  const callerMem = resolveCallerMembership(req, res, orgId);
+  if (!callerMem) return;
+
+  if (!hasPermission(callerMem.role, "api-keys:read")) {
+    res.status(403).json({
+      success: false,
+      data: null,
+      error: {
+        code: "FORBIDDEN",
+        message: "Requires permission 'api-keys:read'.",
+      },
+    });
+    return;
+  }
+
+  const apiKey = apiStore.apiKeys.get(req.params.keyId);
+  if (!apiKey || apiKey.organizationId !== orgId) {
+    res.status(404).json({
+      success: false,
+      data: null,
+      error: { code: "NOT_FOUND", message: "API key not found." },
+    });
+    return;
+  }
+
+  res.json({
+    success: true,
+    data: {
+      id: apiKey.id,
+      name: apiKey.name,
+      workspaceId: apiKey.workspaceId,
+      keyPrefix: apiKey.keyPrefix,
+      scopes: apiKey.scopes,
+      lastUsedAt: apiKey.lastUsedAt,
+      expiresAt: apiKey.expiresAt,
+      revokedAt: apiKey.revokedAt,
+      createdAt: apiKey.createdAt,
+    },
+    error: null,
+  });
+});
+
+// Rotate API Key Secret
+organizationRouter.post(
+  "/:organizationId/api-keys/:keyId/rotate",
+  (req, res) => {
+    const orgId = req.params.organizationId;
+    const callerMem = resolveCallerMembership(req, res, orgId);
+    if (!callerMem) return;
+
+    if (req.isApiKey) {
+      res.status(403).json({
+        success: false,
+        data: null,
+        error: {
+          code: "FORBIDDEN",
+          message: "API keys cannot rotate API keys.",
+        },
+      });
+      return;
+    }
+
+    if (!hasPermission(callerMem.role, "api-keys:write")) {
+      res.status(403).json({
+        success: false,
+        data: null,
+        error: {
+          code: "FORBIDDEN",
+          message: "Requires permission 'api-keys:write'.",
+        },
+      });
+      return;
+    }
+
+    const apiKey = apiStore.apiKeys.get(req.params.keyId);
+    if (!apiKey || apiKey.organizationId !== orgId) {
+      res.status(404).json({
+        success: false,
+        data: null,
+        error: { code: "NOT_FOUND", message: "API key not found." },
+      });
+      return;
+    }
+
+    if (apiKey.revokedAt) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: {
+          code: "REVOKED_API_KEY",
+          message: "Cannot rotate a revoked API key.",
+        },
+      });
+      return;
+    }
+
+    const parseResult = RotateApiKeySchema.safeParse(req.body || {});
+    const expiresInDays = parseResult.success
+      ? parseResult.data.expiresInDays
+      : undefined;
+
+    const isSandbox = apiKey.keyPrefix.startsWith("ff_test_");
+    const newRawToken =
+      (isSandbox ? "ff_test_" : "ff_live_") +
+      crypto.randomBytes(24).toString("hex");
+    const newPrefix = newRawToken.slice(0, 16);
+    const newHash = crypto
+      .createHash("sha256")
+      .update(newRawToken)
+      .digest("hex");
+
+    apiKey.keyPrefix = newPrefix;
+    apiKey.keyHash = newHash;
+    if (expiresInDays) {
+      apiKey.expiresAt = new Date(
+        Date.now() + expiresInDays * 24 * 60 * 60 * 1000,
+      );
+    }
+    apiStore.apiKeys.set(apiKey.id, apiKey);
+
+    apiStore.recordAudit({
+      organizationId: orgId,
+      userId: req.user!.id,
+      action: "organization.api_key.rotated",
+      resourceType: "api_key",
+      resourceId: apiKey.id,
+      metadata: { keyPrefix: newPrefix, name: apiKey.name },
+      ipAddress: req.ip,
+    });
+
+    res.json({
+      success: true,
+      data: {
+        id: apiKey.id,
+        name: apiKey.name,
+        keyPrefix: newPrefix,
+        scopes: apiKey.scopes,
+        expiresAt: apiKey.expiresAt?.toISOString(),
+        token: newRawToken, // Displayed ONLY once upon rotation!
+      },
+      error: null,
+    });
+  },
+);
 
 // List API Keys
 organizationRouter.get("/:organizationId/api-keys", (req, res) => {
@@ -1497,7 +1714,10 @@ organizationRouter.get("/:organizationId/api-keys", (req, res) => {
 
   const keys = Array.from(apiStore.apiKeys.values())
     .filter((k) => k.organizationId === orgId)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )
     .map((k) => ({
       id: k.id,
       name: k.name,
@@ -1610,7 +1830,7 @@ organizationRouter.post("/:organizationId/retention/cleanup", (req, res) => {
   }
 
   const parseResult = RetentionCleanupSchema.safeParse(req.body);
-  const dryRun = parseResult.success ? parseResult.data.dryRun ?? true : true;
+  const dryRun = parseResult.success ? (parseResult.data.dryRun ?? true) : true;
 
   const org = apiStore.organizations.get(orgId);
   const retentionDays =
@@ -1699,7 +1919,9 @@ organizationRouter.get("/:organizationId/audit-logs", (req, res) => {
   const actionFilter = req.query.action as string;
   const resourceTypeFilter = req.query.resourceType as string;
   const userIdFilter = req.query.userId as string;
-  const fromFilter = req.query.from ? new Date(req.query.from as string) : undefined;
+  const fromFilter = req.query.from
+    ? new Date(req.query.from as string)
+    : undefined;
   const toFilter = req.query.to ? new Date(req.query.to as string) : undefined;
 
   let logs = apiStore.auditLogs.filter((l) => l.organizationId === orgId);
@@ -1720,7 +1942,9 @@ organizationRouter.get("/:organizationId/audit-logs", (req, res) => {
     logs = logs.filter((l) => new Date(l.createdAt) < toFilter);
   }
 
-  logs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  logs.sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
 
   const total = logs.length;
   const startIndex = (page - 1) * pageSize;
@@ -1743,308 +1967,367 @@ organizationRouter.get("/:organizationId/audit-logs", (req, res) => {
  * GET /api/v1/organizations/:organizationId/activities
  * Organization-wide team activity feed.
  */
-organizationRouter.get("/:organizationId/activities", (req: Request, res: Response) => {
-  const orgId = req.params.organizationId;
-  if (req.organizationId !== orgId) {
-    res.status(403).json({
-      success: false,
-      data: null,
-      error: { code: "FORBIDDEN", message: "Cross-organization activity access is forbidden." },
+organizationRouter.get(
+  "/:organizationId/activities",
+  (req: Request, res: Response) => {
+    const orgId = req.params.organizationId;
+    if (req.organizationId !== orgId) {
+      res.status(403).json({
+        success: false,
+        data: null,
+        error: {
+          code: "FORBIDDEN",
+          message: "Cross-organization activity access is forbidden.",
+        },
+      });
+      return;
+    }
+
+    const queryParse = PaginationQuerySchema.safeParse(req.query);
+    const { page, pageSize } = queryParse.success
+      ? queryParse.data
+      : { page: 1, pageSize: 20 };
+
+    const typeFilter = req.query.type as string;
+    const workflowIdFilter = req.query.workflowId as string;
+    const userIdFilter = req.query.userId as string;
+
+    let activities = apiStore.activities.filter(
+      (a) => a.organizationId === orgId,
+    );
+    if (typeFilter) {
+      activities = activities.filter((a) => a.type === typeFilter);
+    }
+    if (workflowIdFilter) {
+      activities = activities.filter((a) => a.workflowId === workflowIdFilter);
+    }
+    if (userIdFilter) {
+      activities = activities.filter((a) => a.userId === userIdFilter);
+    }
+
+    activities.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+
+    const total = activities.length;
+    const startIndex = (page - 1) * pageSize;
+    const paginated = activities
+      .slice(startIndex, startIndex + pageSize)
+      .map((a) => {
+        const u = a.userId ? apiStore.users.get(a.userId) : null;
+        const profile = u
+          ? {
+              id: u.id,
+              email: u.email,
+              firstName: u.firstName,
+              lastName: u.lastName,
+            }
+          : null;
+        return {
+          ...a,
+          user: profile,
+          actor: profile,
+        };
+      });
+
+    res.json({
+      success: true,
+      data: paginated,
+      meta: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize) || 1,
+      },
+      error: null,
     });
-    return;
-  }
-
-  const queryParse = PaginationQuerySchema.safeParse(req.query);
-  const { page, pageSize } = queryParse.success ? queryParse.data : { page: 1, pageSize: 20 };
-
-  const typeFilter = req.query.type as string;
-  const workflowIdFilter = req.query.workflowId as string;
-  const userIdFilter = req.query.userId as string;
-
-  let activities = apiStore.activities.filter((a) => a.organizationId === orgId);
-  if (typeFilter) {
-    activities = activities.filter((a) => a.type === typeFilter);
-  }
-  if (workflowIdFilter) {
-    activities = activities.filter((a) => a.workflowId === workflowIdFilter);
-  }
-  if (userIdFilter) {
-    activities = activities.filter((a) => a.userId === userIdFilter);
-  }
-
-  activities.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-  const total = activities.length;
-  const startIndex = (page - 1) * pageSize;
-  const paginated = activities.slice(startIndex, startIndex + pageSize).map((a) => {
-    const u = a.userId ? apiStore.users.get(a.userId) : null;
-    const profile = u ? { id: u.id, email: u.email, firstName: u.firstName, lastName: u.lastName } : null;
-    return {
-      ...a,
-      user: profile,
-      actor: profile,
-    };
-  });
-
-  res.json({
-    success: true,
-    data: paginated,
-    meta: {
-      page,
-      pageSize,
-      total,
-      totalPages: Math.ceil(total / pageSize) || 1,
-    },
-    error: null,
-  });
-});
+  },
+);
 
 /**
  * GET /api/v1/organizations/:organizationId/imports
  * Organization-wide workflow import history.
  */
-organizationRouter.get("/:organizationId/imports", (req: Request, res: Response) => {
-  const orgId = req.params.organizationId;
-  if (req.organizationId !== orgId) {
-    res.status(403).json({
-      success: false,
-      data: null,
-      error: { code: "FORBIDDEN", message: "Cross-organization import history access is forbidden." },
+organizationRouter.get(
+  "/:organizationId/imports",
+  (req: Request, res: Response) => {
+    const orgId = req.params.organizationId;
+    if (req.organizationId !== orgId) {
+      res.status(403).json({
+        success: false,
+        data: null,
+        error: {
+          code: "FORBIDDEN",
+          message: "Cross-organization import history access is forbidden.",
+        },
+      });
+      return;
+    }
+
+    const queryParse = PaginationQuerySchema.safeParse(req.query);
+    const { page, pageSize } = queryParse.success
+      ? queryParse.data
+      : { page: 1, pageSize: 20 };
+
+    const imports = Array.from(apiStore.workflowImports.values())
+      .filter((i) => i.organizationId === orgId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    const total = imports.length;
+    const startIndex = (page - 1) * pageSize;
+    const paginated = imports
+      .slice(startIndex, startIndex + pageSize)
+      .map((i) => {
+        const u = i.importedById ? apiStore.users.get(i.importedById) : null;
+        const wf = apiStore.workflows.get(i.workflowId);
+        return {
+          ...i,
+          workflowName: wf?.name || "Unknown Workflow",
+          importedBy: u
+            ? {
+                id: u.id,
+                email: u.email,
+                firstName: u.firstName,
+                lastName: u.lastName,
+              }
+            : null,
+        };
+      });
+
+    res.json({
+      success: true,
+      data: paginated,
+      meta: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize) || 1,
+      },
+      error: null,
     });
-    return;
-  }
-
-  const queryParse = PaginationQuerySchema.safeParse(req.query);
-  const { page, pageSize } = queryParse.success ? queryParse.data : { page: 1, pageSize: 20 };
-
-  const imports = Array.from(apiStore.workflowImports.values())
-    .filter((i) => i.organizationId === orgId)
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-
-  const total = imports.length;
-  const startIndex = (page - 1) * pageSize;
-  const paginated = imports.slice(startIndex, startIndex + pageSize).map((i) => {
-    const u = i.importedById ? apiStore.users.get(i.importedById) : null;
-    const wf = apiStore.workflows.get(i.workflowId);
-    return {
-      ...i,
-      workflowName: wf?.name || "Unknown Workflow",
-      importedBy: u
-        ? { id: u.id, email: u.email, firstName: u.firstName, lastName: u.lastName }
-        : null,
-    };
-  });
-
-  res.json({
-    success: true,
-    data: paginated,
-    meta: {
-      page,
-      pageSize,
-      total,
-      totalPages: Math.ceil(total / pageSize) || 1,
-    },
-    error: null,
-  });
-});
+  },
+);
 
 /**
  * POST /api/v1/organizations/:organizationId/export-backup
  * Bulk export of all organization workflows into a portable backup package.
  */
-organizationRouter.post("/:organizationId/export-backup", (req: Request, res: Response) => {
-  const orgId = req.params.organizationId;
-  if (req.organizationId !== orgId) {
-    res.status(403).json({
-      success: false,
-      data: null,
-      error: { code: "FORBIDDEN", message: "Cross-organization backup export is forbidden." },
-    });
-    return;
-  }
-
-  if (req.role !== "OWNER" && req.role !== "ADMIN") {
-    res.status(403).json({
-      success: false,
-      data: null,
-      error: { code: "FORBIDDEN", message: "Requires OWNER or ADMIN role to export backups." },
-    });
-    return;
-  }
-
-  const orgWorkflows = Array.from(apiStore.workflows.values()).filter(
-    (w) => w.organizationId === orgId && !w.deletedAt,
-  );
-
-  const workflowPackages = orgWorkflows.map((w) => {
-    let def = w.draftDefinition;
-    let rev = w.draftRevision || 1;
-    let vNum: number | undefined;
-
-    if (w.publishedVersionId) {
-      const v = apiStore.versions.get(w.publishedVersionId);
-      if (v) {
-        def = v.definition;
-        rev = v.versionNumber;
-        vNum = v.versionNumber;
-      }
+organizationRouter.post(
+  "/:organizationId/export-backup",
+  (req: Request, res: Response) => {
+    const orgId = req.params.organizationId;
+    if (req.organizationId !== orgId) {
+      res.status(403).json({
+        success: false,
+        data: null,
+        error: {
+          code: "FORBIDDEN",
+          message: "Cross-organization backup export is forbidden.",
+        },
+      });
+      return;
     }
 
-    return createWorkflowExportPackage({
-      name: w.name,
-      description: w.description,
-      sourceWorkflowId: w.id,
-      sourceRevision: rev,
-      sourceVersionNumber: vNum,
-      definition: def,
-      sourceAppVersion: "1.0.0",
+    if (req.role !== "OWNER" && req.role !== "ADMIN") {
+      res.status(403).json({
+        success: false,
+        data: null,
+        error: {
+          code: "FORBIDDEN",
+          message: "Requires OWNER or ADMIN role to export backups.",
+        },
+      });
+      return;
+    }
+
+    const orgWorkflows = Array.from(apiStore.workflows.values()).filter(
+      (w) => w.organizationId === orgId && !w.deletedAt,
+    );
+
+    const workflowPackages = orgWorkflows.map((w) => {
+      let def = w.draftDefinition;
+      let rev = w.draftRevision || 1;
+      let vNum: number | undefined;
+
+      if (w.publishedVersionId) {
+        const v = apiStore.versions.get(w.publishedVersionId);
+        if (v) {
+          def = v.definition;
+          rev = v.versionNumber;
+          vNum = v.versionNumber;
+        }
+      }
+
+      return createWorkflowExportPackage({
+        name: w.name,
+        description: w.description,
+        sourceWorkflowId: w.id,
+        sourceRevision: rev,
+        sourceVersionNumber: vNum,
+        definition: def,
+        sourceAppVersion: "1.0.0",
+      });
     });
-  });
 
-  const backupPackage = createOrganizationBackupPackage({
-    workflows: workflowPackages,
-    sourceOrganizationId: orgId,
-  });
+    const backupPackage = createOrganizationBackupPackage({
+      workflows: workflowPackages,
+      sourceOrganizationId: orgId,
+    });
 
-  const org = apiStore.organizations.get(orgId);
-  const orgSlug = org?.slug || "org";
-  const filename = `flowforge-backup-${orgSlug}-${new Date().toISOString().slice(0, 10)}.json`;
+    const org = apiStore.organizations.get(orgId);
+    const orgSlug = org?.slug || "org";
+    const filename = `flowforge-backup-${orgSlug}-${new Date().toISOString().slice(0, 10)}.json`;
 
-  apiStore.recordAudit({
-    organizationId: orgId,
-    userId: req.user?.id,
-    action: "organization.backup_exported",
-    resourceType: "organization_backup",
-    resourceId: orgId,
-    metadata: {
-      workflowCount: workflowPackages.length,
-      backupHash: backupPackage.integrity.hash,
-    },
-    ipAddress: req.ip,
-  });
+    apiStore.recordAudit({
+      organizationId: orgId,
+      userId: req.user?.id,
+      action: "organization.backup_exported",
+      resourceType: "organization_backup",
+      resourceId: orgId,
+      metadata: {
+        workflowCount: workflowPackages.length,
+        backupHash: backupPackage.integrity.hash,
+      },
+      ipAddress: req.ip,
+    });
 
-  res.setHeader("Content-Type", "application/json");
-  res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(filename)}"`);
-  res.json(backupPackage);
-});
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${encodeURIComponent(filename)}"`,
+    );
+    res.json(backupPackage);
+  },
+);
 
 /**
  * POST /api/v1/organizations/:organizationId/restore-backup
  * Bulk restore of workflows from a portable backup package.
  */
-organizationRouter.post("/:organizationId/restore-backup", (req: Request, res: Response) => {
-  const orgId = req.params.organizationId;
-  if (req.organizationId !== orgId) {
-    res.status(403).json({
-      success: false,
-      data: null,
-      error: { code: "FORBIDDEN", message: "Cross-organization backup restore is forbidden." },
-    });
-    return;
-  }
+organizationRouter.post(
+  "/:organizationId/restore-backup",
+  (req: Request, res: Response) => {
+    const orgId = req.params.organizationId;
+    if (req.organizationId !== orgId) {
+      res.status(403).json({
+        success: false,
+        data: null,
+        error: {
+          code: "FORBIDDEN",
+          message: "Cross-organization backup restore is forbidden.",
+        },
+      });
+      return;
+    }
 
-  if (req.role !== "OWNER" && req.role !== "ADMIN") {
-    res.status(403).json({
-      success: false,
-      data: null,
-      error: { code: "FORBIDDEN", message: "Requires OWNER or ADMIN role to restore backups." },
-    });
-    return;
-  }
+    if (req.role !== "OWNER" && req.role !== "ADMIN") {
+      res.status(403).json({
+        success: false,
+        data: null,
+        error: {
+          code: "FORBIDDEN",
+          message: "Requires OWNER or ADMIN role to restore backups.",
+        },
+      });
+      return;
+    }
 
-  const rawPayload = req.body && req.body.backupPackage ? req.body.backupPackage : req.body;
-  const parseResult = FlowForgeBackupPackageSchema.safeParse(rawPayload);
-  if (!parseResult.success) {
-    res.status(400).json({
-      success: false,
-      data: null,
-      error: {
-        code: "INVALID_BACKUP_PACKAGE",
-        message: "Invalid backup package schema.",
-        details: parseResult.error.issues,
+    const rawPayload =
+      req.body && req.body.backupPackage ? req.body.backupPackage : req.body;
+    const parseResult = FlowForgeBackupPackageSchema.safeParse(rawPayload);
+    if (!parseResult.success) {
+      res.status(400).json({
+        success: false,
+        data: null,
+        error: {
+          code: "INVALID_BACKUP_PACKAGE",
+          message: "Invalid backup package schema.",
+          details: parseResult.error.issues,
+        },
+      });
+      return;
+    }
+
+    const backup = parseResult.data;
+    const now = new Date();
+    const restoredWorkflows = [];
+
+    for (const pkg of backup.workflows) {
+      const isIntegrityValid = verifyPackageIntegrity(pkg);
+      if (!isIntegrityValid) {
+        continue; // Skip corrupted items in bulk restore
+      }
+
+      let workflowName = pkg.metadata.name;
+      let suffix = 1;
+      while (
+        Array.from(apiStore.workflows.values()).some(
+          (w) =>
+            w.organizationId === orgId &&
+            !w.deletedAt &&
+            w.name.toLowerCase() === workflowName.toLowerCase(),
+        )
+      ) {
+        workflowName = `${pkg.metadata.name} (Restored ${suffix++})`;
+      }
+
+      const newWfId = `wf_${crypto.randomUUID()}`;
+      const newWf: WorkflowRecord = {
+        id: newWfId,
+        organizationId: orgId,
+        name: workflowName,
+        description: pkg.metadata.description,
+        status: "DRAFT",
+        draftRevision: 1,
+        createdById: req.user?.id,
+        lastUpdatedById: req.user?.id,
+        draftDefinition: pkg.definition,
+        createdAt: now,
+        updatedAt: now,
+      };
+      apiStore.workflows.set(newWfId, newWf);
+
+      const importId = `wfi_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
+      apiStore.workflowImports.set(importId, {
+        id: importId,
+        organizationId: orgId,
+        workflowId: newWfId,
+        sourceWorkflowId: pkg.metadata.sourceWorkflowId || null,
+        sourceRevision: pkg.metadata.sourceRevision || null,
+        packageHash: pkg.integrity.hash,
+        packageFormatVersion: pkg.formatVersion,
+        conflictStrategy: "CREATE_NEW",
+        connectorMappings: {},
+        compatibilityStatus: "COMPATIBLE",
+        importedById: req.user?.id || null,
+        createdAt: now,
+      });
+
+      restoredWorkflows.push(newWf);
+    }
+
+    apiStore.recordAudit({
+      organizationId: orgId,
+      userId: req.user?.id,
+      action: "organization.backup_restored",
+      resourceType: "organization_backup",
+      resourceId: orgId,
+      metadata: {
+        restoredCount: restoredWorkflows.length,
+        backupHash: backup.integrity.hash,
       },
-    });
-    return;
-  }
-
-  const backup = parseResult.data;
-  const now = new Date();
-  const restoredWorkflows = [];
-
-  for (const pkg of backup.workflows) {
-    const isIntegrityValid = verifyPackageIntegrity(pkg);
-    if (!isIntegrityValid) {
-      continue; // Skip corrupted items in bulk restore
-    }
-
-    let workflowName = pkg.metadata.name;
-    let suffix = 1;
-    while (
-      Array.from(apiStore.workflows.values()).some(
-        (w) =>
-          w.organizationId === orgId &&
-          !w.deletedAt &&
-          w.name.toLowerCase() === workflowName.toLowerCase(),
-      )
-    ) {
-      workflowName = `${pkg.metadata.name} (Restored ${suffix++})`;
-    }
-
-    const newWfId = `wf_${crypto.randomUUID()}`;
-    const newWf: WorkflowRecord = {
-      id: newWfId,
-      organizationId: orgId,
-      name: workflowName,
-      description: pkg.metadata.description,
-      status: "DRAFT",
-      draftRevision: 1,
-      createdById: req.user?.id,
-      lastUpdatedById: req.user?.id,
-      draftDefinition: pkg.definition,
-      createdAt: now,
-      updatedAt: now,
-    };
-    apiStore.workflows.set(newWfId, newWf);
-
-    const importId = `wfi_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
-    apiStore.workflowImports.set(importId, {
-      id: importId,
-      organizationId: orgId,
-      workflowId: newWfId,
-      sourceWorkflowId: pkg.metadata.sourceWorkflowId || null,
-      sourceRevision: pkg.metadata.sourceRevision || null,
-      packageHash: pkg.integrity.hash,
-      packageFormatVersion: pkg.formatVersion,
-      conflictStrategy: "CREATE_NEW",
-      connectorMappings: {},
-      compatibilityStatus: "COMPATIBLE",
-      importedById: req.user?.id || null,
-      createdAt: now,
+      ipAddress: req.ip,
     });
 
-    restoredWorkflows.push(newWf);
-  }
-
-  apiStore.recordAudit({
-    organizationId: orgId,
-    userId: req.user?.id,
-    action: "organization.backup_restored",
-    resourceType: "organization_backup",
-    resourceId: orgId,
-    metadata: {
-      restoredCount: restoredWorkflows.length,
-      backupHash: backup.integrity.hash,
-    },
-    ipAddress: req.ip,
-  });
-
-  res.status(201).json({
-    success: true,
-    data: {
-      restoredCount: restoredWorkflows.length,
-      workflows: restoredWorkflows,
-      errors: [],
-    },
-    error: null,
-  });
-});
+    res.status(201).json({
+      success: true,
+      data: {
+        restoredCount: restoredWorkflows.length,
+        workflows: restoredWorkflows,
+        errors: [],
+      },
+      error: null,
+    });
+  },
+);

@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { getApiBaseUrl } from "@/lib/api-client";
 import {
   ArrowLeft,
   GitBranch,
@@ -111,19 +112,19 @@ export default function WorkflowLifecyclePage() {
   const [rollbackEnv, setRollbackEnv] = useState<
     "development" | "staging" | "production"
   >("production");
-  const [rollbackTargetVersionId, setRollbackTargetVersionId] = useState<string>("");
+  const [rollbackTargetVersionId, setRollbackTargetVersionId] =
+    useState<string>("");
   const [rollbackNotes, setRollbackNotes] = useState<string>("");
   const [rollbackLoading, setRollbackLoading] = useState(false);
 
   const [showCompareModal, setShowCompareModal] = useState(false);
   const [compareBaseId, setCompareBaseId] = useState<string>("");
   const [compareTargetId, setCompareTargetId] = useState<string>("");
-  const [comparisonResult, setComparisonResult] = useState<VersionComparisonResult | null>(
-    null,
-  );
+  const [comparisonResult, setComparisonResult] =
+    useState<VersionComparisonResult | null>(null);
   const [compareLoading, setCompareLoading] = useState(false);
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+  const apiUrl = getApiBaseUrl();
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -140,9 +141,12 @@ export default function WorkflowLifecyclePage() {
       }
 
       // 2. Fetch Versions
-      const verRes = await fetch(`${apiUrl}/api/v1/workflows/${workflowId}/versions`, {
-        credentials: "include",
-      });
+      const verRes = await fetch(
+        `${apiUrl}/api/v1/workflows/${workflowId}/versions`,
+        {
+          credentials: "include",
+        },
+      );
       if (verRes.ok) {
         const verData = await verRes.json();
         if (verData.success) {
@@ -154,9 +158,12 @@ export default function WorkflowLifecyclePage() {
       }
 
       // 3. Fetch Deployments
-      const depRes = await fetch(`${apiUrl}/api/v1/workflows/${workflowId}/deployments`, {
-        credentials: "include",
-      });
+      const depRes = await fetch(
+        `${apiUrl}/api/v1/workflows/${workflowId}/deployments`,
+        {
+          credentials: "include",
+        },
+      );
       if (depRes.ok) {
         const depData = await depRes.json();
         if (depData.success) {
@@ -168,7 +175,8 @@ export default function WorkflowLifecyclePage() {
       setWorkflow({
         id: workflowId,
         name: "Enterprise Invoice Processing",
-        description: "Automated extraction, approval routing, and ERP ledger dispatch.",
+        description:
+          "Automated extraction, approval routing, and ERP ledger dispatch.",
         status: "ACTIVE",
         draftRevision: 3,
         publishedVersionId: "ver_demo_2",
@@ -178,7 +186,8 @@ export default function WorkflowLifecyclePage() {
         {
           id: "ver_demo_2",
           versionNumber: 2,
-          contentHash: "4f7a9c8b1234567890abcdef1234567890abcdef1234567890abcdef12345678",
+          contentHash:
+            "4f7a9c8b1234567890abcdef1234567890abcdef1234567890abcdef12345678",
           releaseNotes: "Add manager approval threshold and retry policies.",
           createdAt: new Date().toISOString(),
           definition: { nodes: [], edges: [] },
@@ -186,7 +195,8 @@ export default function WorkflowLifecyclePage() {
         {
           id: "ver_demo_1",
           versionNumber: 1,
-          contentHash: "9a8b7c6d1234567890abcdef1234567890abcdef1234567890abcdef12345678",
+          contentHash:
+            "9a8b7c6d1234567890abcdef1234567890abcdef1234567890abcdef12345678",
           releaseNotes: "Initial release with webhook trigger.",
           createdAt: new Date(Date.now() - 86400000).toISOString(),
           definition: { nodes: [], edges: [] },
@@ -237,16 +247,19 @@ export default function WorkflowLifecyclePage() {
     setSuccessMsg(null);
 
     try {
-      const res = await fetch(`${apiUrl}/api/v1/workflows/${workflowId}/promote`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          versionId: promoteVersionId,
-          targetEnvironment: promoteTargetEnv,
-          releaseNotes: promoteNotes.trim() || undefined,
-        }),
-      });
+      const res = await fetch(
+        `${apiUrl}/api/v1/workflows/${workflowId}/promote`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            versionId: promoteVersionId,
+            targetEnvironment: promoteTargetEnv,
+            releaseNotes: promoteNotes.trim() || undefined,
+          }),
+        },
+      );
 
       const body = await res.json();
       if (!res.ok || !body.success) {
@@ -337,7 +350,9 @@ export default function WorkflowLifecyclePage() {
         );
         await fetchData();
       } else {
-        setErrorMsg(body.error?.message || "Failed to restore version to draft.");
+        setErrorMsg(
+          body.error?.message || "Failed to restore version to draft.",
+        );
       }
     } catch (err: any) {
       setErrorMsg(err.message || "Error restoring version to draft.");
@@ -368,8 +383,12 @@ export default function WorkflowLifecyclePage() {
     }
   };
 
-  const getActiveDeployment = (env: "development" | "staging" | "production") => {
-    return deployments.find((d) => d.environment === env && d.status === "ACTIVE");
+  const getActiveDeployment = (
+    env: "development" | "staging" | "production",
+  ) => {
+    return deployments.find(
+      (d) => d.environment === env && d.status === "ACTIVE",
+    );
   };
 
   const getVersionById = (verId?: string) => {
@@ -379,17 +398,17 @@ export default function WorkflowLifecyclePage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
       {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
         <div className="space-y-1">
           <div className="flex items-center gap-3">
             <Link
               href="/workflows"
-              className="p-1 text-slate-400 hover:text-slate-700 rounded-md transition"
+              className="p-1 text-slate-400 hover:text-slate-700 dark:text-slate-300 rounded-md transition"
               title="Back to Workflows"
             >
               <ArrowLeft className="w-5 h-5" />
             </Link>
-            <h1 className="text-2xl font-bold text-slate-900">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
               {workflow?.name || "Workflow"}
             </h1>
             <span
@@ -401,12 +420,13 @@ export default function WorkflowLifecyclePage() {
             >
               {workflow?.status || "DRAFT"}
             </span>
-            <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+            <span className="text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-800">
               Draft Rev #{workflow?.draftRevision || 0}
             </span>
           </div>
-          <p className="text-sm text-slate-500 pl-8">
-            {workflow?.description || "Manage immutable versions, environment deployments, and promotions."}
+          <p className="text-sm text-slate-500 dark:text-slate-400 pl-8">
+            {workflow?.description ||
+              "Manage immutable versions, environment deployments, and promotions."}
           </p>
         </div>
 
@@ -422,9 +442,9 @@ export default function WorkflowLifecyclePage() {
               }
               setShowCompareModal(true);
             }}
-            className="inline-flex items-center gap-2 px-3.5 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 transition shadow-sm"
+            className="inline-flex items-center gap-2 px-3.5 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:bg-slate-800/50 transition shadow-sm"
           >
-            <Diff className="w-4 h-4 text-slate-500" />
+            <Diff className="w-4 h-4 text-slate-500 dark:text-slate-400" />
             <span>Compare Versions</span>
           </button>
 
@@ -435,7 +455,7 @@ export default function WorkflowLifecyclePage() {
               }
               setShowPromoteModal(true);
             }}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition shadow-sm"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition shadow-sm"
           >
             <Rocket className="w-4 h-4" />
             <span>Promote / Deploy</span>
@@ -459,7 +479,10 @@ export default function WorkflowLifecyclePage() {
             <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
             <span>{errorMsg}</span>
           </div>
-          <button onClick={() => setErrorMsg(null)} className="text-red-500 hover:text-red-700">
+          <button
+            onClick={() => setErrorMsg(null)}
+            className="text-red-500 hover:text-red-700"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -471,7 +494,10 @@ export default function WorkflowLifecyclePage() {
             <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
             <span>{successMsg}</span>
           </div>
-          <button onClick={() => setSuccessMsg(null)} className="text-emerald-500 hover:text-emerald-700">
+          <button
+            onClick={() => setSuccessMsg(null)}
+            className="text-emerald-500 hover:text-emerald-700"
+          >
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -481,12 +507,14 @@ export default function WorkflowLifecyclePage() {
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Layers className="w-5 h-5 text-teal-600" />
-            <h2 className="text-lg font-bold text-slate-900">Environment Deployments</h2>
+            <Layers className="w-5 h-5 text-indigo-600" />
+            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+              Environment Deployments
+            </h2>
           </div>
           <button
             onClick={() => fetchData()}
-            className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 transition"
+            className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:text-slate-200 transition"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Refresh</span>
@@ -496,7 +524,9 @@ export default function WorkflowLifecyclePage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {(["development", "staging", "production"] as const).map((env) => {
             const activeDep = getActiveDeployment(env);
-            const activeVer = activeDep ? getVersionById(activeDep.workflowVersionId) : null;
+            const activeVer = activeDep
+              ? getVersionById(activeDep.workflowVersionId)
+              : null;
 
             const isProd = env === "production";
             const isStaging = env === "staging";
@@ -504,22 +534,26 @@ export default function WorkflowLifecyclePage() {
             return (
               <div
                 key={env}
-                className={`rounded-xl border bg-white p-5 shadow-sm space-y-4 relative overflow-hidden ${
+                className={`rounded-xl border bg-white dark:bg-slate-900 p-5 shadow-sm space-y-4 relative overflow-hidden ${
                   isProd
                     ? "border-purple-200 ring-1 ring-purple-100"
                     : isStaging
-                    ? "border-blue-200 ring-1 ring-blue-50"
-                    : "border-slate-200"
+                      ? "border-blue-200 ring-1 ring-blue-50"
+                      : "border-slate-200 dark:border-slate-800"
                 }`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span
                       className={`w-2.5 h-2.5 rounded-full ${
-                        activeDep ? "bg-emerald-500 animate-pulse" : "bg-slate-300"
+                        activeDep
+                          ? "bg-emerald-500 animate-pulse"
+                          : "bg-slate-300"
                       }`}
                     />
-                    <h3 className="font-bold capitalize text-slate-900">{env}</h3>
+                    <h3 className="font-bold capitalize text-slate-900 dark:text-slate-100">
+                      {env}
+                    </h3>
                   </div>
                   {isProd && (
                     <span className="text-[11px] font-semibold bg-purple-100 text-purple-700 px-2 py-0.5 rounded border border-purple-200 flex items-center gap-1">
@@ -530,44 +564,50 @@ export default function WorkflowLifecyclePage() {
                 </div>
 
                 {activeDep && activeVer ? (
-                  <div className="space-y-3 bg-slate-50 rounded-lg p-3 border border-slate-100">
+                  <div className="space-y-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-100 dark:border-slate-800">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                        <Tag className="w-3.5 h-3.5 text-teal-600" />
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-indigo-600" />
                         Version v{activeVer.versionNumber}
                       </span>
-                      <span className="text-[11px] text-slate-500 font-mono">
-                        {activeVer.contentHash ? `sha256:${activeVer.contentHash.slice(0, 8)}...` : ""}
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                        {activeVer.contentHash
+                          ? `sha256:${activeVer.contentHash.slice(0, 8)}...`
+                          : ""}
                       </span>
                     </div>
 
                     {activeDep.releaseNotes && (
-                      <p className="text-xs text-slate-600 italic line-clamp-2">
+                      <p className="text-xs text-slate-600 dark:text-slate-400 italic line-clamp-2">
                         &quot;{activeDep.releaseNotes}&quot;
                       </p>
                     )}
 
                     <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
                       <Clock className="w-3 h-3" />
-                      <span>Deployed {new Date(activeDep.deployedAt).toLocaleString()}</span>
+                      <span>
+                        Deployed{" "}
+                        {new Date(activeDep.deployedAt).toLocaleString()}
+                      </span>
                     </div>
                   </div>
                 ) : (
-                  <div className="py-6 text-center text-xs text-slate-400 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                  <div className="py-6 text-center text-xs text-slate-400 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-dashed border-slate-200 dark:border-slate-800">
                     No active version deployed in {env}.
                   </div>
                 )}
 
-                <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                   <button
                     onClick={() => {
                       setPromoteTargetEnv(env);
-                      if (versions.length > 0) setPromoteVersionId(versions[0].id);
+                      if (versions.length > 0)
+                        setPromoteVersionId(versions[0].id);
                       setShowPromoteModal(true);
                     }}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition"
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 rounded-md transition"
                   >
-                    <Rocket className="w-3.5 h-3.5 text-slate-600" />
+                    <Rocket className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
                     <span>Deploy Version</span>
                   </button>
 
@@ -595,18 +635,21 @@ export default function WorkflowLifecyclePage() {
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <History className="w-5 h-5 text-teal-600" />
-            <h2 className="text-lg font-bold text-slate-900">Immutable Version History</h2>
+            <History className="w-5 h-5 text-indigo-600" />
+            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+              Immutable Version History
+            </h2>
           </div>
-          <span className="text-xs text-slate-500">
-            {versions.length} published version{versions.length === 1 ? "" : "s"}
+          <span className="text-xs text-slate-500 dark:text-slate-400">
+            {versions.length} published version
+            {versions.length === 1 ? "" : "s"}
           </span>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-600">
-              <thead className="bg-slate-50 text-xs font-semibold text-slate-700 border-b border-slate-200 uppercase tracking-wider">
+            <table className="w-full text-left text-sm text-slate-600 dark:text-slate-400">
+              <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs font-semibold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800 uppercase tracking-wider">
                 <tr>
                   <th className="px-6 py-3.5">Version</th>
                   <th className="px-6 py-3.5">Content Hash (SHA-256)</th>
@@ -618,22 +661,28 @@ export default function WorkflowLifecyclePage() {
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {versions.map((ver) => {
-                  const activeEnvs = (["development", "staging", "production"] as const).filter(
-                    (env) => getActiveDeployment(env)?.workflowVersionId === ver.id,
+                  const activeEnvs = (
+                    ["development", "staging", "production"] as const
+                  ).filter(
+                    (env) =>
+                      getActiveDeployment(env)?.workflowVersionId === ver.id,
                   );
 
                   return (
-                    <tr key={ver.id} className="hover:bg-slate-50 transition">
-                      <td className="px-6 py-4 font-bold text-slate-900 flex items-center gap-2">
-                        <Tag className="w-4 h-4 text-teal-600" />
+                    <tr
+                      key={ver.id}
+                      className="hover:bg-slate-50 dark:bg-slate-800/50 transition"
+                    >
+                      <td className="px-6 py-4 font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                        <Tag className="w-4 h-4 text-indigo-600" />
                         <span>v{ver.versionNumber}</span>
                       </td>
 
-                      <td className="px-6 py-4 font-mono text-xs text-slate-600">
+                      <td className="px-6 py-4 font-mono text-xs text-slate-600 dark:text-slate-400">
                         {ver.contentHash ? (
                           <span
                             title={ver.contentHash}
-                            className="bg-slate-100 px-2 py-1 rounded border border-slate-200"
+                            className="bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded border border-slate-200 dark:border-slate-800"
                           >
                             {ver.contentHash.slice(0, 16)}...
                           </span>
@@ -642,8 +691,12 @@ export default function WorkflowLifecyclePage() {
                         )}
                       </td>
 
-                      <td className="px-6 py-4 max-w-xs truncate text-xs text-slate-700">
-                        {ver.releaseNotes || <span className="text-slate-400 italic">No notes</span>}
+                      <td className="px-6 py-4 max-w-xs truncate text-xs text-slate-700 dark:text-slate-300">
+                        {ver.releaseNotes || (
+                          <span className="text-slate-400 italic">
+                            No notes
+                          </span>
+                        )}
                       </td>
 
                       <td className="px-6 py-4">
@@ -656,8 +709,8 @@ export default function WorkflowLifecyclePage() {
                                   env === "production"
                                     ? "bg-purple-100 text-purple-700 border border-purple-200"
                                     : env === "staging"
-                                    ? "bg-blue-100 text-blue-700 border border-blue-200"
-                                    : "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                                      ? "bg-blue-100 text-blue-700 border border-blue-200"
+                                      : "bg-emerald-100 text-emerald-700 border border-emerald-200"
                                 }`}
                               >
                                 {env}
@@ -669,7 +722,7 @@ export default function WorkflowLifecyclePage() {
                         </div>
                       </td>
 
-                      <td className="px-6 py-4 text-xs text-slate-500">
+                      <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400">
                         {new Date(ver.createdAt).toLocaleString()}
                       </td>
 
@@ -679,7 +732,7 @@ export default function WorkflowLifecyclePage() {
                             setPromoteVersionId(ver.id);
                             setShowPromoteModal(true);
                           }}
-                          className="inline-flex items-center gap-1 text-xs font-medium text-teal-600 hover:text-teal-800 transition"
+                          className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800 transition"
                         >
                           <Rocket className="w-3.5 h-3.5" />
                           <span>Deploy</span>
@@ -687,7 +740,7 @@ export default function WorkflowLifecyclePage() {
 
                         <button
                           onClick={() => handleRestoreDraft(ver.id)}
-                          className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-slate-900 transition"
+                          className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100 transition"
                           title="Restore version contents to draft"
                         >
                           <RotateCcw className="w-3.5 h-3.5" />
@@ -700,8 +753,13 @@ export default function WorkflowLifecyclePage() {
 
                 {versions.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-slate-400 text-sm">
-                      No versions published yet. Open the builder and click &quot;Publish&quot; to create your first immutable version.
+                    <td
+                      colSpan={6}
+                      className="px-6 py-8 text-center text-slate-400 text-sm"
+                    >
+                      No versions published yet. Open the builder and click
+                      &quot;Publish&quot; to create your first immutable
+                      version.
                     </td>
                   </tr>
                 )}
@@ -714,39 +772,44 @@ export default function WorkflowLifecyclePage() {
       {/* Deployment Audit Trail */}
       <section className="space-y-4">
         <div className="flex items-center gap-2">
-          <Clock className="w-5 h-5 text-teal-600" />
-          <h2 className="text-lg font-bold text-slate-900">Deployment Audit History</h2>
+          <Clock className="w-5 h-5 text-indigo-600" />
+          <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+            Deployment Audit History
+          </h2>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
           <div className="divide-y divide-slate-200">
             {deployments.map((dep) => {
               const ver = getVersionById(dep.workflowVersionId);
               return (
-                <div key={dep.id} className="p-4 flex items-center justify-between text-sm hover:bg-slate-50 transition">
+                <div
+                  key={dep.id}
+                  className="p-4 flex items-center justify-between text-sm hover:bg-slate-50 dark:bg-slate-800/50 transition"
+                >
                   <div className="flex items-center gap-3">
                     <span
                       className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
                         dep.status === "ACTIVE"
                           ? "bg-emerald-100 text-emerald-800"
                           : dep.status === "ROLLED_BACK"
-                          ? "bg-amber-100 text-amber-800"
-                          : "bg-slate-100 text-slate-600"
+                            ? "bg-amber-100 text-amber-800"
+                            : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
                       }`}
                     >
                       {dep.status}
                     </span>
 
-                    <span className="font-semibold capitalize text-slate-900">
+                    <span className="font-semibold capitalize text-slate-900 dark:text-slate-100">
                       {dep.environment}
                     </span>
 
-                    <span className="text-xs text-slate-500">
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
                       Version v{ver?.versionNumber || "?"}
                     </span>
 
                     {dep.releaseNotes && (
-                      <span className="text-xs text-slate-600 italic">
+                      <span className="text-xs text-slate-600 dark:text-slate-400 italic">
                         - &quot;{dep.releaseNotes}&quot;
                       </span>
                     )}
@@ -771,15 +834,15 @@ export default function WorkflowLifecyclePage() {
       {/* PROMOTE / DEPLOY MODAL */}
       {showPromoteModal && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl">
+          <div className="bg-white dark:bg-slate-900 rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <Rocket className="w-5 h-5 text-teal-600" />
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <Rocket className="w-5 h-5 text-indigo-600" />
                 <span>Promote / Deploy Version</span>
               </h3>
               <button
                 onClick={() => setShowPromoteModal(false)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 dark:text-slate-400"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -787,21 +850,24 @@ export default function WorkflowLifecyclePage() {
 
             <form onSubmit={handlePromote} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Target Environment
                 </label>
                 <select
                   value={promoteTargetEnv}
                   onChange={(e) =>
                     setPromoteTargetEnv(
-                      e.target.value as "development" | "staging" | "production",
+                      e.target.value as
+                        "development" | "staging" | "production",
                     )
                   }
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="development">Development</option>
                   <option value="staging">Staging</option>
-                  <option value="production">Production (Admin/Owner Only)</option>
+                  <option value="production">
+                    Production (Admin/Owner Only)
+                  </option>
                 </select>
               </div>
 
@@ -812,30 +878,36 @@ export default function WorkflowLifecyclePage() {
                     <span>Production Safeguard Active</span>
                   </div>
                   <p>
-                    Deploying to production will update the live operational workflow. Elevated permissions (OWNER or ADMIN) are required.
+                    Deploying to production will update the live operational
+                    workflow. Elevated permissions (OWNER or ADMIN) are
+                    required.
                   </p>
                 </div>
               )}
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Workflow Version
                 </label>
                 <select
                   value={promoteVersionId}
                   onChange={(e) => setPromoteVersionId(e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   {versions.map((v) => (
                     <option key={v.id} value={v.id}>
-                      v{v.versionNumber} ({v.contentHash ? `sha256:${v.contentHash.slice(0, 8)}...` : v.id})
+                      v{v.versionNumber} (
+                      {v.contentHash
+                        ? `sha256:${v.contentHash.slice(0, 8)}...`
+                        : v.id}
+                      )
                     </option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Deployment Release Notes
                 </label>
                 <textarea
@@ -843,7 +915,7 @@ export default function WorkflowLifecyclePage() {
                   value={promoteNotes}
                   onChange={(e) => setPromoteNotes(e.target.value)}
                   placeholder="Describe the changes or reason for this deployment..."
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
 
@@ -851,14 +923,14 @@ export default function WorkflowLifecyclePage() {
                 <button
                   type="button"
                   onClick={() => setShowPromoteModal(false)}
-                  className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800"
+                  className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:text-slate-200"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={promoteLoading}
-                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition disabled:opacity-50"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition disabled:opacity-50"
                 >
                   {promoteLoading ? "Deploying..." : "Confirm Deployment"}
                 </button>
@@ -871,45 +943,54 @@ export default function WorkflowLifecyclePage() {
       {/* ROLLBACK MODAL */}
       {showRollbackModal && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl">
+          <div className="bg-white dark:bg-slate-900 rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <RotateCcw className="w-5 h-5 text-amber-600" />
                 <span>Rollback {rollbackEnv.toUpperCase()}</span>
               </h3>
               <button
                 onClick={() => setShowRollbackModal(false)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 dark:text-slate-400"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleRollback} className="space-y-4">
-              <p className="text-xs text-slate-600">
-                Rolling back will safely switch active traffic to a previous immutable version without deleting history or mutating running executions.
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                Rolling back will safely switch active traffic to a previous
+                immutable version without deleting history or mutating running
+                executions.
               </p>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Target Version (Leave empty to restore previous active version)
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Target Version (Leave empty to restore previous active
+                  version)
                 </label>
                 <select
                   value={rollbackTargetVersionId}
                   onChange={(e) => setRollbackTargetVersionId(e.target.value)}
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                 >
-                  <option value="">Default (Auto-resolve previous version)</option>
+                  <option value="">
+                    Default (Auto-resolve previous version)
+                  </option>
                   {versions.map((v) => (
                     <option key={v.id} value={v.id}>
-                      v{v.versionNumber} ({v.contentHash ? `sha256:${v.contentHash.slice(0, 8)}...` : v.id})
+                      v{v.versionNumber} (
+                      {v.contentHash
+                        ? `sha256:${v.contentHash.slice(0, 8)}...`
+                        : v.id}
+                      )
                     </option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Rollback Reason / Notes
                 </label>
                 <textarea
@@ -925,7 +1006,7 @@ export default function WorkflowLifecyclePage() {
                 <button
                   type="button"
                   onClick={() => setShowRollbackModal(false)}
-                  className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800"
+                  className="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:text-slate-200"
                 >
                   Cancel
                 </button>
@@ -945,10 +1026,10 @@ export default function WorkflowLifecyclePage() {
       {/* VERSION COMPARISON MODAL */}
       {showCompareModal && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-3xl w-full p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <Diff className="w-5 h-5 text-teal-600" />
+          <div className="bg-white dark:bg-slate-900 rounded-xl max-w-3xl w-full p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <Diff className="w-5 h-5 text-indigo-600" />
                 <span>Semantic Workflow Version Comparison</span>
               </h3>
               <button
@@ -956,7 +1037,7 @@ export default function WorkflowLifecyclePage() {
                   setShowCompareModal(false);
                   setComparisonResult(null);
                 }}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 dark:text-slate-400"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -964,13 +1045,13 @@ export default function WorkflowLifecyclePage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Base Version (Original)
                 </label>
                 <select
                   value={compareBaseId}
                   onChange={(e) => setCompareBaseId(e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   {versions.map((v) => (
                     <option key={v.id} value={v.id}>
@@ -981,13 +1062,13 @@ export default function WorkflowLifecyclePage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Target Version (Modified)
                 </label>
                 <select
                   value={compareTargetId}
                   onChange={(e) => setCompareTargetId(e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   {versions.map((v) => (
                     <option key={v.id} value={v.id}>
@@ -1002,7 +1083,7 @@ export default function WorkflowLifecyclePage() {
               <button
                 onClick={runComparison}
                 disabled={compareLoading || !compareBaseId || !compareTargetId}
-                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium transition disabled:opacity-50 flex items-center gap-2"
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition disabled:opacity-50 flex items-center gap-2"
               >
                 <Diff className="w-4 h-4" />
                 <span>{compareLoading ? "Analyzing..." : "Compare"}</span>
@@ -1010,16 +1091,22 @@ export default function WorkflowLifecyclePage() {
             </div>
 
             {comparisonResult && (
-              <div className="space-y-4 pt-4 border-t border-slate-200">
-                <div className="flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs">
+              <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-200 dark:border-slate-800 text-xs">
                   <div>
-                    <span className="font-semibold text-slate-700">Status: </span>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">
+                      Status:{" "}
+                    </span>
                     <span
                       className={`font-bold ${
-                        comparisonResult.isIdentical ? "text-emerald-600" : "text-amber-600"
+                        comparisonResult.isIdentical
+                          ? "text-emerald-600"
+                          : "text-amber-600"
                       }`}
                     >
-                      {comparisonResult.isIdentical ? "IDENTICAL" : "CHANGES DETECTED"}
+                      {comparisonResult.isIdentical
+                        ? "IDENTICAL"
+                        : "CHANGES DETECTED"}
                     </span>
                   </div>
                   <div className="space-x-3">
@@ -1036,104 +1123,121 @@ export default function WorkflowLifecyclePage() {
                 </div>
 
                 {/* Modified Nodes */}
-                {comparisonResult.modifiedNodes && comparisonResult.modifiedNodes.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                      Modified Nodes
-                    </h4>
+                {comparisonResult.modifiedNodes &&
+                  comparisonResult.modifiedNodes.length > 0 && (
                     <div className="space-y-2">
-                      {comparisonResult.modifiedNodes.map((mod) => (
-                        <div
-                          key={mod.nodeId}
-                          className="p-3 bg-blue-50/50 rounded-lg border border-blue-200 text-xs space-y-1.5"
-                        >
-                          <div className="font-semibold text-blue-900">
-                            Node: {mod.nodeName} ({mod.nodeType})
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                        Modified Nodes
+                      </h4>
+                      <div className="space-y-2">
+                        {comparisonResult.modifiedNodes.map((mod) => (
+                          <div
+                            key={mod.nodeId}
+                            className="p-3 bg-blue-50/50 rounded-lg border border-blue-200 text-xs space-y-1.5"
+                          >
+                            <div className="font-semibold text-blue-900">
+                              Node: {mod.nodeName} ({mod.nodeType})
+                            </div>
+                            <div className="space-y-1 font-mono text-[11px]">
+                              {mod.diffs.map((d) => (
+                                <div
+                                  key={d.path}
+                                  className="flex items-center gap-2"
+                                >
+                                  <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                    {d.path}:
+                                  </span>
+                                  <span className="text-red-600 line-through">
+                                    {JSON.stringify(d.before)}
+                                  </span>
+                                  <ArrowRight className="w-3 h-3 text-slate-400" />
+                                  <span className="text-emerald-600 font-bold">
+                                    {JSON.stringify(d.after)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                          <div className="space-y-1 font-mono text-[11px]">
-                            {mod.diffs.map((d) => (
-                              <div key={d.path} className="flex items-center gap-2">
-                                <span className="font-semibold text-slate-700">{d.path}:</span>
-                                <span className="text-red-600 line-through">
-                                  {JSON.stringify(d.before)}
-                                </span>
-                                <ArrowRight className="w-3 h-3 text-slate-400" />
-                                <span className="text-emerald-600 font-bold">
-                                  {JSON.stringify(d.after)}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* Added Nodes */}
-                {comparisonResult.addedNodes && comparisonResult.addedNodes.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-800">
-                      Added Nodes
-                    </h4>
-                    <div className="space-y-1.5">
-                      {comparisonResult.addedNodes.map((n) => (
-                        <div
-                          key={n.id}
-                          className="p-2.5 bg-emerald-50 rounded-lg border border-emerald-200 text-xs flex items-center justify-between"
-                        >
-                          <span className="font-semibold text-emerald-900">
-                            {n.name} ({n.type})
-                          </span>
-                          <span className="text-[11px] text-emerald-700 font-mono">
-                            ID: {n.id}
-                          </span>
-                        </div>
-                      ))}
+                {comparisonResult.addedNodes &&
+                  comparisonResult.addedNodes.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-800">
+                        Added Nodes
+                      </h4>
+                      <div className="space-y-1.5">
+                        {comparisonResult.addedNodes.map((n) => (
+                          <div
+                            key={n.id}
+                            className="p-2.5 bg-emerald-50 rounded-lg border border-emerald-200 text-xs flex items-center justify-between"
+                          >
+                            <span className="font-semibold text-emerald-900">
+                              {n.name} ({n.type})
+                            </span>
+                            <span className="text-[11px] text-emerald-700 font-mono">
+                              ID: {n.id}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* Removed Nodes */}
-                {comparisonResult.removedNodes && comparisonResult.removedNodes.length > 0 && (
-                  <div className="space-y-2">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-red-800">
-                      Removed Nodes
-                    </h4>
-                    <div className="space-y-1.5">
-                      {comparisonResult.removedNodes.map((n) => (
-                        <div
-                          key={n.id}
-                          className="p-2.5 bg-red-50 rounded-lg border border-red-200 text-xs flex items-center justify-between"
-                        >
-                          <span className="font-semibold text-red-900 line-through">
-                            {n.name} ({n.type})
-                          </span>
-                          <span className="text-[11px] text-red-700 font-mono">
-                            ID: {n.id}
-                          </span>
-                        </div>
-                      ))}
+                {comparisonResult.removedNodes &&
+                  comparisonResult.removedNodes.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-red-800">
+                        Removed Nodes
+                      </h4>
+                      <div className="space-y-1.5">
+                        {comparisonResult.removedNodes.map((n) => (
+                          <div
+                            key={n.id}
+                            className="p-2.5 bg-red-50 rounded-lg border border-red-200 text-xs flex items-center justify-between"
+                          >
+                            <span className="font-semibold text-red-900 line-through">
+                              {n.name} ({n.type})
+                            </span>
+                            <span className="text-[11px] text-red-700 font-mono">
+                              ID: {n.id}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* Edge Diffs */}
-                {((comparisonResult.addedEdges && comparisonResult.addedEdges.length > 0) ||
-                  (comparisonResult.removedEdges && comparisonResult.removedEdges.length > 0)) && (
+                {((comparisonResult.addedEdges &&
+                  comparisonResult.addedEdges.length > 0) ||
+                  (comparisonResult.removedEdges &&
+                    comparisonResult.removedEdges.length > 0)) && (
                   <div className="space-y-2">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
                       Connection Edge Changes
                     </h4>
                     <div className="space-y-1 text-xs">
                       {comparisonResult.addedEdges?.map((e) => (
-                        <div key={e.id} className="text-emerald-700 flex items-center gap-1 font-mono">
+                        <div
+                          key={e.id}
+                          className="text-emerald-700 flex items-center gap-1 font-mono"
+                        >
                           <span>+ Added Edge:</span> {e.source} -&gt; {e.target}
                         </div>
                       ))}
                       {comparisonResult.removedEdges?.map((e) => (
-                        <div key={e.id} className="text-red-700 flex items-center gap-1 font-mono line-through">
-                          <span>- Removed Edge:</span> {e.source} -&gt; {e.target}
+                        <div
+                          key={e.id}
+                          className="text-red-700 flex items-center gap-1 font-mono line-through"
+                        >
+                          <span>- Removed Edge:</span> {e.source} -&gt;{" "}
+                          {e.target}
                         </div>
                       ))}
                     </div>
@@ -1141,8 +1245,9 @@ export default function WorkflowLifecyclePage() {
                 )}
 
                 {comparisonResult.isIdentical && (
-                  <div className="p-4 bg-slate-50 text-slate-600 rounded-lg text-center text-xs">
-                    Workflow structures are completely identical. No node or edge changes detected.
+                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 rounded-lg text-center text-xs">
+                    Workflow structures are completely identical. No node or
+                    edge changes detected.
                   </div>
                 )}
               </div>

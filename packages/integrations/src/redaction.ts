@@ -20,7 +20,11 @@ const SENSITIVE_KEY_PATTERNS = [
 export function isSensitiveKey(key: string): boolean {
   if (!key || typeof key !== "string") return false;
   const lower = key.toLowerCase().trim();
-  if (lower === "authorization" || lower === "proxy-authorization" || lower === "x-api-key") {
+  if (
+    lower === "authorization" ||
+    lower === "proxy-authorization" ||
+    lower === "x-api-key"
+  ) {
     return true;
   }
   return SENSITIVE_KEY_PATTERNS.some((pattern) => pattern.test(lower));
@@ -79,7 +83,10 @@ export function redactUrl(rawUrl: string): string {
   } catch {
     // If not a valid standard URL, perform regex-based replacement on query params
     return rawUrl
-      .replace(/([?&](?:token|key|api[-_]?key|secret|auth)=)[^&]+/gi, "$1[REDACTED]")
+      .replace(
+        /([?&](?:token|key|api[-_]?key|secret|auth)=)[^&]+/gi,
+        "$1[REDACTED]",
+      )
       .replace(/(:\/\/[^:]+:)[^@]+(@)/g, "$1[REDACTED]$2");
   }
 }
@@ -91,11 +98,19 @@ export function redactErrorMessage(message: string): string {
   if (!message || typeof message !== "string") return "";
   let sanitized = message;
   // Redact Bearer tokens
-  sanitized = sanitized.replace(/Bearer\s+[a-zA-Z0-9_\-\.]+/gi, "Bearer [REDACTED]");
+  sanitized = sanitized.replace(
+    /Bearer\s+[a-zA-Z0-9_\-\.]+/gi,
+    "Bearer [REDACTED]",
+  );
   // Redact URLs embedded in message
-  sanitized = sanitized.replace(/https?:\/\/[^\s"',]+/gi, (matched) => redactUrl(matched));
+  sanitized = sanitized.replace(/https?:\/\/[^\s"',]+/gi, (matched) =>
+    redactUrl(matched),
+  );
   // Redact hex secrets / long tokens
-  sanitized = sanitized.replace(/(apiKey|token|secret|password)["':\s=]+([a-zA-Z0-9_\-]{8,})/gi, "$1=[REDACTED]");
+  sanitized = sanitized.replace(
+    /(apiKey|token|secret|password)["':\s=]+([a-zA-Z0-9_\-]{8,})/gi,
+    "$1=[REDACTED]",
+  );
   return sanitized;
 }
 
