@@ -1,17 +1,17 @@
-# Graph Report - FlowForge  (2026-10-31)
+# Graph Report - FlowForge  (2026-11-01)
 
 ## Corpus Check
-- 291 files · ~324,654 words
+- 312 files · ~343,244 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 7 file(s) not represented in the graph (top: (none) 4, .example 1, .css 1)
+- Unclassified: 8 file(s) not represented in the graph (top: (none) 5, .example 1, .css 1)
 
 ## Summary
-- 2949 nodes · 5932 edges · 183 communities (167 shown, 16 thin omitted)
-- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 264 edges (avg confidence: 0.91)
+- 3158 nodes · 6239 edges · 196 communities (179 shown, 17 thin omitted)
+- Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 286 edges (avg confidence: 0.92)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `d3a316d6`
+- Built from commit: `59c50ed1`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -48,13 +48,13 @@
 - InMemoryDatabase
 - SettingsPage
 - EditorToolbar.tsx
-- Role
-- integrations/src/index.ts
+- ai.routes.ts
+- connection.routes.ts
 - aiService
 - resourceGovernanceService
 - Enterprise Event Streaming, Real-Time Data Integration, and Event-Driven Orchestration
 - template.routes.ts
-- registry.ts
+- evaluateCondition
 - FlowForge Enterprise API Platform, OAuth 2.0 Client Credentials & Developer Portal
 - integrations/package.json
 - workflow-engine/package.json
@@ -63,25 +63,25 @@
 - compilerOptions
 - entitlementService
 - search.service.ts
-- NotificationBell
+- react
 - 2. Core Tables & Field Definitions
 - with
-- config/package.json
+- config/src/index.ts
 - test-utils/package.json
-- portability.ts
+- integrations/src/index.ts
 - WorkflowExecutionRunner
-- validateWorkflowDefinition
+- template-service.ts
 - FlowForge — Enterprise SaaS Billing, Subscription Management, and Usage Metering Architecture
 - Enterprise Data Governance, Semantic Analytics, and Business Intelligence
 - FlowForge Enterprise Platform — Release Certification & Final Production Readiness Report
-- config/src/index.ts
+- steps
 - processIntelligenceService
+- ARC-001: Production Fail-Fast Enforcement for In-Memory Database Mode
 - resilienceService
-- FlowForge High Availability, Multi-Region Architecture, and Disaster-Resilient Execution
 - shared/package.json
 - compilerOptions
 - BoundedCache
-- process-intelligence.service.ts
+- BusinessOutcomeRecord
 - Detailed Task Entries
 - FlowForge Architecture
 - FlowForge Enterprise Compliance, Audit Governance, Data Retention, and Privacy Controls
@@ -91,19 +91,19 @@
 - FlowForge Policy-as-Code, Automated Governance, and Compliance Enforcement
 - FlowForge Workflow Simulation, Test Automation, and Stepwise Debugging
 - compliance.routes.ts
-- docs.routes.ts
+- FlowForge — Comprehensive Whole-Project Technical Audit Report
 - compliance.service.ts
 - redis
 - api
 - FlowForge Unified Search, Enterprise Data Discovery, and Operational Intelligence
-- CollaborationModal.tsx
+- types.ts
 - worker/src/scheduler.ts
 - web
 - Enterprise API Reliability, Webhook Security, and Developer Experience
 - target_environment
-- Quickstart & Local Setup
+- FlowForge — Resilient Multi-Tenant Business Workflow Automation Platform
 - api-lifecycle.service.ts
-- apiReliabilityService
+- 2. Priority Action Items
 - billing.provider.ts
 - BillingProviderAdapter
 - sanitizeAuditMetadata
@@ -128,7 +128,7 @@
 - test-suite
 - jobs
 - MockBillingAdapter
-- templates/page.tsx
+- redactErrorMessage
 - resources
 - 16. Workflow Import, Export, Portability, and Backup/Restore API
 - FlowForge Platform — Deployment Strategy, Zero-Downtime Rollout & Rollback Guide
@@ -138,12 +138,12 @@
 - circuit-breaker.ts
 - CircuitBreaker
 - shared-contracts.test.ts
-- compareWorkflowDefinitions
+- ConnectorRegistry
 - allowBuilds
 - policy.routes.ts
 - SubscriptionRecord
-- test/page.tsx
-- NodeHandlerRegistry
+- FlowForge — Verification and Test Execution Results
+- NodeType
 - web
 - 11. Enterprise Security, Governance, Invitations, API Keys & Retention Endpoints
 - 14. Performance, Scalability, Reliability, and Production Hardening Architecture
@@ -151,13 +151,13 @@
 - create-release-manifest
 - config/tsconfig.json
 - database/tsconfig.json
-- integrations/src/scheduler.ts
+- dashboard/page.tsx
 - integrations/tsconfig.json
 - shared/tsconfig.json
 - test-utils/tsconfig.json
 - workflow-engine/tsconfig.json
 - PolicyViolationRecord
-- ExecutionLeaseRecord
+- TASK-030: Enterprise Workflow Templates, Reusable Components, and Template Marketplace (Prompt 13)
 - healthcheck
 - healthcheck
 - worker
@@ -165,8 +165,8 @@
 - 14. Workflow Collaboration and Team Productivity API
 - FlowForge Workflow Graph JSON Specification
 - env
-- FlowForgeClient
-- .recoverInterruptedExecutions
+- workflow-access.ts
+- Phase 2: Critical Business-Flow Acceptance
 - build
 - build
 - networks
@@ -179,7 +179,7 @@
 - FlowForge Testing & Quality Strategy
 - container-validation
 - on
-- ScheduleExecutionClaimRecord
+- Graphify Architecture & Relationship Analysis Report
 - 12. Connectors & Integration Connections API
 - 6. Webhooks, Schedules & Integration Credentials Endpoints
 - 9. Workflow Versioning, Deployments & Environment Promotion Endpoints
@@ -195,47 +195,59 @@
 - next.config.js
 - verifyWebhookSignature
 - development-roadmap.md
+- FlowForge Platform — Production Observability, Incident Response & Self-Healing Operations Guide
+- connector-registry.ts
+- StructuredLogger
+- NotificationBell
+- sanitizeLogValue
+- workflows/[id]/page.tsx
+- email.ts
+- Tabs.tsx
+- PULL_REQUEST_TEMPLATE.md
+- FlowForge 40-Prompt Roadmap Traceability Matrix
+- Phase 4: Backup, Restore, and Disaster Recovery Readiness
+- Phase 3: Data Integrity, Transaction Safety & State Consistency
 
 ## God Nodes (most connected - your core abstractions)
 1. `apiStore` - 86 edges
 2. `express` - 48 edges
-3. `WorkflowDefinition` - 43 edges
-4. `app` - 42 edges
-5. `Role` - 39 edges
-6. `requireAuth()` - 36 edges
-7. `react` - 36 edges
-8. `WorkflowExecutionRunner` - 36 edges
-9. `entitlementService` - 35 edges
-10. `lucide-react` - 35 edges
+3. `react` - 45 edges
+4. `app` - 43 edges
+5. `WorkflowDefinition` - 43 edges
+6. `Role` - 39 edges
+7. `lucide-react` - 38 edges
+8. `requireAuth()` - 37 edges
+9. `WorkflowExecutionRunner` - 37 edges
+10. `entitlementService` - 35 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `7. Known Limitations & Operational Considerations` --references--> `MockAIProvider`  [INFERRED]
-  FlowForge/docs/ai-workflow-copilot-intelligent-automation.md → FlowForge/apps/api/src/services/ai/mock-ai.provider.ts
+  docs/ai-workflow-copilot-intelligent-automation.md → apps/api/src/services/ai/mock-ai.provider.ts
 - `TASK-030: Enterprise Workflow Templates, Reusable Components, and Template Marketplace (Prompt 13)` --references--> `WorkflowTemplate`  [INFERRED]
-  FlowForge/docs/agent-task-ledger.md → FlowForge/apps/web/src/app/templates/page.tsx
+  docs/agent-task-ledger.md → apps/web/src/app/templates/page.tsx
 - `Step 5: Safe Queue Re-hydration & Side-Effect Prevention` --references--> `WorkflowSchedulerService`  [INFERRED]
-  FlowForge/docs/disaster-recovery-runbook.md → FlowForge/apps/worker/src/scheduler.ts
+  docs/disaster-recovery-runbook.md → apps/worker/src/scheduler.ts
 - `Disaster Recovery Acceptance Test Evidence` --references--> `decryptCredentialData()`  [INFERRED]
-  FlowForge/docs/production-readiness-operational-acceptance.md → FlowForge/packages/integrations/src/credentials.ts
-- `12.2 Transactional Outbox Pattern` --references--> `dispatchOutboxEvent()`  [INFERRED]
-  FlowForge/docs/architecture.md → FlowForge/packages/integrations/src/event-delivery.ts
+  docs/production-readiness-operational-acceptance.md → packages/integrations/src/credentials.ts
+- `4. Architectural Observations & Coupling Analysis` --references--> `publishDomainEvent()`  [INFERRED]
+  audit/GRAPHIFY_ARCHITECTURE_FINDINGS.md → packages/integrations/src/event-delivery.ts
 
 ## Import Cycles
 - None detected.
 
-## Communities (183 total, 16 thin omitted)
+## Communities (196 total, 17 thin omitted)
 
 ### Community 0 - "shared/src/index.ts"
 Cohesion: 0.01
-Nodes (306): AcceptInvitationRequest, ActivityFilterQuery, AddCollaboratorRequest, AddWorkspaceMemberRequest, AdmissionOutcome, AiProvider, AiProviderEnum, AlertRuleTypeEnum (+298 more)
+Nodes (292): AcceptInvitationRequest, ActivityFilterQuery, AddCollaboratorRequest, AddWorkspaceMemberRequest, AdmissionOutcome, AiProvider, AiProviderEnum, AlertRuleTypeEnum (+284 more)
 
 ### Community 1 - "store.ts"
-Cohesion: 0.12
-Nodes (20): app, authRateLimiter, defaultRateLimiter, executeRateLimiter, RateLimitOptions, RateLimitRecord, rateLimitStore, resetRateLimits() (+12 more)
+Cohesion: 0.11
+Nodes (17): app, authRateLimiter, defaultRateLimiter, executeRateLimiter, RateLimitOptions, RateLimitRecord, rateLimitStore, resetRateLimits() (+9 more)
 
 ### Community 2 - "http-api.ts"
-Cohesion: 0.07
-Nodes (42): RFC-1918, TASK-029: Enterprise Integration Management, Connector Registry, and Secure Credential Lifecycle (Prompt 12), 9.1 Separation of Concerns: Connectors vs Connections, 9.2 Cryptographic Security & Credential Lifecycle, 9. Connector Registry, Integration Architecture, and Credential Security, 5. Outbound Webhooks, SSRF Defense & DLQ State Machine, Dead-Letter Queue (DLQ) Management, Delivery State Machine (+34 more)
+Cohesion: 0.18
+Nodes (13): RFC-1918, httpApiConnectorDefinition, httpApiHandler(), httpApiTester(), slackWebhookTester(), executeSafeHttpRequest(), HttpRequestOptions, HttpResponse (+5 more)
 
 ### Community 3 - "extension.service.ts"
 Cohesion: 0.06
@@ -246,20 +258,20 @@ Cohesion: 0.05
 Nodes (53): dependencies, bcrypt@^5.1.1, cookie-parser@^1.4.7, cors@^2.8.5, express@^4.21.2, @flowforge/config@workspace:*, @flowforge/database@workspace:*, @flowforge/integrations@workspace:* (+45 more)
 
 ### Community 5 - "event-delivery.ts"
-Cohesion: 0.05
-Nodes (41): handleDeliveryReplay(), TASK-032: Prompt 15 — Enterprise Notifications and Event Delivery, 1. Observability Architecture Overview, 2.1 Schema & Field Invariants, 2.2 Sensitive Field Masking, 2. Structured Logging Conventions & Redaction Standards, 3. Workflow Execution Lifecycle Event Stream, 4. Error Taxonomy & Failure Diagnostics (+33 more)
+Cohesion: 0.12
+Nodes (22): handleDeliveryReplay(), TASK-032: Prompt 15 — Enterprise Notifications and Event Delivery, 6.1 Ambiguous External Side-Effect Invariant, 6.2 Transactional Outbox Self-Healing, 6. Safe Automated Recovery (Self-Healing Operations), dispatchOutboxEvent(), executeWebhookDelivery(), formatNotificationForEvent() (+14 more)
 
 ### Community 6 - "auth.ts"
 Cohesion: 0.10
-Nodes (18): Express, requireAuth(), requirePermission(), brandingRouter, DEFAULT_BRANDING, deleteBrandingHandler(), getBrandingHandler(), getOrgId() (+10 more)
+Nodes (19): Express, requireAuth(), requirePermission(), brandingRouter, DEFAULT_BRANDING, deleteBrandingHandler(), getBrandingHandler(), getOrgId() (+11 more)
 
 ### Community 7 - "FlowForge Enterprise Platform — Release Verification & Quality Assurance Report"
 Cohesion: 0.04
 Nodes (42): AuditLog, 9. Security, Data Privacy & PCI Compliance Boundaries, 1. Data Classification & Authority, 2.1 Logical Database Backup Script (`cron` daily at 02:00 UTC), 2. Automated Backup Procedures, 3. Step-by-Step Disaster Recovery & Database Restoration, FlowForge Platform — Disaster Recovery & Backup/Restore Runbook, Step 1: Isolate & Provision Clean Target Database (+34 more)
 
 ### Community 8 - "simulation.service.ts"
-Cohesion: 0.09
-Nodes (22): SimulationExecutionOptions, WorkflowSimulationService, AssertionResult, AssertionRule, CompareWorkflowVersionsInput, CreateDebugSessionInput, CreateTestCaseInput, CreateTestFixtureInput (+14 more)
+Cohesion: 0.08
+Nodes (27): SimulationExecutionOptions, WorkflowSimulationService, 4. Graph Validation & Execution Planning Interaction, AssertionResult, AssertionRule, CompareWorkflowVersionsInput, CreateDebugSessionInput, CreateTestCaseInput (+19 more)
 
 ### Community 9 - "scripts"
 Cohesion: 0.05
@@ -270,36 +282,36 @@ Cohesion: 0.08
 Nodes (23): eventStreamingRouter, dispatchExecutionHandler(), resolveActiveWorkflowVersionId(), eventStreamingService, IngestResult, CanonicalEvent, CanonicalEventSchema, ConnectorSubscriptionRecord (+15 more)
 
 ### Community 11 - "app.ts"
-Cohesion: 0.06
-Nodes (24): idempotencyMiddleware(), rateLimit(), requestDrainingMiddleware(), aiRouter, approvalRouter, billingRouter, credentialRouter, dashboardRouter (+16 more)
+Cohesion: 0.07
+Nodes (22): metricsHandler(), idempotencyMiddleware(), rateLimit(), requestDrainingMiddleware(), approvalRouter, authRouter, billingRouter, credentialRouter (+14 more)
 
 ### Community 12 - "workflows/page.tsx"
 Cohesion: 0.15
-Nodes (27): ApprovalItem, ApprovalsPage(), ExecutionDetail, ExecutionDetailPage(), sanitizePayload(), StepRecord, ExecutionRow, ExecutionsPage() (+19 more)
+Nodes (29): ApprovalItem, ApprovalsPage(), AnalyticsDashboardPage(), ExecutionRow, ExecutionsPage(), ExecutionRow, ExecutionsPage(), WorkflowItem (+21 more)
 
 ### Community 13 - "workflow.routes.ts"
 Cohesion: 0.06
 Nodes (31): deprecationNotice(), DeprecationOptions, collaborationRouter, testingGlobalRouter, workflowSimulationRouter, workflowRouter, simulationService, RFC-8594 (+23 more)
 
 ### Community 14 - "organization.routes.ts"
-Cohesion: 0.07
-Nodes (29): Express, Request, requireWorkflowAccess(), resolveWorkflowAccess(), WorkflowAccessContext, WorkflowAccessLevel, licensingRouter, organizationRouter (+21 more)
+Cohesion: 0.06
+Nodes (27): customDomainRouter, licensingRouter, organizationRouter, scimRouter, scimTokenAdminRouter, RFC-7643, sessionGovernanceRouter, workspaceRouter (+19 more)
 
 ### Community 15 - "web/package.json"
 Cohesion: 0.07
 Nodes (37): dependencies, @flowforge/config@workspace:*, @flowforge/shared@workspace:*, @flowforge/workflow-engine@workspace:*, lucide-react@^0.475.0, next@^14.2.24, react@^18.3.1, react-dom@^18.3.1 (+29 more)
 
 ### Community 16 - "FlowForge — Production Readiness Validation, Disaster Recovery, and Operational Acceptance Report"
-Cohesion: 0.06
-Nodes (34): Member, Container Hardening, Disaster Recovery Acceptance Test Evidence, Executive Summary, External Infrastructure Prerequisites for Production Run, FlowForge — Production Readiness Validation, Disaster Recovery, and Operational Acceptance Report, Foreign Key & Referential Integrity Audit, Formal Release Decision (+26 more)
+Cohesion: 0.11
+Nodes (18): Executive Summary, External Infrastructure Prerequisites for Production Run, FlowForge — Production Readiness Validation, Disaster Recovery, and Operational Acceptance Report, Formal Release Decision, Full Test File Manifest, Monorepo Quality Gate Summary, Operator Acceptance Checklist, Phase 10: CI/CD Automation and Release Quality Gates (+10 more)
 
 ### Community 17 - "ai.service.ts"
 Cohesion: 0.14
-Nodes (14): AIProvider, ExpressionAssistContext, WorkflowEditContext, WorkflowGenerationContext, FORBIDDEN_EXPRESSION_PATTERNS, MockAIProvider, TASK-023: Workflow Execution Runtime, Node Scheduling, Persistence, and Recovery, AiEditedWorkflowResult (+6 more)
+Nodes (11): AIProvider, ExpressionAssistContext, WorkflowEditContext, WorkflowGenerationContext, MockAIProvider, AiEditedWorkflowResult, AiExpressionAssistance, AiFailureAnalysis (+3 more)
 
 ### Community 18 - "builder/page.tsx"
-Cohesion: 0.15
-Nodes (23): WorkflowBuilderContent(), WorkflowBuilderPage(), WorkflowData, EditorToolbar(), ICON_MAP, NodeConfigPanel(), NodeConfigPanelProps, ICON_MAP (+15 more)
+Cohesion: 0.20
+Nodes (15): WorkflowBuilderContent(), WorkflowBuilderPage(), WorkflowData, SaveStatus, ICON_MAP, NodeConfigPanel(), NodeConfigPanelProps, NodePalette() (+7 more)
 
 ### Community 19 - "worker/package.json"
 Cohesion: 0.08
@@ -310,60 +322,60 @@ Cohesion: 0.12
 Nodes (16): semanticAnalyticsService, RFC-4180, ConnectorMetricItem, CreateSavedReportRequest, DataQualityCheckResult, DataQualityCheckStatus, DataQualityIssue, DataQualityReport (+8 more)
 
 ### Community 21 - "react"
-Cohesion: 0.08
-Nodes (17): ConnectorHealthItem, DataQualityCheck, SavedReportItem, WorkflowRoiItem, PolicyItem, ViolationItem, QuotaPolicyItem, RESOURCE_TYPE_CONFIG (+9 more)
+Cohesion: 0.10
+Nodes (12): ConnectorHealthItem, DataQualityCheck, SavedReportItem, WorkflowRoiItem, LoginPage(), PolicyItem, ViolationItem, QuotaPolicyItem (+4 more)
 
 ### Community 22 - "test-utils/src/index.ts"
-Cohesion: 0.08
-Nodes (27): TASK-028: Enterprise Security, Governance, and Organization Administration (Prompt 11), 9.1 Immutability Boundary & Draft Management, 3. Resource Adapters & Data Mapping, BillingWebhookEventRecord, CustomDomainRecord, DeclaredCustomNode, EnterpriseLicenseRecord, ExternalIdentityRecord (+19 more)
+Cohesion: 0.10
+Nodes (21): 3.2 Workflow Authoring, Validation & Publication Path, 3. Resource Adapters & Data Mapping, BillingWebhookEventRecord, CustomDomainRecord, DeclaredCustomNode, EnterpriseLicenseRecord, IdempotencyRecord, OAuthClientRecord (+13 more)
 
 ### Community 23 - "database/package.json"
 Cohesion: 0.09
 Nodes (24): dependencies, @prisma/client@^6.3.1, devDependencies, prisma@^6.3.1, tsx@^4.19.2, typescript@^5.7.3, tsx, typescript (+16 more)
 
 ### Community 24 - "identityService"
-Cohesion: 0.14
-Nodes (7): identityService, ScimPatchOpRequest, ScimTokenRecord, ScimUserRequest, SsoConfigurationRecord, SessionRecord, UserRecord
+Cohesion: 0.12
+Nodes (12): identityService, OidcAuthSession, SamlAuthSession, ExternalIdentityRecord, GroupRoleMappingRecord, ScimPatchOpRequest, ScimTokenRecord, ScimUserRequest (+4 more)
 
 ### Community 25 - "validator.ts"
-Cohesion: 0.13
-Nodes (22): 4. Execution Planning & Branch Semantics, ApprovalNodeConfigSchema, ConditionNodeConfigSchema, ConnectorActionNodeConfigSchema, DelayNodeConfigSchema, EmailNodeConfigSchema, EndNodeConfigSchema, ExtensionNodeConfigSchema (+14 more)
+Cohesion: 0.23
+Nodes (11): ApprovalNodeConfigSchema, ConditionNodeConfigSchema, ConnectorActionNodeConfigSchema, DelayNodeConfigSchema, EmailNodeConfigSchema, EndNodeConfigSchema, ExtensionNodeConfigSchema, HttpRequestNodeConfigSchema (+3 more)
 
 ### Community 26 - "analytics.routes.ts"
-Cohesion: 0.12
-Nodes (22): analyticsRouter, TASK-027: Analytics, Monitoring, and Operational Intelligence (Prompt 10), 7.3 Structured Failure Classification & Security Redaction, AlertRuleType, AlertSeverity, AlertStatus, AnalyticsFilterSchema, CreateSavedReportSchema (+14 more)
+Cohesion: 0.11
+Nodes (25): analyticsRouter, TASK-027: Analytics, Monitoring, and Operational Intelligence (Prompt 10), AlertRuleType, AlertSeverity, AlertStatus, AnalyticsFilterSchema, CreateSavedReportSchema, FailureCategory (+17 more)
 
 ### Community 27 - "FlowForge Enterprise Identity: SSO, SAML 2.0, OIDC, SCIM 2.0, and Session Governance"
 Cohesion: 0.08
 Nodes (24): 10. Operational Acceptance Checklist, 1. Overview, 2.1 Entity Relationship Diagram, 2.2 Schema Definitions, 2. Architecture & Data Model, 3.1 Authentication Workflow, 3. OpenID Connect (OIDC) Implementation, 4.1 Service Provider Endpoints (+16 more)
 
 ### Community 28 - "next"
-Cohesion: 0.08
-Nodes (17): FailureReport, NodePerformance, OperationalTelemetry, OverviewMetrics, TimeBucket, TimeWindow, WorkflowSummary, ApiKeyItem (+9 more)
+Cohesion: 0.07
+Nodes (20): RESOURCE_TYPE_CONFIG, SavedSearchRecord, SearchResultItem, UnifiedSearchResponse, ApiKeyItem, ConnectionItem, ConnectorItem, Invitation (+12 more)
 
 ### Community 29 - "InMemoryDatabase"
-Cohesion: 0.09
-Nodes (16): FlowForge Agent Task Ledger, TASK-030: Enterprise Workflow Templates, Reusable Components, and Template Marketplace (Prompt 13), TASK-031: Workflow Collaboration, Team Productivity, Discussions, and Activity Feeds (Prompt 14), TASK-033: Workflow Import, Export, Portability, and Backup/Restore (Prompt 16), TASK-034: Performance, Scalability, Reliability, and Production Hardening, TASK-035: End-to-End Integration Testing, Security Audit, and Release QA, TASK-056: Full-System Integration and End-to-End Regression Testing (Prompt 39), TASK-057: Production Readiness, Release Certification, and Final Remediation (Prompt 40) (+8 more)
+Cohesion: 0.18
+Nodes (6): TASK-031: Workflow Collaboration, Team Productivity, Discussions, and Activity Feeds (Prompt 14), ProcessEventRecord, InMemoryDatabase, WorkflowActivityRecord, WorkflowCollaboratorRecord, WorkflowCommentRecord
 
 ### Community 30 - "SettingsPage"
 Cohesion: 0.15
 Nodes (18): SettingsPage(), fetchInitialData(), handleCreateApiKey(), handleCreateConnection(), handleCreateInvitation(), handleCreateWebhook(), handleDeleteWebhook(), handleLoadDeliveries() (+10 more)
 
 ### Community 31 - "EditorToolbar.tsx"
-Cohesion: 0.12
-Nodes (16): ActivityActor, ActivityDrawer(), ActivityDrawerProps, ActivityEvent, CommentAuthor, CommentsDrawer(), handleAddComment(), handleDeleteComment() (+8 more)
+Cohesion: 0.09
+Nodes (26): ActivityActor, ActivityDrawer(), ActivityDrawerProps, ActivityEvent, CollaborationModal(), handleAddCollaborator(), handleRemoveCollaborator(), handleTransferOwnership() (+18 more)
 
-### Community 32 - "Role"
-Cohesion: 0.10
-Nodes (14): Request, authRouter, workspaceRouter, OidcAuthSession, SamlAuthSession, AddWorkspaceMemberSchema, CreateWorkspaceSchema, GroupRoleMappingRecord (+6 more)
+### Community 32 - "ai.routes.ts"
+Cohesion: 0.11
+Nodes (19): aiRouter, extensionRouter, getCaller(), getOrgId(), listPackagesHandler(), upgradePreviewHandler(), AnalyzeFailureSchema, AssistExpressionSchema (+11 more)
 
-### Community 33 - "integrations/src/index.ts"
-Cohesion: 0.16
-Nodes (11): connectionRouter, connectorRouter, formatConnectionResponse(), WorkflowExecutionRunnerOptions, testConnection(), defaultConnectorRegistry, decryptCredentialData(), deriveKey() (+3 more)
+### Community 33 - "connection.routes.ts"
+Cohesion: 0.20
+Nodes (10): connectionRouter, connectorRouter, formatConnectionResponse(), decryptCredentialData(), deriveKey(), encryptCredentialData(), CreateConnectionSchema, RotateConnectionCredentialSchema (+2 more)
 
 ### Community 34 - "aiService"
-Cohesion: 0.18
-Nodes (10): aiService, redactApiKey(), sanitizePromptText(), scrubSecretsFromText(), AiConfigurationRecord, AssistExpressionRequest, EditWorkflowRequest, ExplainWorkflowRequest (+2 more)
+Cohesion: 0.14
+Nodes (19): Request, aiService, FORBIDDEN_EXPRESSION_PATTERNS, redactApiKey(), sanitizePromptText(), scrubSecretsFromText(), TASK-028: Enterprise Security, Governance, and Organization Administration (Prompt 11), AiConfigurationRecord (+11 more)
 
 ### Community 35 - "resourceGovernanceService"
 Cohesion: 0.12
@@ -374,12 +386,12 @@ Cohesion: 0.10
 Nodes (20): 1. Architectural Overview & Data Flow, 2. Canonical Event Envelope Specification, 3. Delivery Semantics & Idempotency, 4. Ordering, Partitioning, and Concurrency, 5. Retry, Dead-Letter Queue (DLQ), and Redrive, 6. Event Replay & Disaster Recovery, 7. Connector Event Subscriptions, 8. REST API Reference (+12 more)
 
 ### Community 37 - "template.routes.ts"
-Cohesion: 0.14
-Nodes (16): extensionRouter, getCaller(), getOrgId(), listPackagesHandler(), upgradePreviewHandler(), getCaller(), getOrgId(), handleSearch() (+8 more)
+Cohesion: 0.25
+Nodes (6): templateRouter, CreateTemplateSchema, InstantiateTemplateSchema, PublishTemplateVersionSchema, TemplateFilterQuerySchema, UpdateTemplateSchema
 
-### Community 38 - "registry.ts"
-Cohesion: 0.18
-Nodes (13): ExecutionStatus, ConditionOperator, evaluateCondition(), EvaluationContext, interpolateTemplate(), parseLiteralOrPath(), resolvePath(), ENGINE_LIMITS (+5 more)
+### Community 38 - "evaluateCondition"
+Cohesion: 0.38
+Nodes (7): ConditionOperator, evaluateCondition(), interpolateTemplate(), parseLiteralOrPath(), resolvePath(), ENGINE_LIMITS, WorkflowErrorCode
 
 ### Community 39 - "FlowForge Enterprise API Platform, OAuth 2.0 Client Credentials & Developer Portal"
 Cohesion: 0.10
@@ -394,8 +406,8 @@ Cohesion: 0.12
 Nodes (19): dependencies, @flowforge/shared@workspace:*, zod@^3.24.2, devDependencies, typescript@^5.7.3, vitest@^3.0.5, @flowforge/shared, typescript (+11 more)
 
 ### Community 42 - "ref_crypto"
-Cohesion: 0.15
-Nodes (11): handleInboundWebhook(), isSignatureReplayed(), resetSignatureReplayCache(), signatureReplayCache, webhookRouter, defaultEmailService, verifyWebhookSignature(), verifyWebhookSignatureDetailed() (+3 more)
+Cohesion: 0.11
+Nodes (10): handleInboundWebhook(), isSignatureReplayed(), resetSignatureReplayCache(), signatureReplayCache, webhookRouter, apiReliabilityService, verifyWebhookSignature(), verifyWebhookSignatureDetailed() (+2 more)
 
 ### Community 43 - "policyService"
 Cohesion: 0.27
@@ -406,12 +418,12 @@ Cohesion: 0.11
 Nodes (18): compilerOptions, allowJs, esModuleInterop, incremental, isolatedModules, jsx, lib, module (+10 more)
 
 ### Community 46 - "search.service.ts"
-Cohesion: 0.17
-Nodes (11): computeScore(), matchesDateRange(), safeSnippet(), searchService, CreateSavedSearchRequest, SavedSearchRecord, SearchableResourceType, SearchMetricsSummary (+3 more)
+Cohesion: 0.12
+Nodes (17): getCaller(), getOrgId(), handleSearch(), searchRouter, computeScore(), matchesDateRange(), safeSnippet(), searchService (+9 more)
 
-### Community 47 - "NotificationBell"
-Cohesion: 0.17
-Nodes (8): metadata, RootLayout(), Navigation(), NotificationBell(), fetchUnreadCount(), markAsRead(), SkipLink(), NotificationResponse
+### Community 47 - "react"
+Cohesion: 0.10
+Nodes (22): metadata, RootLayout(), AppShell(), NavGroup, Sidebar(), SidebarProps, getSystemTheme(), ResolvedTheme (+14 more)
 
 ### Community 48 - "2. Core Tables & Field Definitions"
 Cohesion: 0.12
@@ -421,25 +433,25 @@ Nodes (16): 1. Relational Entity Diagram, 2. Core Tables & Field Definitions, 3.
 Cohesion: 0.19
 Nodes (17): steps, steps, steps, DATABASE_URL, NODE_ENV, env, id, name (+9 more)
 
-### Community 50 - "config/package.json"
-Cohesion: 0.14
-Nodes (16): dependencies, dotenv@^16.4.7, zod@^3.24.2, devDependencies, typescript@^5.7.3, typescript, zod, main (+8 more)
+### Community 50 - "config/src/index.ts"
+Cohesion: 0.05
+Nodes (33): docsRouter, openApiYamlPath, server, Configuration & Secret Validation, Container Hardening, Phase 9: Deployment and Configuration Validation, dependencies, dotenv@^16.4.7 (+25 more)
 
 ### Community 51 - "test-utils/package.json"
 Cohesion: 0.14
 Nodes (16): dependencies, @flowforge/shared@workspace:*, @flowforge/workflow-engine@workspace:*, devDependencies, typescript@^5.7.3, @flowforge/shared, @flowforge/workflow-engine, typescript (+8 more)
 
-### Community 52 - "portability.ts"
-Cohesion: 0.19
-Nodes (14): handlePromoteWorkflow(), 6.1 Canonical Content Hashing, CompatibilityStatus, FlowForgeWorkflowPackage, FlowForgeWorkflowPackageSchema, WorkflowDependencyManifest, canonicalizeJson(), canonicalizeWorkflowDefinition() (+6 more)
+### Community 52 - "integrations/src/index.ts"
+Cohesion: 0.10
+Nodes (27): portabilityRouter, handlePromoteWorkflow(), WorkflowExecutionRunnerOptions, 6.1 Canonical Content Hashing, 5. Security Release Gate Evaluation, defaultConnectorRegistry, defaultEmailService, isPrivateOrBlockedDestination() (+19 more)
 
 ### Community 53 - "WorkflowExecutionRunner"
-Cohesion: 0.18
-Nodes (3): WorkflowExecutionRunner, 4. Graph Validation & Execution Planning Interaction, resolveNextNodes()
+Cohesion: 0.11
+Nodes (12): WorkflowExecutionRunner, 3.3 Worker Execution Runtime Path, TASK-023: Workflow Execution Runtime, Node Scheduling, Persistence, and Recovery, Reconciliation State Taxonomy, ExecutionStatus, ApprovalRecord, WorkflowExecutionRecord, resolveNextNodes() (+4 more)
 
-### Community 54 - "validateWorkflowDefinition"
-Cohesion: 0.18
-Nodes (15): TASK-022: Workflow Graph Validation, Execution Planning & Node Handler Contracts, 10.1 Template Lifecycle & Separation of Concerns, 5. Workflow Engine Package Boundaries, buildExecutionPlan(), tracePaths(), NodeHandler, StepExecutionResult, deepScrubSecrets() (+7 more)
+### Community 54 - "template-service.ts"
+Cohesion: 0.19
+Nodes (11): 10.1 Template Lifecycle & Separation of Concerns, 10. Workflow Templates, Reusable Components, and Template Marketplace, WorkflowEdge, ConfigDiff, NodeComparisonDiff, WorkflowComparisonResult, deepScrubSecrets(), instantiateGraphFromTemplate() (+3 more)
 
 ### Community 55 - "FlowForge — Enterprise SaaS Billing, Subscription Management, and Usage Metering Architecture"
 Cohesion: 0.13
@@ -453,17 +465,21 @@ Nodes (15): 1. Executive Summary, 2. Architectural Overview & Canonical Data Mod
 Cohesion: 0.12
 Nodes (15): 10. Outstanding Operational Prerequisites (Conditions for Release), 11. Final Release Recommendation, 1. Executive Summary, 2. Ponytail Execution Policy Compliance, 3. Subsystem and Feature Inventory, 4. Production-Readiness Scorecard, 6. Database Migrations and Recovery Strategy, 7. Deployment and Operations Assessment (+7 more)
 
-### Community 58 - "config/src/index.ts"
-Cohesion: 0.17
-Nodes (10): server, Configuration & Secret Validation, AppConfig, config, envBaseSchema, envSchema, getAppConfig(), redactedConfig() (+2 more)
+### Community 58 - "steps"
+Cohesion: 0.05
+Nodes (45): name, needs, runs-on, steps, concurrency, cancel-in-progress, group, name (+37 more)
 
 ### Community 59 - "processIntelligenceService"
-Cohesion: 0.27
-Nodes (4): processIntelligenceService, CreateWorkflowSloRequest, ProcessIntelligenceQuery, WorkflowSloRecord
+Cohesion: 0.19
+Nodes (8): processIntelligenceService, AiOperationalInsight, CreateWorkflowSloRequest, ProcessAnomalyFinding, ProcessBottleneckFinding, ProcessIntelligenceQuery, WorkflowOptimizationRecommendation, WorkflowSloRecord
 
-### Community 61 - "FlowForge High Availability, Multi-Region Architecture, and Disaster-Resilient Execution"
-Cohesion: 0.14
-Nodes (12): 1. Overview & Resilience Guarantees, 2. Architecture & Topology, 6. Application Health, Readiness & Request Draining, 7. Database Resilience & Transient Retries, 8. Point-in-Time Recovery & Backup Snapshot Verification, 9. API Reference & Operator Endpoints, FlowForge High Availability, Multi-Region Architecture, and Disaster-Resilient Execution, Graceful Draining Sequence (+4 more)
+### Community 60 - "ARC-001: Production Fail-Fast Enforcement for In-Memory Database Mode"
+Cohesion: 0.06
+Nodes (33): 1. Description & Evidence, 1. Description & Evidence, 1. Description & Evidence, 1. Description & Evidence, 1. Description & Evidence, 2. Impact Analysis, 2. Impact Analysis, 2. Impact Analysis (+25 more)
+
+### Community 61 - "resilienceService"
+Cohesion: 0.06
+Nodes (22): resilienceService, 1. Overview & Resilience Guarantees, 2. Architecture & Topology, 3. Distributed Execution Leases & Fencing Tokens, 4. Multi-Replica Distributed Scheduler Deduplication, 5. Uncertain Side-Effect Safety & Step Reconciliation, 6. Application Health, Readiness & Request Draining, 7. Database Resilience & Transient Retries (+14 more)
 
 ### Community 62 - "shared/package.json"
 Cohesion: 0.15
@@ -474,20 +490,16 @@ Cohesion: 0.13
 Nodes (14): compilerOptions, declaration, declarationMap, esModuleInterop, forceConsistentCasingInFileNames, isolatedModules, lib, module (+6 more)
 
 ### Community 64 - "BoundedCache"
-Cohesion: 0.15
-Nodes (5): metricsHandler(), BoundedCache, BoundedCacheOptions, publishedVersionCache, getValidationCacheStats()
-
-### Community 65 - "process-intelligence.service.ts"
-Cohesion: 0.18
-Nodes (11): 7. Operational Troubleshooting Matrix, AiOperationalInsight, BusinessOutcomeRecord, ProcessAnomalyFinding, ProcessBottleneckFinding, RecordBusinessOutcomeRequest, UpdateWorkflowSloRequest, WorkflowComparisonQuery (+3 more)
+Cohesion: 0.20
+Nodes (3): BoundedCache, BoundedCacheOptions, publishedVersionCache
 
 ### Community 66 - "Detailed Task Entries"
-Cohesion: 0.14
-Nodes (13): Detailed Task Entries, TASK-001: Repository Audit & Architecture Specifications, TASK-002: Monorepo Foundation & Tooling Setup, TASK-003: Shared Contracts, Validation Schemas & Types, TASK-004: Database Schema, Prisma Client & Migrations, TASK-018: Multi-Tenant Organization Management & RBAC API, TASK-019: Workflow Pagination, Search, Version Snapshots & Audit, TASK-020: Phase 2 Comprehensive Test Suites & Verification (+5 more)
+Cohesion: 0.15
+Nodes (12): Detailed Task Entries, TASK-001: Repository Audit & Architecture Specifications, TASK-002: Monorepo Foundation & Tooling Setup, TASK-003: Shared Contracts, Validation Schemas & Types, TASK-004: Database Schema, Prisma Client & Migrations, TASK-018: Multi-Tenant Organization Management & RBAC API, TASK-019: Workflow Pagination, Search, Version Snapshots & Audit, TASK-020: Phase 2 Comprehensive Test Suites & Verification (+4 more)
 
 ### Community 67 - "FlowForge Architecture"
-Cohesion: 0.14
-Nodes (13): 10. Workflow Templates, Reusable Components, and Template Marketplace, 11.1 Access Resolution Layer, 11.2 Contextual Discussions and Node Pinning, 11.3 Concurrency & Change Attribution, 11. Workflow Collaboration, Access Roles, and Productivity Architecture, 1. System Overview, 2. Monorepo Structure & Boundaries, 3. Storage & Resilience Guarantees (+5 more)
+Cohesion: 0.15
+Nodes (12): 11.1 Access Resolution Layer, 11.2 Contextual Discussions and Node Pinning, 11.3 Concurrency & Change Attribution, 11. Workflow Collaboration, Access Roles, and Productivity Architecture, 1. System Overview, 2. Monorepo Structure & Boundaries, 3. Storage & Resilience Guarantees, 4. Host Environment Audit & Fallbacks (+4 more)
 
 ### Community 68 - "FlowForge Enterprise Compliance, Audit Governance, Data Retention, and Privacy Controls"
 Cohesion: 0.14
@@ -513,9 +525,9 @@ Nodes (12): 1. Executive Summary, 2. Core Architectural Pillars, 3. Test Cases &
 Cohesion: 0.20
 Nodes (11): auditSearchHandler(), complianceRouter, getOrgId(), resolveCaller(), AuditExportQuerySchema, AuditQuerySchema, CreateLegalHoldSchema, CreatePrivacyRequestSchema (+3 more)
 
-### Community 75 - "docs.routes.ts"
-Cohesion: 0.17
-Nodes (5): docsRouter, openApiYamlPath, dbPackageDir, __dirname, __filename
+### Community 75 - "FlowForge — Comprehensive Whole-Project Technical Audit Report"
+Cohesion: 0.07
+Nodes (26): 10. UI/UX, Usability & Accessibility, 11. Tooling Integrity & Audit Process Evidence, 12. Audit Findings Summary, 13. Remediation & Release Roadmap, 14. Production Readiness Recommendation & Release Certification Gate, 1. Executive Summary & Overview, 2.1 Mandatory Tool Verification: Ponytail, 2.2 Mandatory Tool Verification: Graphify (+18 more)
 
 ### Community 76 - "compliance.service.ts"
 Cohesion: 0.23
@@ -533,33 +545,37 @@ Nodes (12): container_name, depends_on, env_file, networks, ports, restart, post
 Cohesion: 0.17
 Nodes (11): 1. Overview & Guarantees, 2. Architecture & Federation Model, 4. Relevance Scoring & Field Attribution, 5. Sensitive Data Redaction & Snippet Generation, 6. Saved Searches Subsystem, 7. Search Observability & Operational Metrics, 8. Web Interface (`/search`), Access Model (+3 more)
 
-### Community 80 - "CollaborationModal.tsx"
-Cohesion: 0.27
-Nodes (10): CollaborationModal(), handleAddCollaborator(), handleRemoveCollaborator(), handleTransferOwnership(), handleUpdateRole(), loadCollaborators(), CollaborationModalProps, Collaborator (+2 more)
+### Community 80 - "types.ts"
+Cohesion: 0.19
+Nodes (16): TASK-022: Workflow Graph Validation, Execution Planning & Node Handler Contracts, 5. Workflow Engine Package Boundaries, 4. Execution Planning & Branch Semantics, WorkflowNode, EvaluationContext, NextStepPlan, NodeHandler, StepExecutionResult (+8 more)
 
 ### Community 81 - "worker/src/scheduler.ts"
-Cohesion: 0.27
-Nodes (4): server, WorkflowSchedulerService, calculateNextScheduleRun(), ScheduleRecord
+Cohesion: 0.16
+Nodes (11): server, WorkflowSchedulerService, calculateNextCronRun(), calculateNextScheduleRun(), getZonedParts(), isValidCron(), isValidTimeZone(), matchField() (+3 more)
 
 ### Community 82 - "web"
 Cohesion: 0.18
 Nodes (11): condition, api, NEXT_PUBLIC_API_URL, NODE_ENV, web, container_name, depends_on, environment (+3 more)
 
 ### Community 83 - "Enterprise API Reliability, Webhook Security, and Developer Experience"
-Cohesion: 0.18
-Nodes (10): 1. Executive Summary, 2. Standardized API Error Contract, 3. API Versioning & RFC 8594 Deprecation Lifecycle, 4. Inbound Webhook Security Architecture, 6. Typed SDK & Verification Helpers, 7. Observability & Telemetry, Cryptographic Signature Verification, Deterministic `retryable` Semantics (+2 more)
+Cohesion: 0.13
+Nodes (14): 1. Executive Summary, 2. Standardized API Error Contract, 3. API Versioning & RFC 8594 Deprecation Lifecycle, 4. Inbound Webhook Security Architecture, 5. Outbound Webhooks, SSRF Defense & DLQ State Machine, 6. Typed SDK & Verification Helpers, 7. Observability & Telemetry, Cryptographic Signature Verification (+6 more)
 
 ### Community 84 - "target_environment"
 Cohesion: 0.18
 Nodes (11): target_environment, on, push, workflow_dispatch, tags, default, description, options (+3 more)
 
-### Community 85 - "Quickstart & Local Setup"
-Cohesion: 0.18
-Nodes (10): 1. Prerequisites, 2. Installation, 3. Running Automated Tests & Quality Checks, 4. Running the Development Environment, 5. Running with Docker Compose, Architecture Overview, Core Capabilities, FlowForge — Business Workflow Automation Platform (+2 more)
+### Community 85 - "FlowForge — Resilient Multi-Tenant Business Workflow Automation Platform"
+Cohesion: 0.07
+Nodes (27): Contributing to FlowForge, Development Workflow, 1. Clone the Repository, 2. Install Workspace Dependencies, 3. Generate Database Client, 4. Configure Environment Variables, Architecture Overview, Automated Verification & Testing (+19 more)
 
 ### Community 86 - "api-lifecycle.service.ts"
 Cohesion: 0.24
 Nodes (6): API_DEPRECATIONS, API_VERSION_INFO, apiLifecycleService, versionNegotiationMiddleware(), ApiDeprecationInfo, ApiVersionInfo
+
+### Community 87 - "2. Priority Action Items"
+Cohesion: 0.12
+Nodes (16): 1. Overview and Priority Framework, 2. Priority Action Items, 3. Implementation Schedule & Milestone Roadmap, 4. Release Gate Verification Checklist, FlowForge — Remediation and Release Action Plan, P1-1: Production Database Fail-Fast Verification (`ARC-001`), P1-2: Production Secret Blacklist & KMS Validation (`SEC-002`), P1-3: Edge Reverse Proxy and WAF Configuration (`SEC-001` Mitigation) (+8 more)
 
 ### Community 88 - "billing.provider.ts"
 Cohesion: 0.22
@@ -574,8 +590,8 @@ Cohesion: 0.22
 Nodes (8): OperationalAlert, 2.1 Structured Audit Schema, 2.2 Sensitive Metadata Sanitization, 2.3 Tamper-Evident SHA-256 Hash Chaining, 2.4 Integrity Verification & Anomaly Detection, 2. Centralized Audit Event Architecture & Tamper-Evident Hash Chaining, Implemented Technical Control Matrix, sanitizeAuditMetadata()
 
 ### Community 91 - "oauthService"
-Cohesion: 0.27
-Nodes (4): OAuthError, oauthService, OAuthClientRecord, OAuthTokenResponse
+Cohesion: 0.31
+Nodes (4): OAuthError, oauthService, RFC-6749, OAuthTokenResponse
 
 ### Community 92 - "api"
 Cohesion: 0.22
@@ -630,8 +646,8 @@ Cohesion: 0.33
 Nodes (9): logging, driver, options, max-file, max-size, logging, logging, logging (+1 more)
 
 ### Community 105 - "AI Workflow Copilot, Intelligent Automation, and Governed AI Execution"
-Cohesion: 0.22
-Nodes (8): 1. Overview & Architectural Principles, 2. Architecture & Service Boundaries, 3. Supported AI Operations & Endpoints, 4. Credential Governance & Provider Abstraction, 5. Safety, Defenses & Prompt Injection Mitigations, 6. Usage Metering & Quota Enforcement, 7. Known Limitations & Operational Considerations, AI Workflow Copilot, Intelligent Automation, and Governed AI Execution
+Cohesion: 0.17
+Nodes (12): TASK-026: Workflow Versioning, Publishing, and Environment Promotion (Prompt 9), 1. Overview & Architectural Principles, 2. Architecture & Service Boundaries, 3. Supported AI Operations & Endpoints, 4. Credential Governance & Provider Abstraction, 5. Safety, Defenses & Prompt Injection Mitigations, 6. Usage Metering & Quota Enforcement, 7. Known Limitations & Operational Considerations (+4 more)
 
 ### Community 106 - "10. Analytics, Monitoring, and Operational Intelligence Endpoints"
 Cohesion: 0.22
@@ -653,9 +669,9 @@ Nodes (9): test-suite, image, options, ports, redis, name, needs, runs-on (+1 mo
 Cohesion: 0.22
 Nodes (8): concurrency, cancel-in-progress, group, jobs, verify-release, name, name, runs-on
 
-### Community 112 - "templates/page.tsx"
-Cohesion: 0.29
-Nodes (7): CATEGORIES, DEFAULT_TEMPLATES, TemplatesPage(), filterDefaultTemplates(), loadTemplates(), TemplateVersion, WorkflowTemplate
+### Community 112 - "redactErrorMessage"
+Cohesion: 0.25
+Nodes (12): testConnection(), slackWebhookHandler(), smtpEmailConnectorDefinition, smtpEmailHandler(), smtpEmailTester(), createMaskedSummary(), isSensitiveKey(), maskSecret() (+4 more)
 
 ### Community 113 - "resources"
 Cohesion: 0.25
@@ -689,9 +705,9 @@ Nodes (3): CircuitBreakerOptions, CircuitBreakerRegistry, CircuitState
 Cohesion: 0.25
 Nodes (7): ApiResponse, ExecutionStatusEnum, NodeTypeEnum, RoleEnum, WorkflowDefinitionSchema, WorkflowEdgeSchema, WorkflowNodeSchema
 
-### Community 122 - "compareWorkflowDefinitions"
-Cohesion: 0.39
-Nodes (7): WorkflowEdge, compareObjects(), compareWorkflowDefinitions(), ConfigDiff, NodeComparisonDiff, redactSensitiveValues(), WorkflowComparisonResult
+### Community 122 - "ConnectorRegistry"
+Cohesion: 0.19
+Nodes (8): TASK-029: Enterprise Integration Management, Connector Registry, and Secure Credential Lifecycle (Prompt 12), 9.1 Separation of Concerns: Connectors vs Connections, 9.2 Cryptographic Security & Credential Lifecycle, 9. Connector Registry, Integration Architecture, and Credential Security, ConnectorRegistry, ConnectionStatus, ConnectorCategory, ConnectorDefinition
 
 ### Community 123 - "allowBuilds"
 Cohesion: 0.25
@@ -705,9 +721,13 @@ Nodes (5): policyRouter, CreatePolicyExceptionSchema, CreatePolicySchema, Simula
 Cohesion: 0.29
 Nodes (3): 7. Invoices & Billing History, InvoiceRecord, SubscriptionRecord
 
-### Community 126 - "test/page.tsx"
-Cohesion: 0.29
-Nodes (5): AssertionRule, NodeSimulationResult, PublishingGateEvaluation, SimulationRunResult, WorkflowTestCaseRecord
+### Community 126 - "FlowForge — Verification and Test Execution Results"
+Cohesion: 0.17
+Nodes (11): 1. Executive Summary Table, 2. Automated Test Suite Detailed Results (`vitest`), 3. Static Type Analysis (`tsc`), 4. Code Quality & Linting (`eslint`), 5. Production Web Compilation (`next build`), 6. Dependency Vulnerability Audit (`pnpm audit`), 7. Mandatory Ponytail Tool Verification, 8. Mandatory Graphify Tool Execution (+3 more)
+
+### Community 127 - "NodeType"
+Cohesion: 0.26
+Nodes (8): ICON_MAP, NodePaletteProps, NODE_REGISTRY, NodeCategory, NodeRegistryItem, PALETTE_CATEGORIES, NodeType, NodeMetadata
 
 ### Community 128 - "web"
 Cohesion: 0.29
@@ -737,9 +757,9 @@ Nodes (6): compilerOptions, outDir, rootDir, extends, include, ../../tsconfig.ba
 Cohesion: 0.29
 Nodes (6): compilerOptions, outDir, rootDir, extends, include, ../../tsconfig.base.json
 
-### Community 135 - "integrations/src/scheduler.ts"
-Cohesion: 0.52
-Nodes (6): calculateNextCronRun(), getZonedParts(), isValidCron(), isValidTimeZone(), matchField(), validateField()
+### Community 135 - "dashboard/page.tsx"
+Cohesion: 0.20
+Nodes (9): FailureReport, NodePerformance, OperationalTelemetry, OverviewMetrics, TimeBucket, TimeWindow, WorkflowSummary, StatCard() (+1 more)
 
 ### Community 136 - "integrations/tsconfig.json"
 Cohesion: 0.29
@@ -761,9 +781,9 @@ Nodes (6): compilerOptions, outDir, rootDir, extends, include, ../../tsconfig.ba
 Cohesion: 0.33
 Nodes (4): 5. Exceptions, Overrides, and Violations, Time-Limited Exceptions, Violations Tracking & Drift Management, PolicyViolationRecord
 
-### Community 141 - "ExecutionLeaseRecord"
-Cohesion: 0.33
-Nodes (4): 3. Distributed Execution Leases & Fencing Tokens, Lease Lifecycle & State Invariants, Operational Rules:, ExecutionLeaseRecord
+### Community 141 - "TASK-030: Enterprise Workflow Templates, Reusable Components, and Template Marketplace (Prompt 13)"
+Cohesion: 0.18
+Nodes (10): FlowForge Agent Task Ledger, TASK-030: Enterprise Workflow Templates, Reusable Components, and Template Marketplace (Prompt 13), TASK-033: Workflow Import, Export, Portability, and Backup/Restore (Prompt 16), TASK-034: Performance, Scalability, Reliability, and Production Hardening, TASK-035: End-to-End Integration Testing, Security Audit, and Release QA, TASK-056: Full-System Integration and End-to-End Regression Testing (Prompt 39), TASK-057: Production Readiness, Release Certification, and Final Remediation (Prompt 40), TemplateStatus (+2 more)
 
 ### Community 142 - "healthcheck"
 Cohesion: 0.53
@@ -793,9 +813,13 @@ Nodes (5): 1. Specification Overview, 2. Supported Node Types & Semantics, 3. Gr
 Cohesion: 0.33
 Nodes (6): DATABASE_URL, ENCRYPTION_KEY, NODE_ENV, REDIS_URL, SESSION_SECRET, env
 
-### Community 150 - ".recoverInterruptedExecutions"
-Cohesion: 0.40
-Nodes (3): 5. Uncertain Side-Effect Safety & Step Reconciliation, Operator Reconciliation API, Reconciliation State Taxonomy
+### Community 149 - "workflow-access.ts"
+Cohesion: 0.32
+Nodes (7): Express, Request, requireWorkflowAccess(), resolveWorkflowAccess(), WorkflowAccessContext, WorkflowAccessLevel, WorkflowRecord
+
+### Community 150 - "Phase 2: Critical Business-Flow Acceptance"
+Cohesion: 0.25
+Nodes (8): Member, Journey 1: Tenant Onboarding, User Authentication & RBAC Enforcement, Journey 2: Visual Workflow Authoring, Graph Validation & Publishing, Journey 3: Workflow Execution & Step State Transitions, Journey 4: Human-in-the-Loop Approvals Lifecycle, Journey 5: External Integration & Event Delivery Subsystem, Journey 6: Enterprise Governance, Security & Audit Trail, Phase 2: Critical Business-Flow Acceptance
 
 ### Community 151 - "build"
 Cohesion: 0.60
@@ -845,9 +869,9 @@ Nodes (5): name, needs, runs-on, steps, container-validation
 Cohesion: 0.40
 Nodes (5): on, pull_request, push, branches, branches
 
-### Community 163 - "ScheduleExecutionClaimRecord"
-Cohesion: 0.50
-Nodes (3): 4. Multi-Replica Distributed Scheduler Deduplication, Atomic Schedule Occurrence Claims, ScheduleExecutionClaimRecord
+### Community 163 - "Graphify Architecture & Relationship Analysis Report"
+Cohesion: 0.25
+Nodes (7): 1. Graphify Execution & Corpus Metrics, 2. Core Architectural Clusters & Community Hubs, 3. Key Execution and Data Flow Paths, 4. Architectural Observations & Coupling Analysis, Extraction Summary, Graphify Architecture & Relationship Analysis Report, Top Community God Nodes by Connectivity Degree
 
 ### Community 164 - "12. Connectors & Integration Connections API"
 Cohesion: 0.50
@@ -858,16 +882,16 @@ Cohesion: 0.50
 Nodes (4): 6.1 Webhook Triggers & Configuration, 6.2 Scheduled Triggers, 6.3 Integration Credentials, 6. Webhooks, Schedules & Integration Credentials Endpoints
 
 ### Community 166 - "9. Workflow Versioning, Deployments & Environment Promotion Endpoints"
-Cohesion: 0.50
-Nodes (4): 9.2 Semantic Version Comparison, 9.3 Multi-Environment Promotion & Deployments, 9.4 Execution Environment Version Resolution, 9. Workflow Versioning, Deployments & Environment Promotion Endpoints
+Cohesion: 0.40
+Nodes (5): 9.1 Immutability Boundary & Draft Management, 9.2 Semantic Version Comparison, 9.3 Multi-Environment Promotion & Deployments, 9.4 Execution Environment Version Resolution, 9. Workflow Versioning, Deployments & Environment Promotion Endpoints
 
 ### Community 167 - "13. Workflow Import, Export, Portability, and Backup/Restore Architecture"
 Cohesion: 0.50
 Nodes (4): 13.1 Package Design & Deterministic Integrity Hashing, 13.2 Multi-Tenant Isolation & Mapping Enforcement, 13.3 Provenance & Audit Ledger, 13. Workflow Import, Export, Portability, and Backup/Restore Architecture
 
 ### Community 168 - "7. Observability, Telemetry, Failure Analysis, and Operational Intelligence Architecture"
-Cohesion: 0.50
-Nodes (4): 7.1 Statistical Aggregation & Percentile Precision, 7.2 Graph Bottleneck Identification, 7.4 Operational Alerts & 15-Minute Cooldown Deduplication, 7. Observability, Telemetry, Failure Analysis, and Operational Intelligence Architecture
+Cohesion: 0.40
+Nodes (5): 7.1 Statistical Aggregation & Percentile Precision, 7.2 Graph Bottleneck Identification, 7.3 Structured Failure Classification & Security Redaction, 7.4 Operational Alerts & 15-Minute Cooldown Deduplication, 7. Observability, Telemetry, Failure Analysis, and Operational Intelligence Architecture
 
 ### Community 169 - "8. Enterprise Security, Governance, and Audit Trail Architecture"
 Cohesion: 0.50
@@ -893,25 +917,61 @@ Nodes (4): name, needs, runs-on, deploy-staging
 Cohesion: 0.50
 Nodes (4): release_version, description, required, type
 
+### Community 183 - "FlowForge Platform — Production Observability, Incident Response & Self-Healing Operations Guide"
+Cohesion: 0.25
+Nodes (7): 1. Observability Architecture Overview, 3. Workflow Execution Lifecycle Event Stream, 4. Error Taxonomy & Failure Diagnostics, 5. Incident Management & Fingerprint Deduplication, 7. Operational Troubleshooting Matrix, FlowForge Platform — Production Observability, Incident Response & Self-Healing Operations Guide, ErrorTaxonomyCode
+
+### Community 184 - "connector-registry.ts"
+Cohesion: 0.32
+Nodes (6): ConnectorHandler, ConnectorHandlerContext, ConnectorHandlerResult, ConnectorTester, slackWebhookConnectorDefinition, ConnectorDefinitionSchema
+
+### Community 186 - "NotificationBell"
+Cohesion: 0.33
+Nodes (3): NotificationBell(), fetchUnreadCount(), markAsRead()
+
+### Community 187 - "sanitizeLogValue"
+Cohesion: 0.29
+Nodes (7): 2.1 Schema & Field Invariants, 2.2 Sensitive Field Masking, 2. Structured Logging Conventions & Redaction Standards, Observability Foundation, Operational Incidents API & Self-Healing, Phase 8: Operational Monitoring, Health Diagnostics & Incident Readiness, sanitizeLogValue()
+
+### Community 188 - "workflows/[id]/page.tsx"
+Cohesion: 0.33
+Nodes (5): DeploymentItem, VersionComparisonResult, WorkflowDetail, WorkflowLifecyclePage(), WorkflowVersionItem
+
+### Community 189 - "email.ts"
+Cohesion: 0.40
+Nodes (3): EmailDeliveryResult, EmailMessage, EmailService
+
+### Community 191 - "PULL_REQUEST_TEMPLATE.md"
+Cohesion: 0.50
+Nodes (3): Changes Checklist, Description, Related Issues / Epics
+
+### Community 193 - "Phase 4: Backup, Restore, and Disaster Recovery Readiness"
+Cohesion: 0.67
+Nodes (3): Disaster Recovery Acceptance Test Evidence, Phase 4: Backup, Restore, and Disaster Recovery Readiness, RPO and RTO Targets
+
+### Community 194 - "Phase 3: Data Integrity, Transaction Safety & State Consistency"
+Cohesion: 0.67
+Nodes (3): Foreign Key & Referential Integrity Audit, Phase 3: Data Integrity, Transaction Safety & State Consistency, Transactional Boundaries & Idempotency
+
 ## Knowledge Gaps
 - **16 isolated node(s):** `RFC-8594`, `RFC-6749`, `RFC-7643`, `RFC-6749`, `RFC-4180` (+11 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1243 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **16 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1369 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **17 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `react` connect `react` to `workflows/page.tsx`, `web/package.json`, `templates/page.tsx`, `NotificationBell`, `builder/page.tsx`, `CollaborationModal.tsx`, `next`, `test/page.tsx`, `EditorToolbar.tsx`?**
-  _High betweenness centrality (0.041) - this node is a cross-community bridge._
+- **Why does `react` connect `react` to `dashboard/page.tsx`, `workflows/page.tsx`, `NodeType`, `web/package.json`, `builder/page.tsx`, `workflows/[id]/page.tsx`, `react`, `next`, `Tabs.tsx`, `EditorToolbar.tsx`?**
+  _High betweenness centrality (0.048) - this node is a cross-community bridge._
 - **What connects `RFC-8594`, `RFC-6749`, `RFC-7643` to the rest of the system?**
   _16 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `shared/src/index.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.006514657980456026 - nodes in this community are weakly interconnected._
-- **Why does `lucide-react` connect `react` to `workflows/page.tsx`, `web/package.json`, `templates/page.tsx`, `NotificationBell`, `builder/page.tsx`, `CollaborationModal.tsx`, `next`, `test/page.tsx`, `EditorToolbar.tsx`?**
-  _High betweenness centrality (0.035) - this node is a cross-community bridge._
+  _Cohesion score 0.006825938566552901 - nodes in this community are weakly interconnected._
+- **Why does `lucide-react` connect `react` to `dashboard/page.tsx`, `workflows/page.tsx`, `NodeType`, `web/package.json`, `react`, `builder/page.tsx`, `workflows/[id]/page.tsx`, `next`, `EditorToolbar.tsx`?**
+  _High betweenness centrality (0.026) - this node is a cross-community bridge._
 - **Should `store.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.12339544513457557 - nodes in this community are weakly interconnected._
-- **Why does `executeSafeHttpRequest()` connect `http-api.ts` to `integrations/src/index.ts`, `event-delivery.ts`, `store.ts`, `FlowForge Enterprise Platform — Release Verification & Quality Assurance Report`?**
-  _High betweenness centrality (0.032) - this node is a cross-community bridge._
-- **Should `http-api.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.06779661016949153 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.10973084886128365 - nodes in this community are weakly interconnected._
+- **Why does `FlowForge REST API Contracts` connect `FlowForge REST API Contracts` to `11. Enterprise Security, Governance, Invitations, API Keys & Retention Endpoints`, `12. Connectors & Integration Connections API`, `6. Webhooks, Schedules & Integration Credentials Endpoints`, `9. Workflow Versioning, Deployments & Environment Promotion Endpoints`, `10. Analytics, Monitoring, and Operational Intelligence Endpoints`, `14. Workflow Collaboration and Team Productivity API`, `16. Workflow Import, Export, Portability, and Backup/Restore API`, `13. Workflow Templates & Marketplace API`, `15. Enterprise Notifications and Outbound Webhooks API`?**
+  _High betweenness centrality (0.024) - this node is a cross-community bridge._
+- **Should `extension.service.ts` be split into smaller, more focused modules?**
+  _Cohesion score 0.05727644652250146 - nodes in this community are weakly interconnected._
