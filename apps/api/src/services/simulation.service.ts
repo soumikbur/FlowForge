@@ -1265,7 +1265,7 @@ export class WorkflowSimulationService {
       requireTestSuitePass: input.requireTestSuitePass ?? false,
       requireRegressionCheck: input.requireRegressionCheck ?? false,
       requirePolicyCheck: input.requirePolicyCheck ?? true,
-      createdAt: existing?.createdAt || now,
+      createdAt: (existing as any)?.createdAt || now,
       updatedAt: now,
     };
 
@@ -1290,7 +1290,7 @@ export class WorkflowSimulationService {
       if (!val.isValid) {
         staticValPassed = false;
         allPassed = false;
-        staticValMsg = `Static validation failed: ${val.errors.map((e) => e.message).join("; ")}`;
+        staticValMsg = `Static validation failed: ${val.errors.map((e: any) => e.message).join("; ")}`;
         reasons.push(staticValMsg);
       }
     }
@@ -1356,7 +1356,7 @@ export class WorkflowSimulationService {
         resourceId: workflowId,
         operation: "PUBLISH",
         attributes: {
-          nodeTypes: definition.nodes.map((n) => n.type),
+          nodeTypes: definition.nodes.map((n: any) => n.type),
           nodeCount: definition.nodes.length,
         },
       });

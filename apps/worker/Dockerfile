@@ -8,6 +8,8 @@ COPY packages/ ./packages/
 COPY apps/worker/ ./apps/worker/
 
 RUN pnpm install --frozen-lockfile
+RUN pnpm db:generate
+RUN pnpm --filter "./packages/*" build
 RUN pnpm --filter @flowforge/worker build
 
 FROM node:22-alpine AS runner
