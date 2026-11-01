@@ -128,7 +128,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-app.use(helmet());
+app.use(helmet() as any);
 app.use(
   cors({
     origin: process.env.WEB_URL || "http://localhost:3000",
