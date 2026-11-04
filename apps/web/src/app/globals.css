@@ -6,149 +6,193 @@
 
 :root {
   /* Legacy aliases for backward compatibility */
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #f7f7fc;
+  --foreground: #171a2e;
   --surface: #ffffff;
-  --surface-subtle: #f1f5f9;
-  --border: #e2e8f0;
-  --border-strong: #cbd5e1;
-  --primary: #4f46e5;
-  --primary-hover: #4338ca;
-  --primary-light: #eef2ff;
-  --ring: rgba(79, 70, 229, 0.25);
+  --surface-subtle: #f0f0f7;
+  --border: #e8e8f1;
+  --border-strong: #d4d4e3;
+  --primary: #6738e8;
+  --primary-hover: #8156f2;
+  --primary-light: #f0ecfc;
+  --ring: rgba(103, 56, 232, 0.25);
 
-  /* Semantic Design Tokens — Light Theme (Default) */
-  --app-bg: #f8fafc;
+  /* Semantic Design Tokens — Light Theme (Reference SaaS Design) */
+  --app-bg: #f7f7fc;
   --surface-primary: #ffffff;
-  --surface-secondary: #f1f5f9;
+  --surface-secondary: #f0f0f7;
   --surface-elevated: #ffffff;
-  --surface-hover: #f1f5f9;
+  --surface-hover: #f5f5fa;
+  --sidebar-bg: #191b32;
+  --sidebar-border: #232644;
+  --sidebar-text: #a3a8c2;
+  --sidebar-text-active: #ffffff;
+  --sidebar-active-bg: #6738e8;
 
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #64748b;
+  --text-primary: #171a2e;
+  --text-secondary: #747a96;
+  --text-muted: #9ba0ba;
   --text-inverted: #ffffff;
 
-  --border-default: #e2e8f0;
-  --border-subtle: #f1f5f9;
+  --border-default: #e8e8f1;
+  --border-subtle: #f0f0f7;
+  --border-strong: #d4d4e3;
 
-  --accent-primary: #4f46e5;
-  --accent-hover: #4338ca;
-  --accent-subtle: #eef2ff;
-  --focus-ring: rgba(79, 70, 229, 0.35);
+  --accent-primary: #6738e8;
+  --accent-secondary: #8156f2;
+  --accent-hover: #582ecb;
+  --accent-subtle: #f0ecfc;
+  --focus-ring: rgba(103, 56, 232, 0.35);
 
   /* Status Tokens — Light Theme */
-  --success-bg: #ecfdf5;
-  --success-border: #a7f3d0;
-  --success-text: #065f46;
-  --warning-bg: #fffbeb;
-  --warning-border: #fde68a;
-  --warning-text: #92400e;
-  --danger-bg: #fef2f2;
-  --danger-border: #fecaca;
-  --danger-text: #991b1b;
-  --info-bg: #eff6ff;
-  --info-border: #bfdbfe;
-  --info-text: #1e40af;
+  --success: #20b779;
+  --success-bg: #edfbf5;
+  --success-border: #b2ebd4;
+  --success-text: #167a51;
+
+  --warning: #f3a72f;
+  --warning-bg: #fef7ed;
+  --warning-border: #fcdbb0;
+  --warning-text: #966113;
+
+  --danger: #eb5757;
+  --danger-bg: #fdf1f1;
+  --danger-border: #f8c3c3;
+  --danger-text: #a32a2a;
+
+  --info: #4285f4;
+  --info-bg: #eef5fe;
+  --info-border: #bad5fc;
+  --info-text: #1b53b3;
 }
 
 [data-theme="dark"],
 .dark {
   /* Legacy aliases in dark mode */
-  --background: #090d16;
-  --foreground: #f8fafc;
-  --surface: #0f172a;
-  --surface-subtle: #141e30;
-  --border: #334155;
-  --border-strong: #475569;
-  --primary: #6366f1;
-  --primary-hover: #4f46e5;
-  --primary-light: rgba(99, 102, 241, 0.15);
-  --ring: rgba(99, 102, 241, 0.4);
+  --background: #121424;
+  --foreground: #f7f7fc;
+  --surface: #191b32;
+  --surface-subtle: #20233f;
+  --border: #282b49;
+  --border-strong: #363b63;
+  --primary: #8156f2;
+  --primary-hover: #6738e8;
+  --primary-light: rgba(129, 86, 242, 0.15);
+  --ring: rgba(129, 86, 242, 0.4);
 
   /* Semantic Design Tokens — Dark Theme */
   --app-bg: #090d16;
-  --surface-primary: #0f172a;
-  --surface-secondary: #1e293b;
-  --surface-elevated: #1e293b;
-  --surface-hover: #1e293b;
+  --app-bg: #121424;
+  --surface-primary: #191b32;
+  --surface-secondary: #20233f;
+  --surface-elevated: #20233f;
+  --surface-hover: #232746;
+  --sidebar-bg: #101222;
+  --sidebar-border: #20233f;
+  --sidebar-text: #a3a8c2;
+  --sidebar-text-active: #ffffff;
+  --sidebar-active-bg: #6738e8;
 
-  --text-primary: #f8fafc;
-  --text-secondary: #cbd5e1;
-  --text-muted: #94a3b8;
-  --text-inverted: #0f172a;
+  --text-primary: #f7f7fc;
+  --text-secondary: #a3a8c2;
+  --text-muted: #747a96;
+  --text-inverted: #171a2e;
 
-  --border-default: #334155;
-  --border-subtle: #1e293b;
+  --border-default: #282b49;
+  --border-subtle: #20233f;
+  --border-strong: #363b63;
 
-  --accent-primary: #6366f1;
-  --accent-hover: #4f46e5;
-  --accent-subtle: rgba(99, 102, 241, 0.15);
-  --focus-ring: rgba(99, 102, 241, 0.45);
+  --accent-primary: #8156f2;
+  --accent-secondary: #6738e8;
+  --accent-hover: #9670f5;
+  --accent-subtle: rgba(129, 86, 242, 0.15);
+  --focus-ring: rgba(129, 86, 242, 0.45);
 
   /* Status Tokens — Dark Theme */
-  --success-bg: rgba(16, 185, 129, 0.15);
-  --success-border: rgba(16, 185, 129, 0.3);
-  --success-text: #34d399;
-  --warning-bg: rgba(245, 158, 11, 0.15);
-  --warning-border: rgba(245, 158, 11, 0.3);
-  --warning-text: #fbbf24;
-  --danger-bg: rgba(239, 68, 68, 0.15);
-  --danger-border: rgba(239, 68, 68, 0.3);
-  --danger-text: #f87171;
-  --info-bg: rgba(59, 130, 246, 0.15);
-  --info-border: rgba(59, 130, 246, 0.3);
-  --info-text: #60a5fa;
+  --success: #20b779;
+  --success-bg: rgba(32, 183, 121, 0.15);
+  --success-border: rgba(32, 183, 121, 0.3);
+  --success-text: #3be09d;
+
+  --warning: #f3a72f;
+  --warning-bg: rgba(243, 167, 47, 0.15);
+  --warning-border: rgba(243, 167, 47, 0.3);
+  --warning-text: #f7be66;
+
+  --danger: #eb5757;
+  --danger-bg: rgba(235, 87, 87, 0.15);
+  --danger-border: rgba(235, 87, 87, 0.3);
+  --danger-text: #f28585;
+
+  --info: #4285f4;
+  --info-bg: rgba(66, 133, 244, 0.15);
+  --info-border: rgba(66, 133, 244, 0.3);
+  --info-text: #73a7f7;
 }
 
 body {
   color: var(--text-primary);
   background-color: var(--app-bg);
   font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", Helvetica,
-    Arial, sans-serif;
-  letter-spacing: -0.011em;
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition:
-    background-color 0.15s ease,
-    color 0.15s ease;
 }
 
-/* Precision Focus-Visible Rings */
-:focus-visible {
-  outline: 2px solid var(--accent-primary);
-  outline-offset: 2px;
+/* React Flow Visual Canvas Theming */
+.react-flow__pane {
+  background-color: var(--app-bg);
 }
 
-.focus-ring {
-  @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2;
+.react-flow__node {
+  border-radius: 0.875rem;
+  font-family: inherit;
 }
 
-/* Skip to Main Content Link (WCAG 2.4.1) */
-.skip-link {
-  position: absolute;
-  top: -100px;
-  left: 1rem;
-  z-index: 9999;
+.react-flow__handle {
+  width: 10px;
+  height: 10px;
   background-color: var(--accent-primary);
-  color: #ffffff;
-  padding: 0.625rem 1.25rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  border-radius: 0.375rem;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
-  transition: top 0.15s ease-in-out;
-  text-decoration: none;
+  border: 2px solid var(--surface-primary);
 }
 
-.skip-link:focus {
-  top: 1rem;
-  outline: 2px solid #ffffff;
-  outline-offset: 2px;
+.react-flow__edge-path {
+  stroke: var(--text-muted);
+  stroke-width: 2;
 }
 
-/* Sleek Minimal Scrollbars */
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--accent-primary);
+  stroke-width: 2.5;
+}
+
+.react-flow__controls {
+  box-shadow: 0 4px 12px rgba(23, 26, 46, 0.08);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  background: var(--surface-primary);
+}
+
+.react-flow__controls-button {
+  background: var(--surface-primary);
+  border-bottom: 1px solid var(--border-default);
+  color: var(--text-secondary);
+}
+
+.react-flow__controls-button:hover {
+  background: var(--surface-hover);
+  color: var(--accent-primary);
+}
+
+/* Custom Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -160,69 +204,9 @@ body {
 
 ::-webkit-scrollbar-thumb {
   background: var(--border-strong);
-  border-radius: 3px;
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
-}
-
-/* Respect Reduced Motion Preferences (WCAG 2.3.3) */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  ::before,
-  ::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
-/* React Flow Canvas Custom Overrides for FlowForge Control Plane */
-.react-flow__pane {
-  background-color: var(--app-bg);
-}
-
-.react-flow__controls {
-  box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.15) !important;
-  border: 1px solid var(--border-default) !important;
-  border-radius: 8px !important;
-  overflow: hidden;
-  background-color: var(--surface-primary) !important;
-}
-
-.react-flow__controls-button {
-  background-color: var(--surface-primary) !important;
-  border-bottom: 1px solid var(--border-default) !important;
-  color: var(--text-secondary) !important;
-}
-
-.react-flow__controls-button:hover {
-  background-color: var(--surface-secondary) !important;
-  color: var(--text-primary) !important;
-}
-
-.react-flow__edge-path {
-  stroke: var(--text-muted) !important;
-  stroke-width: 2 !important;
-}
-
-.react-flow__edge.selected .react-flow__edge-path {
-  stroke: var(--accent-primary) !important;
-  stroke-width: 2.5 !important;
-}
-
-.react-flow__minimap {
-  border-radius: 8px !important;
-  border: 1px solid var(--border-default) !important;
-  box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.15) !important;
-  background-color: var(--surface-primary) !important;
-}
-
-/* Table Horizontal Container */
-.responsive-table-container {
-  width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
 }

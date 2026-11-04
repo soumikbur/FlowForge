@@ -297,21 +297,21 @@ export default function WorkflowsPage() {
           onAction={() => setShowCreateModal(true)}
         />
       ) : (
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs overflow-hidden">
-          <div className="divide-y divide-slate-100">
+        <div className="bg-surface-primary rounded-2xl border border-border-default shadow-card overflow-hidden">
+          <div className="divide-y divide-border-default">
             {filteredWorkflows.map((wf) => (
               <div
                 key={wf.id}
-                className="p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4 hover:bg-slate-50/80 transition group"
+                className="p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4 hover:bg-surface-secondary/40 transition group"
               >
                 <div className="space-y-1.5 flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2.5">
-                    <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 shrink-0">
+                    <div className="p-1.5 rounded-lg bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-400 shrink-0">
                       <Workflow className="w-4 h-4" />
                     </div>
                     <Link
                       href={`/workflows/${wf.id}`}
-                      className="font-bold text-slate-900 dark:text-slate-100 hover:text-indigo-600 transition truncate text-sm"
+                      className="font-bold text-text-primary hover:text-purple-600 transition truncate text-sm"
                     >
                       {wf.name}
                     </Link>
@@ -322,17 +322,17 @@ export default function WorkflowsPage() {
                       </span>
                     )}
                     {wf.accessLevel && (
-                      <span className="text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800">
+                      <span className="text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.2 rounded bg-surface-secondary text-text-secondary border border-border-default">
                         {wf.accessLevel}
                       </span>
                     )}
                   </div>
 
-                  <p className="text-xs text-slate-500 dark:text-slate-400 sm:pl-8 line-clamp-2">
+                  <p className="text-xs text-text-secondary sm:pl-8 line-clamp-2">
                     {wf.description || "No description provided."}
                   </p>
 
-                  <div className="flex items-center gap-4 text-[11px] text-slate-400 sm:pl-8 pt-0.5">
+                  <div className="flex items-center gap-4 text-[11px] text-text-muted sm:pl-8 pt-0.5">
                     {wf.owner && (
                       <span>
                         Owner:{" "}
@@ -345,8 +345,8 @@ export default function WorkflowsPage() {
                       Updated {new Date(wf.updatedAt).toLocaleDateString()}
                     </span>
                     {wf.collaborators && wf.collaborators.length > 0 && (
-                      <span className="inline-flex items-center gap-1 text-slate-500 dark:text-slate-400 font-medium">
-                        <Users className="w-3 h-3 text-slate-400" />
+                      <span className="inline-flex items-center gap-1 text-text-secondary font-medium">
+                        <Users className="w-3 h-3 text-text-muted" />
                         {wf.collaborators.length} collaborator
                         {wf.collaborators.length === 1 ? "" : "s"}
                       </span>
@@ -357,15 +357,15 @@ export default function WorkflowsPage() {
                 <div className="flex items-center gap-2 sm:self-center shrink-0">
                   <Link
                     href={`/workflows/${wf.id}`}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:bg-slate-800/50 rounded-lg text-xs font-medium text-slate-700 dark:text-slate-300 transition shadow-xs focus-ring"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-border-default bg-surface-primary hover:bg-surface-secondary rounded-lg text-xs font-medium text-text-primary transition shadow-xs focus-ring"
                   >
-                    <History className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                    <History className="w-3.5 h-3.5 text-text-muted" />
                     <span>Versions</span>
                   </Link>
 
                   <Link
                     href={`/workflows/${wf.id}/builder`}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold transition shadow-xs focus-ring"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-semibold transition shadow-xs focus-ring"
                   >
                     <span>Open Builder</span>
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -423,7 +423,9 @@ export default function WorkflowsPage() {
               name="workflow-desc"
               placeholder="Describe the operational process..."
               value={newDesc}
-              onChange={(e) => setNewDesc(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                setNewDesc(e.target.value)
+              }
               rows={3}
             />
           </FormField>

@@ -28,7 +28,7 @@ export function Tabs({
   if (variant === "pill") {
     return (
       <div
-        className={`inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200/80 dark:border-slate-700 ${className}`}
+        className={`inline-flex items-center gap-1 bg-surface-secondary p-1 rounded-xl border border-border-default ${className}`}
         role="tablist"
       >
         {tabs.map((tab) => {
@@ -40,14 +40,14 @@ export function Tabs({
               aria-selected={isActive}
               disabled={tab.disabled}
               onClick={() => onChange(tab.id)}
-              className={`inline-flex items-center gap-1.5 rounded-md font-medium transition-all ${
+              className={`inline-flex items-center gap-1.5 rounded-lg font-medium transition-all ${
                 size === "sm"
                   ? "px-2.5 py-1 text-xs"
-                  : "px-3 py-1.5 text-xs sm:text-sm"
+                  : "px-3.5 py-1.5 text-xs sm:text-sm"
               } ${
                 isActive
-                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs font-semibold"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/50 dark:hover:bg-slate-700/50"
+                  ? "bg-surface-primary text-[#6738E8] dark:text-[#8156F2] shadow-xs font-semibold"
+                  : "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
               } ${tab.disabled ? "opacity-50 cursor-not-allowed" : ""}`}
             >
               {tab.icon && <span className="shrink-0">{tab.icon}</span>}
@@ -56,8 +56,8 @@ export function Tabs({
                 <span
                   className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
                     isActive
-                      ? "bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300"
-                      : "bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300"
+                      ? "bg-[#6738E8]/15 text-[#6738E8] dark:text-[#8156F2]"
+                      : "bg-surface-hover text-text-muted"
                   }`}
                 >
                   {tab.count}
@@ -72,42 +72,44 @@ export function Tabs({
 
   return (
     <div
-      className={`border-b border-slate-200 dark:border-slate-800 ${className}`}
+      className={`flex border-b border-border-default overflow-x-auto ${className}`}
       role="tablist"
     >
-      <nav className="flex space-x-6 overflow-x-auto pb-px" aria-label="Tabs">
-        {tabs.map((tab) => {
-          const isActive = tab.id === activeTab;
-          return (
-            <button
-              key={tab.id}
-              role="tab"
-              aria-selected={isActive}
-              disabled={tab.disabled}
-              onClick={() => onChange(tab.id)}
-              className={`inline-flex items-center gap-2 py-3 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap transition-colors ${
-                isActive
-                  ? "border-indigo-600 dark:border-indigo-500 text-indigo-600 dark:text-indigo-400 font-semibold"
-                  : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:border-slate-300 dark:hover:border-slate-700"
-              } ${tab.disabled ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              {tab.icon && <span className="shrink-0">{tab.icon}</span>}
-              <span>{tab.label}</span>
-              {typeof tab.count === "number" && (
-                <span
-                  className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
-                    isActive
-                      ? "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300"
-                      : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
-                  }`}
-                >
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </nav>
+      {tabs.map((tab) => {
+        const isActive = tab.id === activeTab;
+        return (
+          <button
+            key={tab.id}
+            role="tab"
+            aria-selected={isActive}
+            disabled={tab.disabled}
+            onClick={() => onChange(tab.id)}
+            className={`inline-flex items-center gap-2 border-b-2 font-medium transition-colors whitespace-nowrap ${
+              size === "sm"
+                ? "px-3 py-2 text-xs"
+                : "px-4 py-2.5 text-xs sm:text-sm"
+            } ${
+              isActive
+                ? "border-[#6738E8] text-[#6738E8] dark:text-[#8156F2] font-semibold"
+                : "border-transparent text-text-secondary hover:text-text-primary hover:border-border-strong"
+            } ${tab.disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+          >
+            {tab.icon && <span className="shrink-0">{tab.icon}</span>}
+            <span>{tab.label}</span>
+            {typeof tab.count === "number" && (
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                  isActive
+                    ? "bg-[#6738E8]/15 text-[#6738E8] dark:text-[#8156F2]"
+                    : "bg-surface-secondary text-text-muted"
+                }`}
+              >
+                {tab.count}
+              </span>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }

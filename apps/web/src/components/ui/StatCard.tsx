@@ -14,6 +14,7 @@ export interface StatCardProps {
   iconBg?: string;
   className?: string;
   badge?: React.ReactNode;
+  accentColor?: string;
 }
 
 export function StatCard({
@@ -22,9 +23,10 @@ export function StatCard({
   subtext,
   trend,
   icon,
-  iconBg = "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400",
+  iconBg = "bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-400",
   className = "",
   badge,
+  accentColor,
 }: StatCardProps) {
   const isPositive = trend && trend.value >= 0;
   const positiveIsGood = trend?.positiveIsGood ?? true;
@@ -32,33 +34,40 @@ export function StatCard({
 
   return (
     <div
-      className={`bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 p-4 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-all ${className}`}
+      className={`bg-surface-primary rounded-2xl border border-border-default p-5 shadow-card hover:shadow-elevated transition-all duration-200 flex flex-col justify-between ${className}`}
     >
-      <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-        <span>{label}</span>
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-text-secondary">{label}</span>
         {icon && (
-          <div className={`p-1.5 rounded-lg ${iconBg} shrink-0`}>{icon}</div>
+          <div
+            className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${iconBg}`}
+          >
+            {icon}
+          </div>
         )}
       </div>
 
-      <div className="mt-2 flex items-baseline justify-between gap-2">
-        <span className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+      <div className="mt-4 flex items-baseline justify-between gap-2">
+        <span
+          className="text-2xl font-bold tracking-tight text-text-primary"
+          style={accentColor ? { color: accentColor } : undefined}
+        >
           {value}
         </span>
         {badge ? (
           badge
         ) : trend ? (
           <span
-            className={`inline-flex items-center gap-0.5 text-xs font-semibold ${
+            className={`inline-flex items-center gap-0.5 text-xs font-semibold px-2 py-0.5 rounded-full ${
               isGood
-                ? "text-emerald-600 dark:text-emerald-400"
-                : "text-rose-600 dark:text-rose-400"
+                ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"
+                : "bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400"
             }`}
           >
             {isPositive ? (
-              <TrendingUp className="w-3.5 h-3.5" />
+              <TrendingUp className="w-3 h-3" />
             ) : (
-              <TrendingDown className="w-3.5 h-3.5" />
+              <TrendingDown className="w-3 h-3" />
             )}
             <span>
               {isPositive ? "+" : ""}
@@ -69,9 +78,7 @@ export function StatCard({
       </div>
 
       {subtext && (
-        <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500 font-normal truncate">
-          {subtext}
-        </p>
+        <p className="mt-2 text-[12px] text-text-muted truncate">{subtext}</p>
       )}
     </div>
   );

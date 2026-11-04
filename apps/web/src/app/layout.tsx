@@ -23,7 +23,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 antialiased selection:bg-indigo-500 selection:text-white transition-colors duration-150">
+      <body className="min-h-screen bg-app-bg text-text-primary antialiased selection:bg-purple-600 selection:text-white transition-colors duration-150">
         <ThemeProvider>
           <SkipLink targetId="main-content" />
           <AppShell>{children}</AppShell>

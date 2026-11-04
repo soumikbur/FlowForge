@@ -13,9 +13,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Exclude login and full-screen auth routes from layout
   if (pathname === "/login") {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100">
-        {children}
-      </main>
+      <main className="min-h-screen bg-[#121424] text-white">{children}</main>
     );
   }
 
@@ -23,8 +21,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isBuilder = pathname.includes("/builder");
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col font-sans text-slate-900 dark:text-slate-100 transition-colors duration-150">
-      {/* Refined Navigation Sidebar Rail */}
+    <div className="min-h-screen bg-app-bg flex flex-col font-sans text-text-primary transition-colors duration-150">
+      {/* Redesigned Fixed Navigation Sidebar */}
       <Sidebar
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed(!collapsed)}
@@ -35,7 +33,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Main Structural Column */}
       <div
         className={`flex-1 flex flex-col transition-all duration-200 ${
-          collapsed ? "md:pl-16" : "md:pl-64"
+          collapsed ? "md:pl-18" : "md:pl-[260px]"
         }`}
       >
         {/* Sticky Top Application Bar */}
@@ -50,8 +48,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           tabIndex={-1}
           className={`flex-1 flex flex-col outline-none ${
             isBuilder
-              ? "h-[calc(100vh-3.5rem)] overflow-hidden"
-              : "p-4 sm:p-6 lg:p-8"
+              ? "h-[calc(100vh-4rem)] overflow-hidden"
+              : "p-4 sm:p-6 lg:p-8 max-w-[1440px] w-full mx-auto"
           }`}
         >
           {children}

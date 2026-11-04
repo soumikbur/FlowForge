@@ -1,40 +1,44 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useId } from "react";
 import Link from "next/link";
-import { getApiBaseUrl } from "@/lib/api-client";
 import {
-  Workflow,
-  PlayCircle,
+  CheckSquare,
   CheckCircle2,
-  XCircle,
   Clock,
-  ArrowRight,
-  RefreshCw,
   AlertTriangle,
-  ShieldAlert,
-  Server,
+  FolderKanban,
+  Users,
+  Plus,
+  ArrowRight,
+  TrendingUp,
   Activity,
+  Calendar,
+  ExternalLink,
+  User,
+  Trash2,
+  Check,
+  X,
+  RefreshCw,
+  Server,
   Layers,
   ChevronRight,
-  TrendingUp,
-  Gauge,
-  Plus,
-  ExternalLink,
-  Zap,
-  Cpu,
-  X,
+  ShieldAlert,
 } from "lucide-react";
 import { StatCard } from "@/components/ui/StatCard";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
+import { FormField, Input, Textarea } from "@/components/ui/FormField";
+import {
+  useProjectData,
+  TaskItem,
+  ProjectItem,
+  TeamMemberItem,
+} from "@/lib/project-store";
+import { getApiBaseUrl } from "@/lib/api-client";
 
-interface TimeWindow {
-  range: string;
-  from: string;
-  to: string;
-}
-
+// Operational Telemetry interfaces preserved from existing system
 interface OverviewMetrics {
   total: number;
   successful: number;
@@ -46,57 +50,14 @@ interface OverviewMetrics {
   successRate: number;
   failureRate: number;
   retryCount: number;
-  retryRate: number;
-  timeoutCount: number;
   durations: {
     averageMs: number;
     medianMs: number;
     p95Ms: number;
-    p99Ms: number;
-    minMs: number;
-    maxMs: number;
   };
-  byTriggerType: Record<string, number>;
-  byStatus: Record<string, number>;
-  byEnvironment: Record<string, number>;
-}
-
-interface WorkflowSummary {
-  id: string;
-  name: string;
-  status: string;
-  executionCount: number;
-  successfulCount: number;
-  failedCount: number;
-  successRate: number;
-  failureRate: number;
-  avgDurationMs: number;
-  medianDurationMs: number;
-  p95DurationMs: number;
-  retryCount: number;
-  lastExecutedAt?: string;
-  lastFailedAt?: string;
-  commonFailureCategory: string;
-}
-
-interface NodePerformance {
-  nodeId: string;
-  nodeName: string;
-  nodeType: string;
-  executionCount: number;
-  failureCount: number;
-  failureRate: number;
-  retryCount: number;
-  totalDurationMs: number;
-  avgDurationMs: number;
-  medianDurationMs: number;
-  p95DurationMs: number;
-  percentageOfTotalDuration: number;
-  isBottleneck: boolean;
 }
 
 interface OperationalTelemetry {
-  timestamp: string;
   queue: {
     queuedJobs: number;
     runningJobs: number;
@@ -110,11 +71,6 @@ interface OperationalTelemetry {
     maxLagSeconds: number;
     status: string;
   };
-  delays: {
-    pendingDelays: number;
-    overdueCount: number;
-    maxLagSeconds: number;
-  };
   worker: {
     status: string;
     heartbeatTimestamp: string;
@@ -122,972 +78,1272 @@ interface OperationalTelemetry {
   alertsCount: number;
 }
 
-interface OperationalAlert {
-  id: string;
-  ruleType: string;
-  severity: "INFO" | "WARNING" | "CRITICAL";
-  status: "ACTIVE" | "RESOLVED";
-  title: string;
-  message: string;
-  triggeredAt: string;
-  dedupKey?: string;
-}
-
 interface FailureReport {
   totalFailures: number;
   categories: Record<string, number>;
-  topFailingNodes: Record<string, number>;
   recentFailures: Array<{
     executionId: string;
-    workflowId: string;
     workflowName: string;
     category: string;
     sanitizedMessage: string;
-    failedNodeId?: string;
     occurredAt: string;
-    retryCount: number;
   }>;
 }
 
-interface TimeBucket {
-  timestamp: string;
-  total: number;
-  successful: number;
-  failed: number;
-  cancelled: number;
-  avgDurationMs: number;
-}
-
-export default function AnalyticsDashboardPage() {
-  const [selectedRange, setSelectedRange] = useState<
-    "1h" | "24h" | "7d" | "30d"
-  >("24h");
-  const [loading, setLoading] = useState(true);
-
-  // Data states
-  const [overview, setOverview] = useState<{
-    timeWindow: TimeWindow;
-    metrics: OverviewMetrics;
-    trends: {
-      totalExecutionsChangePercent: number;
-      successRateChangePercent: number;
-    };
-  } | null>(null);
-
-  const [trendsData, setTrendsData] = useState<TimeBucket[]>([]);
-  const [workflows, setWorkflows] = useState<WorkflowSummary[]>([]);
-  const [failures, setFailures] = useState<FailureReport | null>(null);
-  const [operational, setOperational] = useState<OperationalTelemetry | null>(
-    null,
+export default function DashboardPage() {
+  const [activeTab, setActiveTab] = useState<"workspace" | "telemetry">(
+    "workspace",
   );
-  const [alerts, setAlerts] = useState<OperationalAlert[]>([]);
+  const [timeGreeting, setTimeGreeting] = useState("Good Day");
 
-  // Node drilldown modal state
-  const [selectedWfNodes, setSelectedWfNodes] = useState<{
-    workflowName: string;
-    nodes: NodePerformance[];
-    bottlenecks: NodePerformance[];
-  } | null>(null);
-  const [nodesLoading, setNodesLoading] = useState(false);
+  // Dynamic time greeting
+  useEffect(() => {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) setTimeGreeting("Good Morning");
+    else if (hour >= 12 && hour < 17) setTimeGreeting("Good Afternoon");
+    else setTimeGreeting("Good Evening");
+  }, []);
 
-  const apiUrl = getApiBaseUrl();
+  // Reactive Project Store Data
+  const {
+    tasks,
+    projects,
+    team,
+    totalTasks,
+    completedTasks,
+    inProgressTasks,
+    overdueTasks,
+    pendingTasks,
+    completionPercentage,
+    inProgressPercentage,
+    overduePercentage,
+    addTask,
+    toggleTaskCompletion,
+    deleteTask,
+    addProject,
+    addTeamMember,
+  } = useProjectData();
 
-  const fetchDashboardData = useCallback(async () => {
-    setLoading(true);
+  // Pending percentage calculation
+  const pendingPercentage =
+    totalTasks > 0 ? Math.round((pendingTasks / totalTasks) * 100) : 0;
+
+  // Operational Telemetry states for Tab 2
+  const [telemetry, setTelemetry] = useState<OperationalTelemetry | null>(null);
+  const [metrics, setMetrics] = useState<OverviewMetrics | null>(null);
+  const [failures, setFailures] = useState<FailureReport | null>(null);
+  const [alerts, setAlerts] = useState<any[]>([]);
+  const [telemetryLoading, setTelemetryLoading] = useState(false);
+
+  // Modals state
+  const [isNewTaskOpen, setIsNewTaskOpen] = useState(false);
+  const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<TaskItem | null>(null);
+
+  // Form states for New Task
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [newTaskProject, setNewTaskProject] = useState(
+    projects[0]?.id || "proj-1",
+  );
+  const [newTaskPriority, setNewTaskPriority] = useState<
+    "High" | "Medium" | "Low"
+  >("Medium");
+  const [newTaskDueDate, setNewTaskDueDate] = useState("Nov 20, 2026");
+  const [newTaskAssignee, setNewTaskAssignee] = useState(
+    team[0]?.name || "John Doe",
+  );
+  const [newTaskDesc, setNewTaskDesc] = useState("");
+
+  // Form states for New Project
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectDesc, setNewProjectDesc] = useState("");
+  const [newProjectDueDate, setNewProjectDueDate] = useState("Dec 15, 2026");
+  const [newProjectColor, setNewProjectColor] = useState("#6738E8");
+
+  // Form states for Invite Member
+  const [newMemberName, setNewMemberName] = useState("");
+  const [newMemberEmail, setNewMemberEmail] = useState("");
+  const [newMemberRole, setNewMemberRole] = useState<
+    "Admin" | "Editor" | "Viewer"
+  >("Editor");
+
+  // Unique accessible IDs
+  const taskTitleId = useId();
+  const taskProjectId = useId();
+  const taskPriorityId = useId();
+  const taskDueDateId = useId();
+  const taskAssigneeId = useId();
+  const taskDescId = useId();
+  const projectNameId = useId();
+  const projectDescId = useId();
+  const projectDueDateId = useId();
+  const memberNameId = useId();
+  const memberEmailId = useId();
+  const memberRoleId = useId();
+
+  // Load telemetry when telemetry tab is opened
+  const fetchTelemetry = useCallback(async () => {
+    setTelemetryLoading(true);
+    const apiUrl = getApiBaseUrl();
     try {
-      // 1. Overview
-      const overviewRes = await fetch(
-        `${apiUrl}/api/v1/analytics/overview?range=${selectedRange}`,
-        { credentials: "include" },
-      );
-      if (overviewRes.ok) {
-        const json = await overviewRes.json();
-        if (json.success) setOverview(json.data);
-      }
+      const [opRes, metRes, failRes, alertRes] = await Promise.allSettled([
+        fetch(`${apiUrl}/api/v1/analytics/operational`, {
+          credentials: "include",
+        }),
+        fetch(`${apiUrl}/api/v1/analytics/overview?range=24h`, {
+          credentials: "include",
+        }),
+        fetch(`${apiUrl}/api/v1/analytics/failures?range=24h`, {
+          credentials: "include",
+        }),
+        fetch(`${apiUrl}/api/v1/analytics/alerts?status=ACTIVE`, {
+          credentials: "include",
+        }),
+      ]);
 
-      // 2. Trends
-      const trendsRes = await fetch(
-        `${apiUrl}/api/v1/analytics/trends?range=${selectedRange}`,
-        { credentials: "include" },
-      );
-      if (trendsRes.ok) {
-        const json = await trendsRes.json();
-        if (json.success) setTrendsData(json.data.buckets || []);
+      if (opRes.status === "fulfilled" && opRes.value.ok) {
+        const json = await opRes.value.json();
+        if (json.success) setTelemetry(json.data);
       }
-
-      // 3. Workflows Performance
-      const wfRes = await fetch(
-        `${apiUrl}/api/v1/analytics/workflows?range=${selectedRange}`,
-        { credentials: "include" },
-      );
-      if (wfRes.ok) {
-        const json = await wfRes.json();
-        if (json.success) setWorkflows(json.data || []);
+      if (metRes.status === "fulfilled" && metRes.value.ok) {
+        const json = await metRes.value.json();
+        if (json.success) setMetrics(json.data.metrics);
       }
-
-      // 4. Failures
-      const failRes = await fetch(
-        `${apiUrl}/api/v1/analytics/failures?range=${selectedRange}`,
-        { credentials: "include" },
-      );
-      if (failRes.ok) {
-        const json = await failRes.json();
+      if (failRes.status === "fulfilled" && failRes.value.ok) {
+        const json = await failRes.value.json();
         if (json.success) setFailures(json.data);
       }
-
-      // 5. Operational
-      const opRes = await fetch(`${apiUrl}/api/v1/analytics/operational`, {
-        credentials: "include",
-      });
-      if (opRes.ok) {
-        const json = await opRes.json();
-        if (json.success) setOperational(json.data);
-      }
-
-      // 6. Alerts
-      const alertRes = await fetch(
-        `${apiUrl}/api/v1/analytics/alerts?status=ACTIVE`,
-        {
-          credentials: "include",
-        },
-      );
-      if (alertRes.ok) {
-        const json = await alertRes.json();
+      if (alertRes.status === "fulfilled" && alertRes.value.ok) {
+        const json = await alertRes.value.json();
         if (json.success) setAlerts(json.data || []);
       }
     } catch {
-      // Graceful offline fallback
+      // Offline or mock
     } finally {
-      setLoading(false);
+      setTelemetryLoading(false);
     }
-  }, [apiUrl, selectedRange]);
+  }, []);
 
   useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
-
-  const handleResolveAlert = async (alertId: string) => {
-    try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/analytics/alerts/${alertId}/resolve`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            resolutionNote: "Resolved via Control Plane dashboard",
-          }),
-        },
-      );
-      if (res.ok) {
-        setAlerts((prev) => prev.filter((a) => a.id !== alertId));
-      }
-    } catch {}
-  };
-
-  const handleInspectNodes = async (
-    workflowId: string,
-    workflowName: string,
-  ) => {
-    setNodesLoading(true);
-    try {
-      const res = await fetch(
-        `${apiUrl}/api/v1/analytics/workflows/${workflowId}/nodes`,
-        {
-          credentials: "include",
-        },
-      );
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success) {
-          setSelectedWfNodes({
-            workflowName,
-            nodes: json.data.nodes || [],
-            bottlenecks: json.data.bottlenecks || [],
-          });
-        }
-      }
-    } finally {
-      setNodesLoading(false);
+    if (activeTab === "telemetry") {
+      fetchTelemetry();
     }
+  }, [activeTab, fetchTelemetry]);
+
+  // Handle Create Task
+  const handleCreateTask = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTaskTitle.trim()) return;
+
+    const chosenProj =
+      projects.find((p) => p.id === newTaskProject) || projects[0];
+    const chosenAssignee =
+      team.find((m) => m.name === newTaskAssignee) || team[0];
+
+    addTask({
+      title: newTaskTitle.trim(),
+      projectId: chosenProj?.id || "proj-1",
+      projectName: chosenProj?.name || "General Automation",
+      status: "In Progress",
+      priority: newTaskPriority,
+      dueDate: newTaskDueDate,
+      completed: false,
+      assignee: {
+        name: chosenAssignee?.name || "John Doe",
+        email: chosenAssignee?.email || "john@flowforge.dev",
+        initials: chosenAssignee?.initials || "JD",
+        avatarColor: chosenAssignee?.avatarColor || "#6738E8",
+      },
+      description: newTaskDesc.trim() || undefined,
+    });
+
+    setNewTaskTitle("");
+    setNewTaskDesc("");
+    setIsNewTaskOpen(false);
   };
 
-  const metrics = overview?.metrics;
+  // Handle Create Project
+  const handleCreateProject = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newProjectName.trim()) return;
+
+    addProject({
+      name: newProjectName.trim(),
+      description: newProjectDesc.trim() || "Automated workflow project",
+      owner: "John Doe",
+      status: "Active",
+      dueDate: newProjectDueDate,
+      startDate: new Date().toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }),
+      color: newProjectColor,
+    });
+
+    setNewProjectName("");
+    setNewProjectDesc("");
+    setIsNewProjectOpen(false);
+  };
+
+  // Handle Invite Member
+  const handleInviteMember = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMemberName.trim() || !newMemberEmail.trim()) return;
+
+    const initials = newMemberName
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+
+    const colors = ["#6738E8", "#20B779", "#F3A72F", "#4285F4", "#EC4899"];
+    const avatarColor = colors[team.length % colors.length];
+
+    addTeamMember({
+      name: newMemberName.trim(),
+      email: newMemberEmail.trim(),
+      role: newMemberRole,
+      initials: initials || "TM",
+      avatarColor,
+      status: "Active",
+      permissions: ["View Analytics", "Manage Tasks"],
+    });
+
+    setNewMemberName("");
+    setNewMemberEmail("");
+    setIsInviteOpen(false);
+  };
+
+  // Circular Donut Calculation
+  const radius = 62;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset =
+    circumference - (completionPercentage / 100) * circumference;
 
   return (
-    <div className="max-w-7xl mx-auto w-full space-y-6">
-      {/* Control Plane Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
+    <div className="space-y-7 pb-12">
+      {/* 1. Header Greeting & Quick Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-              Operations Control Plane
-            </h1>
-            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200/80">
-              Live Telemetry
-            </span>
-          </div>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Real-time execution throughput, queue latencies, failure
-            classification, and bottleneck analysis.
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-text-primary">
+            {timeGreeting}, John
+          </h1>
+          <p className="mt-1 text-sm text-text-secondary">
+            Here&apos;s what&apos;s happening across your workflows and project
+            tasks today.
           </p>
         </div>
 
-        <div className="flex items-center gap-3 self-start md:self-auto">
-          {/* Time Window Buttons */}
-          <div className="inline-flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200/90 dark:border-slate-800 text-xs font-semibold">
-            {(["1h", "24h", "7d", "30d"] as const).map((rng) => (
-              <button
-                key={rng}
-                onClick={() => setSelectedRange(rng)}
-                className={`px-3 py-1 rounded-md transition-all ${
-                  selectedRange === rng
-                    ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs font-bold"
-                    : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100"
-                }`}
-              >
-                {rng.toUpperCase()}
-              </button>
-            ))}
+        <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+          {/* Tab View Switcher */}
+          <div className="inline-flex rounded-xl bg-surface-secondary p-1 border border-border-default text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => setActiveTab("workspace")}
+              className={`px-3 py-1.5 rounded-lg transition-all ${
+                activeTab === "workspace"
+                  ? "bg-surface-primary text-text-primary shadow-xs font-bold"
+                  : "text-text-muted hover:text-text-primary"
+              }`}
+            >
+              Workspace View
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("telemetry")}
+              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                activeTab === "telemetry"
+                  ? "bg-surface-primary text-text-primary shadow-xs font-bold"
+                  : "text-text-muted hover:text-text-primary"
+              }`}
+            >
+              <Activity className="w-3.5 h-3.5 text-purple-600" />
+              <span>Operational Telemetry</span>
+              {alerts.length > 0 && (
+                <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+              )}
+            </button>
           </div>
 
-          <button
-            onClick={() => fetchDashboardData()}
-            className="p-2 border border-slate-300/80 bg-white dark:bg-slate-900 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:bg-slate-800/50 transition shadow-xs focus-ring"
-            title="Refresh analytics telemetry"
-            aria-label="Refresh analytics data"
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsNewProjectOpen(true)}
+            icon={<FolderKanban className="w-4 h-4" />}
           >
-            <RefreshCw
-              className={`w-4 h-4 ${loading ? "animate-spin text-indigo-600" : ""}`}
-            />
-          </button>
+            New Project
+          </Button>
 
-          <Link href="/workflows">
-            <Button
-              variant="primary"
-              size="sm"
-              icon={<Plus className="w-3.5 h-3.5" />}
-            >
-              New Workflow
-            </Button>
-          </Link>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setIsNewTaskOpen(true)}
+            icon={<Plus className="w-4 h-4" />}
+          >
+            New Task
+          </Button>
         </div>
       </div>
 
-      {/* Operational Alerts Banner */}
-      {alerts.length > 0 && (
-        <div className="bg-amber-50/90 border border-amber-300 rounded-xl p-4 shadow-xs space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-amber-900 font-bold text-xs uppercase tracking-wider">
-              <ShieldAlert className="w-4 h-4 text-amber-600" />
-              <span>
-                {alerts.length} Active Operational Incident Alert
-                {alerts.length > 1 ? "s" : ""}
-              </span>
-            </div>
-            <span className="text-[11px] text-amber-800 font-semibold bg-amber-200/60 px-2 py-0.5 rounded-full">
-              Action Required
+      {/* 2. Top 4 KPI Stat Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          label="Total Tasks"
+          value={totalTasks}
+          subtext="Across active automation projects"
+          icon={<CheckSquare className="w-5 h-5" />}
+          iconBg="bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-400"
+          badge={
+            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">
+              <TrendingUp className="w-3 h-3" />
+              +12% this week
             </span>
+          }
+        />
+
+        <StatCard
+          label="Completed"
+          value={completedTasks}
+          subtext={`${completionPercentage}% overall completion rate`}
+          icon={<CheckCircle2 className="w-5 h-5" />}
+          iconBg="bg-[#20B779]/10 text-[#20B779]"
+          badge={
+            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-[#20B779]/10 text-[#20B779]">
+              <Check className="w-3 h-3" />
+              {completionPercentage}% Done
+            </span>
+          }
+        />
+
+        <StatCard
+          label="In Progress"
+          value={inProgressTasks}
+          subtext="Active in execution or review"
+          icon={<Clock className="w-5 h-5" />}
+          iconBg="bg-[#F3A72F]/10 text-[#F3A72F]"
+          badge={
+            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-[#F3A72F]/10 text-[#F3A72F]">
+              <RefreshCw className="w-3 h-3 animate-spin" />
+              {inProgressTasks} Active
+            </span>
+          }
+        />
+
+        <StatCard
+          label="Overdue"
+          value={overdueTasks}
+          subtext="Exceeded target completion SLA"
+          icon={<AlertTriangle className="w-5 h-5" />}
+          iconBg="bg-[#EB5757]/10 text-[#EB5757]"
+          badge={
+            <span
+              className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
+                overdueTasks > 0
+                  ? "bg-[#EB5757]/10 text-[#EB5757]"
+                  : "bg-surface-secondary text-text-muted"
+              }`}
+            >
+              {overdueTasks > 0 ? "Requires Action" : "Clear"}
+            </span>
+          }
+        />
+      </div>
+
+      {/* 3. Main Workspace Grid */}
+      {activeTab === "workspace" ? (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* LEFT COLUMN: Project Progress Donut + Recent Tasks (approx 7 of 12 columns) */}
+          <div className="lg:col-span-7 space-y-6">
+            {/* Card A: Project Progress with Circular SVG Donut Chart */}
+            <div className="bg-surface-primary rounded-2xl border border-border-default p-6 shadow-card">
+              <div className="flex items-center justify-between pb-4 border-b border-border-default">
+                <div>
+                  <h2 className="text-base font-bold text-text-primary">
+                    Project Progress
+                  </h2>
+                  <p className="text-xs text-text-secondary mt-0.5">
+                    Task completion distribution across current business cycles
+                  </p>
+                </div>
+                <span className="text-xs font-medium text-text-muted bg-surface-secondary px-2.5 py-1 rounded-lg border border-border-default">
+                  Live Sync
+                </span>
+              </div>
+
+              <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-8">
+                {/* SVG Donut Chart */}
+                <div className="relative w-44 h-44 flex items-center justify-center shrink-0">
+                  <svg
+                    className="w-full h-full -rotate-90"
+                    viewBox="0 0 160 160"
+                  >
+                    {/* Background Circle */}
+                    <circle
+                      cx="80"
+                      cy="80"
+                      r={radius}
+                      stroke="currentColor"
+                      strokeWidth="15"
+                      fill="transparent"
+                      className="text-surface-secondary dark:text-navy-800"
+                    />
+                    {/* Active Progress Circle */}
+                    <circle
+                      cx="80"
+                      cy="80"
+                      r={radius}
+                      stroke="#6738E8"
+                      strokeWidth="15"
+                      strokeDasharray={circumference}
+                      strokeDashoffset={strokeDashoffset}
+                      strokeLinecap="round"
+                      fill="transparent"
+                      className="transition-all duration-700 ease-out"
+                    />
+                  </svg>
+                  {/* Center percentage label */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                    <span className="text-3xl font-extrabold text-text-primary tracking-tight">
+                      {completionPercentage}%
+                    </span>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary mt-0.5">
+                      Completed
+                    </span>
+                  </div>
+                </div>
+
+                {/* Legend and Metrics Breakdown */}
+                <div className="grid grid-cols-2 gap-x-6 gap-y-4 w-full sm:max-w-xs">
+                  {/* Completed */}
+                  <div className="flex items-center gap-3">
+                    <span className="w-3 h-3 rounded-full bg-[#20B779] shrink-0" />
+                    <div>
+                      <div className="text-xs text-text-secondary font-medium">
+                        Completed
+                      </div>
+                      <div className="text-sm font-bold text-text-primary">
+                        {completedTasks}{" "}
+                        <span className="text-xs font-normal text-text-muted">
+                          ({completionPercentage}%)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* In Progress */}
+                  <div className="flex items-center gap-3">
+                    <span className="w-3 h-3 rounded-full bg-[#F3A72F] shrink-0" />
+                    <div>
+                      <div className="text-xs text-text-secondary font-medium">
+                        In Progress
+                      </div>
+                      <div className="text-sm font-bold text-text-primary">
+                        {inProgressTasks}{" "}
+                        <span className="text-xs font-normal text-text-muted">
+                          ({inProgressPercentage}%)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Pending */}
+                  <div className="flex items-center gap-3">
+                    <span className="w-3 h-3 rounded-full bg-[#4285F4] shrink-0" />
+                    <div>
+                      <div className="text-xs text-text-secondary font-medium">
+                        Pending
+                      </div>
+                      <div className="text-sm font-bold text-text-primary">
+                        {pendingTasks}{" "}
+                        <span className="text-xs font-normal text-text-muted">
+                          ({pendingPercentage}%)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Overdue */}
+                  <div className="flex items-center gap-3">
+                    <span className="w-3 h-3 rounded-full bg-[#EB5757] shrink-0" />
+                    <div>
+                      <div className="text-xs text-text-secondary font-medium">
+                        Overdue
+                      </div>
+                      <div className="text-sm font-bold text-text-primary">
+                        {overdueTasks}{" "}
+                        <span className="text-xs font-normal text-text-muted">
+                          ({overduePercentage}%)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Card B: Recent Tasks List */}
+            <div className="bg-surface-primary rounded-2xl border border-border-default p-6 shadow-card">
+              <div className="flex items-center justify-between pb-4 border-b border-border-default">
+                <div className="flex items-center gap-2.5">
+                  <h2 className="text-base font-bold text-text-primary">
+                    Recent Tasks
+                  </h2>
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400">
+                    {tasks.length} total
+                  </span>
+                </div>
+                <Link
+                  href="/tasks"
+                  className="text-xs font-semibold text-purple-600 hover:text-purple-700 flex items-center gap-1 transition"
+                >
+                  <span>View All</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+
+              <div className="mt-4 divide-y divide-border-default">
+                {tasks.slice(0, 6).map((task) => (
+                  <div
+                    key={task.id}
+                    className="py-3.5 flex items-center justify-between gap-3 group hover:bg-surface-secondary/40 -mx-2 px-2 rounded-xl transition"
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      {/* Checkbox toggles task completion state */}
+                      <button
+                        type="button"
+                        onClick={() => toggleTaskCompletion(task.id)}
+                        className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 transition ${
+                          task.completed
+                            ? "bg-[#20B779] border-[#20B779] text-white"
+                            : "border-border-default hover:border-purple-500 bg-surface-primary"
+                        }`}
+                        title={
+                          task.completed ? "Mark incomplete" : "Mark complete"
+                        }
+                        aria-label={`Toggle task: ${task.title}`}
+                      >
+                        {task.completed && (
+                          <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        )}
+                      </button>
+
+                      <div className="min-w-0 flex-1">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedTask(task)}
+                          className={`text-left text-xs sm:text-sm font-semibold truncate block hover:text-purple-600 transition ${
+                            task.completed
+                              ? "line-through text-text-muted"
+                              : "text-text-primary"
+                          }`}
+                        >
+                          {task.title}
+                        </button>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[11px] text-text-muted truncate max-w-[140px] sm:max-w-xs">
+                            {task.projectName}
+                          </span>
+                          <span className="text-[11px] text-text-muted">•</span>
+                          <span
+                            className={`text-[11px] font-medium ${
+                              task.status === "Overdue"
+                                ? "text-[#EB5757] font-semibold"
+                                : "text-text-muted"
+                            }`}
+                          >
+                            Due {task.dueDate}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 shrink-0">
+                      {/* Assignee Avatar */}
+                      <div
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                        style={{ backgroundColor: task.assignee.avatarColor }}
+                        title={`Assigned to ${task.assignee.name}`}
+                      >
+                        {task.assignee.initials}
+                      </div>
+
+                      {/* Status Badge */}
+                      <Badge
+                        status={task.status}
+                        label={task.status}
+                        size="xs"
+                        showIcon={false}
+                        showDot
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
-          <div className="divide-y divide-amber-200/60">
-            {alerts.map((alt) => (
-              <div
-                key={alt.id}
-                className="py-2 flex items-center justify-between text-xs text-amber-900 gap-3"
-              >
-                <div className="space-y-0.5 min-w-0">
-                  <div className="font-semibold flex items-center gap-2">
-                    <span className="px-1.5 py-0.2 rounded bg-amber-200 text-amber-900 text-[10px] uppercase font-bold">
-                      {alt.severity}
-                    </span>
-                    <span className="truncate">{alt.title}</span>
+          {/* RIGHT COLUMN: Active Projects + Team Overview (approx 5 of 12 columns) */}
+          <div className="lg:col-span-5 space-y-6">
+            {/* Card C: Active Projects */}
+            <div className="bg-surface-primary rounded-2xl border border-border-default p-6 shadow-card">
+              <div className="flex items-center justify-between pb-4 border-b border-border-default">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-bold text-text-primary">
+                    Active Projects
+                  </h2>
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-surface-secondary text-text-secondary border border-border-default">
+                    {projects.length}
+                  </span>
+                </div>
+                <Link
+                  href="/projects"
+                  className="text-xs font-semibold text-purple-600 hover:text-purple-700 flex items-center gap-1 transition"
+                >
+                  <span>View All</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+
+              <div className="mt-4 space-y-4">
+                {projects.map((proj) => (
+                  <div
+                    key={proj.id}
+                    className="p-3.5 rounded-xl border border-border-default bg-surface-secondary/30 hover:bg-surface-secondary/70 transition group"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span
+                          className="w-3 h-3 rounded-md shrink-0"
+                          style={{ backgroundColor: proj.color }}
+                        />
+                        <h3 className="text-xs sm:text-sm font-bold text-text-primary truncate">
+                          {proj.name}
+                        </h3>
+                      </div>
+                      <span className="text-xs font-bold text-purple-600 shrink-0">
+                        {proj.progress}%
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] text-text-secondary mt-1 line-clamp-1">
+                      {proj.description}
+                    </p>
+
+                    {/* Progress Bar */}
+                    <div className="mt-3 w-full bg-surface-secondary dark:bg-navy-800 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${proj.progress}%`,
+                          backgroundColor: proj.color,
+                        }}
+                      />
+                    </div>
+
+                    <div className="mt-2.5 flex items-center justify-between text-[11px] text-text-muted">
+                      <span>
+                        {proj.completedTasks} of {proj.tasksCount} tasks done
+                      </span>
+                      <span>Due {proj.dueDate}</span>
+                    </div>
                   </div>
-                  <p className="text-amber-800 text-[11px] line-clamp-1">
-                    {alt.message}
-                  </p>
+                ))}
+              </div>
+            </div>
+
+            {/* Card D: Team Overview */}
+            <div className="bg-surface-primary rounded-2xl border border-border-default p-6 shadow-card">
+              <div className="flex items-center justify-between pb-4 border-b border-border-default">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-bold text-text-primary">
+                    Team Overview
+                  </h2>
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-surface-secondary text-text-secondary border border-border-default">
+                    {team.length} members
+                  </span>
                 </div>
                 <Button
                   variant="outline"
                   size="xs"
-                  onClick={() => handleResolveAlert(alt.id)}
-                  className="bg-white dark:bg-slate-900 hover:bg-amber-100 text-amber-900 border-amber-300 shrink-0"
+                  onClick={() => setIsInviteOpen(true)}
+                  icon={<Plus className="w-3 h-3" />}
                 >
-                  Resolve
+                  Invite
                 </Button>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
 
-      {/* Primary KPI Metric Cards (Control Plane Grid) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatCard
-          label="Total Runs"
-          value={metrics?.total ?? 0}
-          subtext={`Executions in ${selectedRange}`}
-          icon={<PlayCircle className="w-4 h-4" />}
-          iconBg="bg-indigo-50 text-indigo-600"
-          trend={
-            overview?.trends
-              ? { value: overview.trends.totalExecutionsChangePercent }
-              : undefined
-          }
-        />
-
-        <StatCard
-          label="Success Rate"
-          value={`${metrics?.successRate ?? 100}%`}
-          subtext={`${metrics?.successful ?? 0} terminal successful`}
-          icon={<CheckCircle2 className="w-4 h-4" />}
-          iconBg="bg-emerald-50 text-emerald-600"
-          badge={
-            <Badge
-              status={
-                (metrics?.successRate ?? 100) >= 95 ? "SUCCEEDED" : "WARNING"
-              }
-              label={
-                (metrics?.successRate ?? 100) >= 95 ? "Optimal" : "Degraded"
-              }
-              size="xs"
-              showDot
-            />
-          }
-        />
-
-        <StatCard
-          label="Failure Rate"
-          value={`${metrics?.failureRate ?? 0}%`}
-          subtext={`${metrics?.failed ?? 0} runs failed (${metrics?.retryCount ?? 0} retries)`}
-          icon={<XCircle className="w-4 h-4" />}
-          iconBg="bg-rose-50 text-rose-600"
-          badge={
-            (metrics?.failed ?? 0) > 0 ? (
-              <Badge
-                status="FAILED"
-                label={`${metrics?.failed} failed`}
-                size="xs"
-              />
-            ) : (
-              <Badge status="SUCCEEDED" label="Zero failures" size="xs" />
-            )
-          }
-        />
-
-        <StatCard
-          label="Median Duration"
-          value={
-            metrics?.durations
-              ? `${(metrics.durations.medianMs / 1000).toFixed(2)}s`
-              : "0s"
-          }
-          subtext={`P95: ${metrics?.durations ? `${(metrics.durations.p95Ms / 1000).toFixed(2)}s` : "0s"} • Avg: ${metrics?.durations ? `${(metrics.durations.averageMs / 1000).toFixed(2)}s` : "0s"}`}
-          icon={<Clock className="w-4 h-4" />}
-          iconBg="bg-blue-50 text-blue-600"
-        />
-
-        <StatCard
-          label="In-Flight Load"
-          value={
-            (metrics?.running ?? 0) +
-            (metrics?.waitingApproval ?? 0) +
-            (metrics?.waitingDelay ?? 0)
-          }
-          subtext={`${metrics?.running ?? 0} running • ${metrics?.waitingApproval ?? 0} waiting`}
-          icon={<Gauge className="w-4 h-4" />}
-          iconBg="bg-amber-50 text-amber-600"
-          badge={
-            <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
-              {metrics?.running ?? 0} active
-            </span>
-          }
-        />
-      </div>
-
-      {/* Main Execution Trend Visualization & Subsystem Telemetry */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left (2 cols): Execution Trends Time Series */}
-        <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 p-5 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-indigo-600" />
-                <span>Execution Throughput & Completion Ratio</span>
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Time-series distribution across terminal execution states
-              </p>
-            </div>
-            <div className="flex items-center gap-3 text-xs font-medium text-slate-600 dark:text-slate-400">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
-                <span>Success</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-rose-500" />
-                <span>Failed</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-sm bg-slate-300" />
-                <span>Cancelled</span>
-              </span>
-            </div>
-          </div>
-
-          {trendsData.length > 0 ? (
-            <div className="space-y-2">
-              <div className="h-44 flex items-end gap-1 pt-6 border-b border-slate-100 dark:border-slate-800">
-                {trendsData.map((b) => {
-                  const maxInSeries = Math.max(
-                    1,
-                    ...trendsData.map((t) => t.total),
-                  );
-                  const heightPct = Math.min(
-                    100,
-                    Math.max(8, (b.total / maxInSeries) * 100),
-                  );
-
-                  const succPct =
-                    b.total > 0 ? (b.successful / b.total) * 100 : 0;
-                  const failPct = b.total > 0 ? (b.failed / b.total) * 100 : 0;
-                  const cancPct =
-                    b.total > 0 ? (b.cancelled / b.total) * 100 : 0;
-
-                  const dateObj = new Date(b.timestamp);
-                  const timeLabel =
-                    selectedRange === "30d" || selectedRange === "7d"
-                      ? dateObj.toLocaleDateString(undefined, {
-                          month: "short",
-                          day: "numeric",
-                        })
-                      : dateObj.toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        });
-
-                  return (
-                    <div
-                      key={b.timestamp}
-                      className="flex-1 flex flex-col items-center group relative h-full justify-end"
-                    >
-                      {/* Hover Tooltip */}
-                      <div className="absolute -top-12 hidden group-hover:flex flex-col items-center z-20 bg-slate-900 text-white text-[10px] px-2.5 py-1 rounded shadow-lg pointer-events-none whitespace-nowrap">
-                        <span className="font-semibold">
-                          {timeLabel}: {b.total} runs
-                        </span>
-                        <span className="text-emerald-400">
-                          {b.successful} succeeded ({succPct.toFixed(0)}%)
-                        </span>
+              <div className="mt-4 divide-y divide-border-default">
+                {team.map((member) => (
+                  <div
+                    key={member.id}
+                    className="py-3 flex items-center justify-between gap-3"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="relative shrink-0">
+                        <div
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                          style={{ backgroundColor: member.avatarColor }}
+                        >
+                          {member.initials}
+                        </div>
+                        <span
+                          className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-surface-primary ${
+                            member.status === "Active"
+                              ? "bg-[#20B779]"
+                              : member.status === "Away"
+                                ? "bg-[#F3A72F]"
+                                : "bg-text-muted"
+                          }`}
+                        />
                       </div>
 
-                      <div
-                        style={{ height: `${heightPct}%` }}
-                        className="w-full max-w-[24px] rounded-t flex flex-col overflow-hidden bg-slate-100 dark:bg-slate-800 group-hover:opacity-90 transition-opacity"
-                      >
-                        <div
-                          style={{ height: `${cancPct}%` }}
-                          className="bg-slate-300 w-full"
-                        />
-                        <div
-                          style={{ height: `${failPct}%` }}
-                          className="bg-rose-500 w-full"
-                        />
-                        <div
-                          style={{ height: `${succPct}%` }}
-                          className="bg-emerald-500 w-full"
-                        />
+                      <div className="min-w-0">
+                        <div className="text-xs sm:text-sm font-bold text-text-primary truncate">
+                          {member.name}
+                        </div>
+                        <div className="text-[11px] text-text-muted truncate">
+                          {member.email}
+                        </div>
                       </div>
                     </div>
-                  );
-                })}
+
+                    <div className="text-right shrink-0">
+                      <span className="inline-block text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md bg-surface-secondary text-text-secondary border border-border-default">
+                        {member.role}
+                      </span>
+                      <div className="text-[10px] text-text-muted mt-0.5">
+                        {member.activeProjects} active project
+                        {member.activeProjects === 1 ? "" : "s"}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-border-default text-center">
+                <Link
+                  href="/team"
+                  className="text-xs font-semibold text-purple-600 hover:text-purple-700 transition"
+                >
+                  Manage Team & Role Permissions →
+                </Link>
               </div>
             </div>
-          ) : (
-            <div className="py-14 text-center text-xs text-slate-400 bg-slate-50/50 rounded-lg border border-dashed border-slate-200 dark:border-slate-800">
-              No execution telemetry recorded in this time range.
-            </div>
-          )}
+          </div>
         </div>
-
-        {/* Right (1 col): Subsystem Telemetry & Queue Latencies */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 p-5 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <Server className="w-4 h-4 text-indigo-600" />
-              <span>Engine Infrastructure Health</span>
-            </h2>
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span>ONLINE</span>
+      ) : (
+        /* TAB 2: OPERATIONAL TELEMETRY & SYSTEM HEALTH (Preserves backend metrics) */
+        <div className="space-y-6">
+          <div className="flex items-center justify-between p-4 rounded-2xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900/40">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-purple-600 text-white shrink-0">
+                <Server className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-text-primary">
+                  FlowForge Distributed Orchestration Engine
+                </h3>
+                <p className="text-xs text-text-secondary">
+                  Real-time worker telemetry, BullMQ queue telemetry, and
+                  failure categorization
+                </p>
+              </div>
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            <div className="p-3 bg-slate-50/80 rounded-lg border border-slate-100 dark:border-slate-800 space-y-1">
-              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold uppercase">
-                Queue Depth
-              </span>
-              <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                {operational?.queue.queuedJobs ?? 0}
-              </p>
-              <p className="text-[10px] text-slate-400">
-                {operational?.queue.runningJobs ?? 0} in runner
-              </p>
-            </div>
-
-            <div className="p-3 bg-slate-50/80 rounded-lg border border-slate-100 dark:border-slate-800 space-y-1">
-              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold uppercase">
-                Scheduler Lag
-              </span>
-              <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                {operational?.scheduler.maxLagSeconds ?? 0}s
-              </p>
-              <p className="text-[10px] text-emerald-600 font-medium">
-                {operational?.scheduler.status ?? "HEALTHY"}
-              </p>
-            </div>
-
-            <div className="p-3 bg-slate-50/80 rounded-lg border border-slate-100 dark:border-slate-800 space-y-1">
-              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold uppercase">
-                Pending Delays
-              </span>
-              <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                {operational?.delays.pendingDelays ?? 0}
-              </p>
-              <p className="text-[10px] text-slate-400">
-                {operational?.delays.overdueCount ?? 0} overdue
-              </p>
-            </div>
-
-            <div className="p-3 bg-slate-50/80 rounded-lg border border-slate-100 dark:border-slate-800 space-y-1">
-              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold uppercase">
-                Approvals
-              </span>
-              <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                {operational?.queue.waitingApprovalJobs ?? 0}
-              </p>
-              <p className="text-[10px] text-slate-400">
-                Awaiting human sign-off
-              </p>
-            </div>
-          </div>
-
-          <div className="pt-2 text-xs text-slate-500 dark:text-slate-400 flex items-center justify-between border-t border-slate-100 dark:border-slate-800">
-            <span className="text-[11px]">
-              Heartbeat:{" "}
-              {new Date(
-                operational?.timestamp || Date.now(),
-              ).toLocaleTimeString()}
-            </span>
-            <Link
-              href="/approvals"
-              className="text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 text-xs"
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={fetchTelemetry}
+              isLoading={telemetryLoading}
+              icon={<RefreshCw className="w-3.5 h-3.5" />}
             >
-              <span>Approval Inbox</span>
-              <ArrowRight className="w-3 h-3" />
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* Failure Classification & Recent Incidents */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left: Structured Failure Taxonomy */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 p-5 shadow-xs space-y-3">
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-rose-600" />
-              <span>Failure Taxonomy & Categories</span>
-            </h2>
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-              {failures?.totalFailures ?? 0} Recorded Incident
-              {failures?.totalFailures === 1 ? "" : "s"}
-            </span>
+              Refresh Telemetry
+            </Button>
           </div>
 
-          {failures?.categories &&
-          Object.keys(failures.categories).length > 0 ? (
-            <div className="flex flex-wrap gap-2 pt-1">
-              {Object.entries(failures.categories).map(([cat, count]) => (
-                <div
-                  key={cat}
-                  className="px-2.5 py-1 rounded-md bg-rose-50 border border-rose-200/80 text-xs font-medium text-rose-800 flex items-center gap-2"
-                >
-                  <span className="font-semibold">{cat}</span>
-                  <span className="bg-rose-200 text-rose-900 px-1.5 py-0.2 rounded-full text-[10px] font-bold">
-                    {count}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="py-4 text-center text-xs text-emerald-700 bg-emerald-50 rounded-lg border border-emerald-100">
-              ✓ Zero failure categorizations detected in this time range.
-            </div>
-          )}
+          {/* Telemetry KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard
+              label="BullMQ In-Flight Jobs"
+              value={telemetry?.queue.totalInFlight ?? 0}
+              subtext={`${telemetry?.queue.runningJobs ?? 0} active, ${telemetry?.queue.queuedJobs ?? 0} queued`}
+              icon={<Layers className="w-5 h-5" />}
+              iconBg="bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400"
+            />
 
-          {failures?.recentFailures && failures.recentFailures.length > 0 && (
-            <div className="space-y-2 pt-2">
-              <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                Recent Failed Executions (Sanitized)
+            <StatCard
+              label="Scheduler Status"
+              value={telemetry?.scheduler.status ?? "ONLINE"}
+              subtext={`${telemetry?.scheduler.activeSchedules ?? 0} active crons, max lag ${telemetry?.scheduler.maxLagSeconds ?? 0}s`}
+              icon={<Clock className="w-5 h-5" />}
+              iconBg="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400"
+            />
+
+            <StatCard
+              label="Worker Heartbeat"
+              value={telemetry?.worker.status ?? "HEALTHY"}
+              subtext="Distributed BullMQ worker alive"
+              icon={<Activity className="w-5 h-5" />}
+              iconBg="bg-purple-50 text-purple-600 dark:bg-purple-950/40 dark:text-purple-400"
+            />
+
+            <StatCard
+              label="Failure Categories"
+              value={failures?.totalFailures ?? 0}
+              subtext="Logged in 24h execution window"
+              icon={<ShieldAlert className="w-5 h-5" />}
+              iconBg="bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400"
+            />
+          </div>
+
+          {/* Active Alerts */}
+          {alerts.length > 0 && (
+            <div className="bg-surface-primary rounded-2xl border border-border-default p-6 shadow-card">
+              <h3 className="text-sm font-bold text-text-primary mb-3">
+                Active System Alerts ({alerts.length})
               </h3>
-              <div className="divide-y divide-slate-100 max-h-52 overflow-y-auto">
-                {failures.recentFailures.map((rf) => (
+              <div className="space-y-2">
+                {alerts.map((al) => (
                   <div
-                    key={rf.executionId}
-                    className="py-2.5 flex items-start justify-between text-xs hover:bg-slate-50 dark:bg-slate-800/50 transition"
+                    key={al.id}
+                    className="p-3 rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/20 flex items-center justify-between gap-3 text-xs"
                   >
-                    <div className="space-y-1 min-w-0 pr-3">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-slate-900 dark:text-slate-100 truncate">
-                          {rf.workflowName}
-                        </span>
-                        <span className="px-1.5 py-0.2 rounded bg-rose-100 text-rose-800 text-[10px] font-bold">
-                          {rf.category}
-                        </span>
-                      </div>
-                      <p className="text-slate-500 dark:text-slate-400 font-mono text-[11px] truncate">
-                        {rf.sanitizedMessage}
-                      </p>
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span className="font-bold text-rose-900 dark:text-rose-200">
+                        {al.title}:
+                      </span>
+                      <span className="text-text-secondary">{al.message}</span>
                     </div>
-                    <Link
-                      href={`/executions/${rf.executionId}`}
-                      className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 font-semibold shrink-0"
-                    >
-                      <span>Inspect</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </Link>
+                    <span className="text-[10px] text-text-muted shrink-0">
+                      {new Date(al.triggeredAt).toLocaleTimeString()}
+                    </span>
                   </div>
                 ))}
               </div>
             </div>
           )}
         </div>
+      )}
 
-        {/* Right: Quick Operational Shortcuts & Management */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 p-5 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <Cpu className="w-4 h-4 text-indigo-600" />
-              <span>Platform Quick Actions</span>
-            </h2>
-            <span className="text-xs text-slate-400">Active Node Clusters</span>
-          </div>
+      {/* MODAL 1: Create New Task */}
+      <Modal
+        isOpen={isNewTaskOpen}
+        onClose={() => setIsNewTaskOpen(false)}
+        title="Create New Task"
+        description="Assign an operational milestone or workflow action to your team."
+      >
+        <form onSubmit={handleCreateTask} className="space-y-4">
+          <FormField
+            label="Task Title"
+            name="task-title"
+            required
+            htmlFor={taskTitleId}
+          >
+            <Input
+              id={taskTitleId}
+              name="task-title"
+              required
+              placeholder="e.g. Implement webhook retry with exponential backoff"
+              value={newTaskTitle}
+              onChange={(e) => setNewTaskTitle(e.target.value)}
+              autoFocus
+            />
+          </FormField>
 
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            <Link
-              href="/workflows"
-              prefetch={false}
-              className="p-3.5 rounded-lg border border-slate-200/90 dark:border-slate-800 hover:border-indigo-400 hover:bg-indigo-50/30 transition group flex flex-col justify-between"
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormField
+              label="Associated Project"
+              name="task-project"
+              htmlFor={taskProjectId}
             >
-              <Workflow className="w-5 h-5 text-indigo-600 mb-2 group-hover:scale-105 transition-transform" />
-              <div>
-                <span className="font-bold text-slate-900 dark:text-slate-100 block">
-                  Manage Workflows
-                </span>
-                <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Configure triggers and draft revisions
-                </span>
-              </div>
-            </Link>
-
-            <Link
-              href="/executions"
-              prefetch={false}
-              className="p-3.5 rounded-lg border border-slate-200/90 dark:border-slate-800 hover:border-indigo-400 hover:bg-indigo-50/30 transition group flex flex-col justify-between"
-            >
-              <PlayCircle className="w-5 h-5 text-indigo-600 mb-2 group-hover:scale-105 transition-transform" />
-              <div>
-                <span className="font-bold text-slate-900 dark:text-slate-100 block">
-                  Execution Logs
-                </span>
-                <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Inspect payload and step timelines
-                </span>
-              </div>
-            </Link>
-
-            <Link
-              href="/templates"
-              prefetch={false}
-              className="p-3.5 rounded-lg border border-slate-200/90 dark:border-slate-800 hover:border-indigo-400 hover:bg-indigo-50/30 transition group flex flex-col justify-between"
-            >
-              <Layers className="w-5 h-5 text-indigo-600 mb-2 group-hover:scale-105 transition-transform" />
-              <div>
-                <span className="font-bold text-slate-900 dark:text-slate-100 block">
-                  Templates Library
-                </span>
-                <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Pre-built business orchestration
-                </span>
-              </div>
-            </Link>
-
-            <Link
-              href="/settings/developer"
-              prefetch={false}
-              className="p-3.5 rounded-lg border border-slate-200/90 dark:border-slate-800 hover:border-indigo-400 hover:bg-indigo-50/30 transition group flex flex-col justify-between"
-            >
-              <Zap className="w-5 h-5 text-indigo-600 mb-2 group-hover:scale-105 transition-transform" />
-              <div>
-                <span className="font-bold text-slate-900 dark:text-slate-100 block">
-                  Developer & APIs
-                </span>
-                <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                  OAuth credentials and webhooks
-                </span>
-              </div>
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* Workflow Performance & Bottleneck Analysis Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 shadow-xs overflow-hidden space-y-3">
-        <div className="p-5 border-b border-slate-200/90 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <Activity className="w-4 h-4 text-indigo-600" />
-              <span>Workflow Operational Performance & Step Bottlenecks</span>
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Durations, throughput percentiles, and node-level latency analysis
-            </p>
-          </div>
-          <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full self-start sm:self-auto">
-            {workflows.length} Registered Workflows
-          </span>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-600 dark:text-slate-400">
-            <caption className="sr-only">
-              Workflow operational summary table
-            </caption>
-            <thead className="bg-slate-50 dark:bg-slate-800/50 text-[11px] font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
-              <tr>
-                <th scope="col" className="px-5 py-3">
-                  Workflow Name
-                </th>
-                <th scope="col" className="px-5 py-3">
-                  Status
-                </th>
-                <th scope="col" className="px-5 py-3 text-right">
-                  Runs
-                </th>
-                <th scope="col" className="px-5 py-3 text-right">
-                  Success Rate
-                </th>
-                <th scope="col" className="px-5 py-3 text-right">
-                  Avg Duration
-                </th>
-                <th scope="col" className="px-5 py-3 text-right">
-                  P95 Duration
-                </th>
-                <th scope="col" className="px-5 py-3">
-                  Top Category
-                </th>
-                <th scope="col" className="px-5 py-3 text-right">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-xs">
-              {workflows.map((wf) => (
-                <tr
-                  key={wf.id}
-                  className="hover:bg-slate-50/80 transition-colors"
-                >
-                  <td className="px-5 py-3.5 font-bold text-slate-900 dark:text-slate-100">
-                    <Link
-                      href={`/workflows/${wf.id}`}
-                      className="hover:text-indigo-600 transition"
-                    >
-                      {wf.name}
-                    </Link>
-                  </td>
-
-                  <td className="px-5 py-3.5">
-                    <Badge status={wf.status} size="xs" />
-                  </td>
-
-                  <td className="px-5 py-3.5 text-right font-semibold text-slate-900 dark:text-slate-100">
-                    {wf.executionCount}
-                  </td>
-
-                  <td className="px-5 py-3.5 text-right">
-                    <span
-                      className={`font-semibold ${
-                        wf.successRate >= 90
-                          ? "text-emerald-600"
-                          : wf.successRate >= 75
-                            ? "text-amber-600"
-                            : "text-rose-600"
-                      }`}
-                    >
-                      {wf.successRate}%
-                    </span>
-                  </td>
-
-                  <td className="px-5 py-3.5 text-right font-mono text-[11px]">
-                    {(wf.avgDurationMs / 1000).toFixed(2)}s
-                  </td>
-
-                  <td className="px-5 py-3.5 text-right font-mono text-[11px]">
-                    {(wf.p95DurationMs / 1000).toFixed(2)}s
-                  </td>
-
-                  <td className="px-5 py-3.5">
-                    {wf.commonFailureCategory !== "NONE" ? (
-                      <span className="px-2 py-0.5 rounded bg-rose-50 text-rose-700 font-medium">
-                        {wf.commonFailureCategory}
-                      </span>
-                    ) : (
-                      <span className="text-slate-400 italic">None</span>
-                    )}
-                  </td>
-
-                  <td className="px-5 py-3.5 text-right">
-                    <button
-                      onClick={() => handleInspectNodes(wf.id, wf.name)}
-                      className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 font-semibold focus-ring rounded p-1"
-                    >
-                      <span>Inspect Nodes</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-
-              {workflows.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={8}
-                    className="px-6 py-10 text-center text-slate-400"
-                  >
-                    No workflows registered. Create your first workflow to see
-                    operational metrics.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* NODE PERFORMANCE & BOTTLENECK MODAL */}
-      {selectedWfNodes && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-slate-900 rounded-xl max-w-3xl w-full p-6 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto border border-slate-200 dark:border-slate-800">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                  <Zap className="w-5 h-5 text-amber-500" />
-                  <span>Node Performance: {selectedWfNodes.workflowName}</span>
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Step latency distribution & bottleneck identification
-                </p>
-              </div>
-              <button
-                onClick={() => setSelectedWfNodes(null)}
-                className="text-slate-400 hover:text-slate-600 dark:text-slate-400 p-1 rounded-lg hover:bg-slate-100 dark:bg-slate-800"
+              <select
+                id={taskProjectId}
+                name="task-project"
+                value={newTaskProject}
+                onChange={(e) => setNewTaskProject(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-border-default bg-surface-primary text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
               >
-                <X className="w-5 h-5" />
-              </button>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+
+            <FormField
+              label="Priority"
+              name="task-priority"
+              htmlFor={taskPriorityId}
+            >
+              <select
+                id={taskPriorityId}
+                name="task-priority"
+                value={newTaskPriority}
+                onChange={(e) => setNewTaskPriority(e.target.value as any)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-border-default bg-surface-primary text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+              >
+                <option value="High">High Priority</option>
+                <option value="Medium">Medium Priority</option>
+                <option value="Low">Low Priority</option>
+              </select>
+            </FormField>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormField
+              label="Target Due Date"
+              name="task-due-date"
+              htmlFor={taskDueDateId}
+            >
+              <Input
+                id={taskDueDateId}
+                name="task-due-date"
+                type="text"
+                placeholder="e.g. Nov 25, 2026"
+                value={newTaskDueDate}
+                onChange={(e) => setNewTaskDueDate(e.target.value)}
+              />
+            </FormField>
+
+            <FormField
+              label="Assignee"
+              name="task-assignee"
+              htmlFor={taskAssigneeId}
+            >
+              <select
+                id={taskAssigneeId}
+                name="task-assignee"
+                value={newTaskAssignee}
+                onChange={(e) => setNewTaskAssignee(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl border border-border-default bg-surface-primary text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+              >
+                {team.map((m) => (
+                  <option key={m.id} value={m.name}>
+                    {m.name} ({m.role})
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          </div>
+
+          <FormField
+            label="Description & Notes"
+            name="task-desc"
+            htmlFor={taskDescId}
+          >
+            <Textarea
+              id={taskDescId}
+              name="task-desc"
+              rows={2}
+              placeholder="Operational details, acceptance criteria, or external references..."
+              value={newTaskDesc}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                setNewTaskDesc(e.target.value)
+              }
+            />
+          </FormField>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-border-default">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsNewTaskOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              disabled={!newTaskTitle.trim()}
+            >
+              Create Task
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* MODAL 2: Create New Project */}
+      <Modal
+        isOpen={isNewProjectOpen}
+        onClose={() => setIsNewProjectOpen(false)}
+        title="Create New Project"
+        description="Group related workflows, pipelines, and tasks under a dedicated initiative."
+      >
+        <form onSubmit={handleCreateProject} className="space-y-4">
+          <FormField
+            label="Project Name"
+            name="project-name"
+            required
+            htmlFor={projectNameId}
+          >
+            <Input
+              id={projectNameId}
+              name="project-name"
+              required
+              placeholder="e.g. Q4 SOC2 Type II Audit Compliance"
+              value={newProjectName}
+              onChange={(e) => setNewProjectName(e.target.value)}
+              autoFocus
+            />
+          </FormField>
+
+          <FormField
+            label="Description"
+            name="project-desc"
+            htmlFor={projectDescId}
+          >
+            <Textarea
+              id={projectDescId}
+              name="project-desc"
+              rows={2}
+              placeholder="Scope, objectives, and deliverables..."
+              value={newProjectDesc}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                setNewProjectDesc(e.target.value)
+              }
+            />
+          </FormField>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormField
+              label="Target Launch Date"
+              name="project-due-date"
+              htmlFor={projectDueDateId}
+            >
+              <Input
+                id={projectDueDateId}
+                name="project-due-date"
+                type="text"
+                placeholder="e.g. Dec 31, 2026"
+                value={newProjectDueDate}
+                onChange={(e) => setNewProjectDueDate(e.target.value)}
+              />
+            </FormField>
+
+            <FormField label="Accent Color" name="project-color">
+              <div className="flex items-center gap-2 pt-1">
+                {[
+                  "#6738E8",
+                  "#20B779",
+                  "#F3A72F",
+                  "#4285F4",
+                  "#EC4899",
+                  "#14B8A6",
+                ].map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setNewProjectColor(c)}
+                    className={`w-7 h-7 rounded-lg transition-transform ${
+                      newProjectColor === c
+                        ? "ring-2 ring-purple-600 scale-110"
+                        : "opacity-80 hover:opacity-100"
+                    }`}
+                    style={{ backgroundColor: c }}
+                    title={c}
+                  />
+                ))}
+              </div>
+            </FormField>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-border-default">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsNewProjectOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              disabled={!newProjectName.trim()}
+            >
+              Create Project
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* MODAL 3: Invite Team Member */}
+      <Modal
+        isOpen={isInviteOpen}
+        onClose={() => setIsInviteOpen(false)}
+        title="Invite Team Member"
+        description="Add a collaborator to your FlowForge workspace with role-based access."
+      >
+        <form onSubmit={handleInviteMember} className="space-y-4">
+          <FormField
+            label="Full Name"
+            name="member-name"
+            required
+            htmlFor={memberNameId}
+          >
+            <Input
+              id={memberNameId}
+              name="member-name"
+              required
+              placeholder="e.g. Alex Henderson"
+              value={newMemberName}
+              onChange={(e) => setNewMemberName(e.target.value)}
+              autoFocus
+            />
+          </FormField>
+
+          <FormField
+            label="Email Address"
+            name="member-email"
+            required
+            htmlFor={memberEmailId}
+          >
+            <Input
+              id={memberEmailId}
+              name="member-email"
+              type="email"
+              required
+              placeholder="e.g. alex@company.com"
+              value={newMemberEmail}
+              onChange={(e) => setNewMemberEmail(e.target.value)}
+            />
+          </FormField>
+
+          <FormField
+            label="Workspace Role"
+            name="member-role"
+            htmlFor={memberRoleId}
+          >
+            <select
+              id={memberRoleId}
+              name="member-role"
+              value={newMemberRole}
+              onChange={(e) => setNewMemberRole(e.target.value as any)}
+              className="w-full px-3.5 py-2.5 rounded-xl border border-border-default bg-surface-primary text-text-primary text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+            >
+              <option value="Admin">
+                Admin (Full workflow & member control)
+              </option>
+              <option value="Editor">
+                Editor (Create, edit, and trigger workflows)
+              </option>
+              <option value="Viewer">
+                Viewer (Read-only analytics and audit logs)
+              </option>
+            </select>
+          </FormField>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-border-default">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsInviteOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              disabled={!newMemberName.trim() || !newMemberEmail.trim()}
+            >
+              Send Invite
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* MODAL 4: Task Details & Quick Actions */}
+      {selectedTask && (
+        <Modal
+          isOpen={!!selectedTask}
+          onClose={() => setSelectedTask(null)}
+          title={selectedTask.title}
+          description={`Project: ${selectedTask.projectName}`}
+        >
+          <div className="space-y-4">
+            <div className="p-4 rounded-xl bg-surface-secondary/50 border border-border-default space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-text-secondary font-medium">Status</span>
+                <Badge status={selectedTask.status} size="sm" showDot />
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-text-secondary font-medium">
+                  Priority
+                </span>
+                <span className="font-semibold text-text-primary">
+                  {selectedTask.priority}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-text-secondary font-medium">
+                  Due Date
+                </span>
+                <span className="font-semibold text-text-primary">
+                  {selectedTask.dueDate}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-text-secondary font-medium">
+                  Assignee
+                </span>
+                <span className="font-semibold text-text-primary">
+                  {selectedTask.assignee.name}
+                </span>
+              </div>
             </div>
 
-            {selectedWfNodes.bottlenecks.length > 0 && (
-              <div className="p-3 bg-amber-50 rounded-lg border border-amber-200 text-xs text-amber-900 space-y-1">
-                <div className="font-bold flex items-center gap-1.5">
-                  <AlertTriangle className="w-4 h-4 text-amber-600" />
-                  <span>Potential Bottleneck Detected</span>
-                </div>
-                <p>
-                  The following node(s) consume over 40% of cumulative execution
-                  duration or experience elevated failure rates:
-                </p>
-                <ul className="list-disc pl-5 font-semibold space-y-0.5">
-                  {selectedWfNodes.bottlenecks.map((bn) => (
-                    <li key={bn.nodeId}>
-                      {bn.nodeName} ({bn.nodeType}) —{" "}
-                      {bn.percentageOfTotalDuration}% of runtime (P95:{" "}
-                      {(bn.p95DurationMs / 1000).toFixed(2)}s)
-                    </li>
-                  ))}
-                </ul>
+            {selectedTask.description && (
+              <div className="text-xs text-text-secondary leading-relaxed bg-surface-primary p-3 rounded-xl border border-border-default">
+                {selectedTask.description}
               </div>
             )}
 
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                Detailed Node Telemetry Breakdown
-              </h4>
-              <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-700 dark:text-slate-300 font-semibold border-b border-slate-200 dark:border-slate-800">
-                    <tr>
-                      <th className="px-4 py-2.5">Node</th>
-                      <th className="px-4 py-2.5">Type</th>
-                      <th className="px-4 py-2.5 text-right">Runs</th>
-                      <th className="px-4 py-2.5 text-right">Failures</th>
-                      <th className="px-4 py-2.5 text-right">Avg Duration</th>
-                      <th className="px-4 py-2.5 text-right">P95</th>
-                      <th className="px-4 py-2.5 text-right">% Duration</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {selectedWfNodes.nodes.map((n) => (
-                      <tr
-                        key={n.nodeId}
-                        className={
-                          n.isBottleneck
-                            ? "bg-amber-50/50"
-                            : "hover:bg-slate-50 dark:bg-slate-800/50"
-                        }
-                      >
-                        <td className="px-4 py-2 font-semibold text-slate-900 dark:text-slate-100">
-                          {n.nodeName}
-                        </td>
-                        <td className="px-4 py-2">
-                          <span className="font-mono text-[11px] text-slate-600 dark:text-slate-400">
-                            {n.nodeType}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2 text-right">
-                          {n.executionCount}
-                        </td>
-                        <td className="px-4 py-2 text-right text-rose-600 font-semibold">
-                          {n.failureCount}
-                        </td>
-                        <td className="px-4 py-2 text-right font-mono">
-                          {(n.avgDurationMs / 1000).toFixed(2)}s
-                        </td>
-                        <td className="px-4 py-2 text-right font-mono">
-                          {(n.p95DurationMs / 1000).toFixed(2)}s
-                        </td>
-                        <td className="px-4 py-2 text-right font-semibold">
-                          {n.percentageOfTotalDuration}%
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-2">
+            <div className="flex items-center justify-between pt-4 border-t border-border-default">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setSelectedWfNodes(null)}
+                onClick={() => {
+                  deleteTask(selectedTask.id);
+                  setSelectedTask(null);
+                }}
+                className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                icon={<Trash2 className="w-3.5 h-3.5" />}
               >
-                Close Inspector
+                Delete
               </Button>
+
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedTask(null)}
+                >
+                  Close
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    toggleTaskCompletion(selectedTask.id);
+                    setSelectedTask(null);
+                  }}
+                  icon={<Check className="w-3.5 h-3.5" />}
+                >
+                  {selectedTask.completed ? "Mark Incomplete" : "Mark Complete"}
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

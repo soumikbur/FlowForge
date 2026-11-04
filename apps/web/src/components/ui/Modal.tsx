@@ -53,34 +53,31 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-xs overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy-900/60 dark:bg-black/70 backdrop-blur-xs overflow-y-auto"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose();
         }
       }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      aria-describedby={description ? descId : undefined}
     >
       <div
         ref={modalRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={description ? descId : undefined}
-        className={`bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-xl w-full ${maxWidthStyles[maxWidth]} shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden my-8`}
+        className={`w-full ${maxWidthStyles[maxWidth]} bg-surface-primary border border-border-default rounded-2xl shadow-elevated overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150`}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
+        <div className="px-6 py-5 border-b border-border-subtle flex items-center justify-between">
           <div>
-            <h2
+            <h3
               id={titleId}
-              className="text-base font-bold text-slate-900 dark:text-slate-100"
+              className="text-base font-semibold text-text-primary"
             >
               {title}
-            </h2>
+            </h3>
             {description && (
-              <p
-                id={descId}
-                className="text-xs text-slate-500 dark:text-slate-400 mt-0.5"
-              >
+              <p id={descId} className="text-xs text-text-secondary mt-1">
                 {description}
               </p>
             )}
@@ -88,14 +85,14 @@ export function Modal({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close dialog"
-            className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+            aria-label="Close modal"
+            className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-secondary transition"
           >
-            <X className="w-4 h-4" aria-hidden="true" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="px-6 py-5 max-h-[80vh] overflow-y-auto">{children}</div>
+        <div className="p-6">{children}</div>
       </div>
     </div>
   );

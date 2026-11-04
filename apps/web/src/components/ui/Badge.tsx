@@ -5,26 +5,25 @@ import {
   AlertTriangle,
   Clock,
   RefreshCw,
-  PauseCircle,
-  FileText,
   Info,
 } from "lucide-react";
 
 export type BadgeStatus =
+  | "COMPLETED"
   | "ACTIVE"
   | "SUCCEEDED"
   | "APPROVED"
+  | "IN_PROGRESS"
+  | "RUNNING"
+  | "PROCESSING"
+  | "PENDING"
+  | "WAITING"
+  | "WAITING_APPROVAL"
+  | "OVERDUE"
   | "FAILED"
   | "REJECTED"
   | "ERROR"
-  | "WAITING_APPROVAL"
-  | "PENDING"
-  | "WARNING"
-  | "RUNNING"
-  | "PROCESSING"
-  | "WAITING_DELAY"
   | "CANCELLED"
-  | "ARCHIVED"
   | "DRAFT"
   | "INFO"
   | "NEUTRAL";
@@ -49,112 +48,82 @@ export function Badge({
   const normalized = status.toUpperCase().replace(/\s+/g, "_");
 
   let colorClasses =
-    "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700";
-  let dotColor = "bg-slate-500";
+    "bg-surface-secondary text-text-secondary border-border-default";
+  let dotColor = "bg-text-muted";
   let IconComponent: React.ComponentType<{ className?: string }> = Info;
 
   switch (normalized) {
+    case "COMPLETED":
     case "ACTIVE":
     case "SUCCEEDED":
     case "APPROVED":
-    case "READY":
-    case "DELIVERED":
     case "HEALTHY":
-      colorClasses =
-        "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-200/80 dark:border-emerald-800/60";
-      dotColor = "bg-emerald-500";
+      colorClasses = "bg-[#20B779]/10 text-[#20B779] border-[#20B779]/30";
+      dotColor = "bg-[#20B779]";
       IconComponent = CheckCircle2;
       break;
 
+    case "OVERDUE":
     case "FAILED":
     case "REJECTED":
     case "ERROR":
-    case "DEAD_LETTERED":
-    case "FAILED_PERMANENTLY":
     case "CRITICAL":
-      colorClasses =
-        "bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-300 border-rose-200/80 dark:border-rose-800/60";
-      dotColor = "bg-rose-500";
+      colorClasses = "bg-[#EB5757]/10 text-[#EB5757] border-[#EB5757]/30";
+      dotColor = "bg-[#EB5757]";
       IconComponent = XCircle;
       break;
 
-    case "WAITING_APPROVAL":
-    case "PENDING":
-    case "WARNING":
-    case "RETRY_SCHEDULED":
-    case "RETRYING":
-      colorClasses =
-        "bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-200/80 dark:border-amber-800/60";
-      dotColor = "bg-amber-500";
-      IconComponent = AlertTriangle;
-      break;
-
+    case "IN_PROGRESS":
     case "RUNNING":
     case "PROCESSING":
-    case "IN_PROGRESS":
-      colorClasses =
-        "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-300 border-indigo-200/80 dark:border-indigo-800/60";
-      dotColor = "bg-indigo-500";
+    case "RETRYING":
+      colorClasses = "bg-[#F3A72F]/10 text-[#F3A72F] border-[#F3A72F]/30";
+      dotColor = "bg-[#F3A72F]";
       IconComponent = RefreshCw;
       break;
 
-    case "WAITING_DELAY":
+    case "PENDING":
+    case "WAITING":
+    case "WAITING_APPROVAL":
+    case "WARNING":
       colorClasses =
-        "bg-sky-50 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300 border-sky-200/80 dark:border-sky-800/60";
-      dotColor = "bg-sky-500";
+        "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30";
+      dotColor = "bg-amber-500";
       IconComponent = Clock;
       break;
 
-    case "CANCELLED":
-    case "ARCHIVED":
-    case "DISABLED":
-      colorClasses =
-        "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700";
-      dotColor = "bg-slate-400";
-      IconComponent = PauseCircle;
-      break;
-
     case "DRAFT":
-      colorClasses =
-        "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700";
-      dotColor = "bg-slate-400";
-      IconComponent = FileText;
-      break;
-
+    case "NEUTRAL":
+    case "INFO":
     default:
       colorClasses =
-        "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700";
-      dotColor = "bg-slate-400";
+        "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30";
+      dotColor = "bg-[#6738E8]";
       IconComponent = Info;
       break;
   }
 
-  const displayLabel = label || status.replace(/_/g, " ");
-  const isSpinning = normalized === "RUNNING" || normalized === "PROCESSING";
+  const sizeClasses = {
+    xs: "px-1.5 py-0.5 text-[10px] gap-1",
+    sm: "px-2 py-0.5 text-[11px] gap-1.5",
+    md: "px-2.5 py-1 text-xs gap-1.5 font-medium",
+  };
 
-  const sizeClasses =
-    size === "xs"
-      ? "text-[10px] px-1.5 py-0.5 gap-1 font-medium"
-      : size === "sm"
-        ? "text-[11px] px-2 py-0.5 gap-1 font-medium"
-        : "text-xs px-2.5 py-1 gap-1.5 font-medium";
+  const displayLabel = label || status.replace(/_/g, " ");
 
   return (
     <span
-      className={`inline-flex items-center border rounded-full select-none ${colorClasses} ${sizeClasses} ${className}`}
       role="status"
+      className={`inline-flex items-center rounded-lg border font-medium transition-colors select-none ${sizeClasses[size]} ${colorClasses} ${className}`}
     >
       {showDot && (
         <span
-          className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor} ${isSpinning ? "animate-ping" : ""}`}
+          className={`w-1.5 h-1.5 rounded-full ${dotColor} shrink-0`}
           aria-hidden="true"
         />
       )}
       {showIcon && !showDot && (
-        <IconComponent
-          className={`w-3.5 h-3.5 shrink-0 ${isSpinning ? "animate-spin" : ""}`}
-          aria-hidden="true"
-        />
+        <IconComponent className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
       )}
       <span>{displayLabel}</span>
     </span>

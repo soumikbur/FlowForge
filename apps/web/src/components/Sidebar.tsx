@@ -4,43 +4,37 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Layers,
   LayoutDashboard,
+  CheckSquare,
+  FolderKanban,
   Workflow,
+  Users,
+  BarChart3,
+  Settings,
   BookOpen,
   PlayCircle,
-  CheckSquare,
-  Search,
-  BarChart3,
   ShieldCheck,
-  Gauge,
-  Code2,
-  Settings,
   ChevronLeft,
   ChevronRight,
   LogOut,
   ChevronDown,
   Building2,
-  Activity,
   CheckCircle2,
   X,
+  Sun,
+  Moon,
+  Zap,
+  Search,
+  Gauge,
+  Code,
 } from "lucide-react";
+import { useTheme } from "./ThemeProvider";
 
 interface SidebarProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
   mobileOpen: boolean;
   onCloseMobile: () => void;
-}
-
-interface NavGroup {
-  label: string;
-  items: Array<{
-    label: string;
-    href: string;
-    icon: React.ElementType;
-    badge?: string | number;
-  }>;
 }
 
 export function Sidebar({
@@ -58,19 +52,20 @@ export function Sidebar({
   } catch {
     // Graceful fallback when rendered outside AppRouter context
   }
-  const [activeWorkspace, setActiveWorkspace] = useState("Acme Production");
-  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
 
-  // Safe client-side navigation handler that guarantees zero browser download fallback
+  const { resolvedTheme, toggleTheme } = useTheme();
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [activeWorkspace, setActiveWorkspace] = useState("Acme Production");
+
+  // Guaranteed safe client navigation handler
   const handleNavigation = (
     e: React.MouseEvent<HTMLAnchorElement>,
     href: string,
   ) => {
-    // Preserve standard browser behavior for multi-window / multi-tab shortcuts (Ctrl, Cmd, Shift)
     if (e.metaKey || e.ctrlKey || e.shiftKey) {
       return;
     }
-    // Prevent any browser default link behavior (such as Alt+Click download target or browser download fallback)
     e.preventDefault();
     onCloseMobile();
     if (router) {
@@ -78,38 +73,27 @@ export function Sidebar({
     }
   };
 
-  const navGroups: NavGroup[] = [
-    {
-      label: "Automation",
-      items: [
-        { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-        { label: "Workflows", href: "/workflows", icon: Workflow },
-        { label: "Templates", href: "/templates", icon: BookOpen },
-        { label: "Executions", href: "/executions", icon: PlayCircle },
-        { label: "Approvals", href: "/approvals", icon: CheckSquare },
-      ],
-    },
-    {
-      label: "Intelligence",
-      items: [
-        { label: "Unified Search", href: "/search", icon: Search },
-        { label: "Analytics", href: "/analytics", icon: BarChart3 },
-      ],
-    },
-    {
-      label: "Governance",
-      items: [
-        { label: "Policies", href: "/policies", icon: ShieldCheck },
-        { label: "Quotas & Rates", href: "/quotas", icon: Gauge },
-      ],
-    },
-    {
-      label: "Platform",
-      items: [
-        { label: "Developer & API", href: "/settings/developer", icon: Code2 },
-        { label: "Organization", href: "/settings", icon: Settings },
-      ],
-    },
+  // Primary 7 Navigation Items as requested in Master Prompt
+  const primaryNavItems = [
+    { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+    { label: "Tasks", href: "/tasks", icon: CheckSquare },
+    { label: "Projects", href: "/projects", icon: FolderKanban },
+    { label: "Workflows", href: "/workflows", icon: Workflow },
+    { label: "Team", href: "/team", icon: Users },
+    { label: "Reports", href: "/reports", icon: BarChart3 },
+    { label: "Settings", href: "/settings", icon: Settings },
+  ];
+
+  // Secondary platform items preserving complete existing workflow capabilities
+  const secondaryNavItems = [
+    { label: "Approvals", href: "/approvals", icon: CheckCircle2 },
+    { label: "Executions", href: "/executions", icon: PlayCircle },
+    { label: "Templates", href: "/templates", icon: BookOpen },
+    { label: "Policies", href: "/policies", icon: ShieldCheck },
+    { label: "Unified Search", href: "/search", icon: Search },
+    { label: "Analytics", href: "/analytics", icon: BarChart3 },
+    { label: "Quotas & Rates", href: "/quotas", icon: Gauge },
+    { label: "Developer & API", href: "/settings/developer", icon: Code },
   ];
 
   return (
@@ -117,42 +101,39 @@ export function Sidebar({
       {/* Mobile Drawer Backdrop */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-xs md:hidden"
+          className="fixed inset-0 z-40 bg-navy-900/70 backdrop-blur-xs md:hidden"
           onClick={onCloseMobile}
           aria-hidden="true"
         />
       )}
 
-      {/* Main Sidebar Element */}
+      {/* Fixed Vertical Navigation Sidebar */}
       <aside
-        aria-label="Application Rail"
-        className={`fixed top-0 bottom-0 left-0 z-40 flex flex-col bg-slate-900 dark:bg-slate-950 border-r border-slate-800 dark:border-slate-800/80 text-slate-300 transition-all duration-200 select-none ${
-          collapsed ? "w-16" : "w-64"
+        aria-label="Application Sidebar"
+        className={`fixed top-0 bottom-0 left-0 z-40 flex flex-col bg-[#191B32] border-r border-[#232644] text-[#A3A8C2] transition-all duration-200 select-none ${
+          collapsed ? "w-18" : "w-[260px]"
         } ${
           mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >
-        {/* Brand Header */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-slate-800/80 bg-slate-950/40">
+        {/* Top Brand Section */}
+        <div className="h-20 flex items-center justify-between px-5 border-b border-[#232644]">
           <Link
             href="/dashboard"
             prefetch={false}
             onClick={(e) => handleNavigation(e, "/dashboard")}
-            className="flex items-center gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-md p-1"
+            className="flex items-center gap-3 focus:outline-none rounded-xl"
           >
-            <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-xs shrink-0">
-              <Layers className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#6738E8] to-[#8156F2] flex items-center justify-center text-white shadow-glow shrink-0">
+              <Zap className="w-5 h-5 fill-current" />
             </div>
             {!collapsed && (
               <div className="flex flex-col min-w-0">
-                <span className="font-bold text-white text-base tracking-tight leading-none flex items-center gap-1.5">
+                <span className="font-bold text-white text-lg tracking-tight leading-none flex items-center gap-1.5">
                   FlowForge
-                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
-                    Control Plane
-                  </span>
                 </span>
-                <span className="text-[11px] text-slate-400 truncate mt-0.5">
-                  Enterprise Automation
+                <span className="text-[11px] text-[#747A96] tracking-wide mt-1 font-medium">
+                  Automate · Build · Grow
                 </span>
               </div>
             )}
@@ -161,7 +142,7 @@ export function Sidebar({
           {/* Mobile close button */}
           <button
             type="button"
-            className="md:hidden p-1.5 text-slate-400 hover:text-white rounded-md"
+            className="md:hidden p-1.5 text-[#747A96] hover:text-white rounded-lg"
             onClick={onCloseMobile}
             aria-label="Close sidebar"
           >
@@ -171,33 +152,33 @@ export function Sidebar({
 
         {/* Workspace Switcher */}
         {!collapsed && (
-          <div className="p-3 border-b border-slate-800/60">
+          <div className="p-3.5 border-b border-[#232644]/70">
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setWorkspaceMenuOpen(!workspaceMenuOpen)}
-                className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-slate-200 bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 rounded-lg transition focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-white bg-[#20233F] hover:bg-[#282B4E] border border-[#2A2E4E] rounded-xl transition focus:outline-none"
               >
                 <div className="flex items-center gap-2 truncate">
-                  <Building2 className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                  <Building2 className="w-3.5 h-3.5 text-[#8156F2] shrink-0" />
                   <span className="truncate">{activeWorkspace}</span>
                 </div>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <ChevronDown className="w-3.5 h-3.5 text-[#747A96] shrink-0" />
               </button>
 
               {workspaceMenuOpen && (
-                <div className="absolute left-0 right-0 mt-1 z-50 bg-slate-800 border border-slate-700 rounded-lg shadow-xl py-1 text-xs text-slate-200">
+                <div className="absolute left-0 right-0 mt-1.5 z-50 bg-[#1D203A] border border-[#2E335B] rounded-xl shadow-xl py-1 text-xs text-white">
                   <button
                     type="button"
                     onClick={() => {
                       setActiveWorkspace("Acme Production");
                       setWorkspaceMenuOpen(false);
                     }}
-                    className="w-full text-left px-3 py-1.5 hover:bg-slate-700/80 flex items-center justify-between"
+                    className="w-full text-left px-3.5 py-2 hover:bg-[#282C50] flex items-center justify-between"
                   >
                     <span>Acme Production</span>
                     {activeWorkspace === "Acme Production" && (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#20B779]" />
                     )}
                   </button>
                   <button
@@ -206,11 +187,11 @@ export function Sidebar({
                       setActiveWorkspace("Staging & Validation");
                       setWorkspaceMenuOpen(false);
                     }}
-                    className="w-full text-left px-3 py-1.5 hover:bg-slate-700/80 flex items-center justify-between"
+                    className="w-full text-left px-3.5 py-2 hover:bg-[#282C50] flex items-center justify-between"
                   >
                     <span>Staging & Validation</span>
                     {activeWorkspace === "Staging & Validation" && (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#20B779]" />
                     )}
                   </button>
                 </div>
@@ -219,131 +200,213 @@ export function Sidebar({
           </div>
         )}
 
-        {/* Navigation Groups */}
-        <div className="flex-1 overflow-y-auto px-2 py-3 space-y-5">
-          {navGroups.map((group) => (
-            <div key={group.label} className="space-y-1">
-              {!collapsed && (
-                <div className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  {group.label}
-                </div>
-              )}
-              <div className="space-y-0.5">
-                {group.items.map((item) => {
-                  const Icon = item.icon;
-                  const isActive =
-                    item.href === "/dashboard"
-                      ? pathname === "/dashboard"
-                      : item.href === "/settings"
-                        ? pathname === "/settings"
-                        : pathname.startsWith(item.href);
-
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      prefetch={false}
-                      onClick={(e) => handleNavigation(e, item.href)}
-                      title={collapsed ? item.label : undefined}
-                      aria-current={isActive ? "page" : undefined}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
-                        isActive
-                          ? "bg-indigo-600/15 text-indigo-400 font-semibold border-l-2 border-indigo-500 pl-[10px]"
-                          : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
-                      } ${collapsed ? "justify-center px-0" : ""}`}
-                    >
-                      <Icon
-                        className={`w-4 h-4 shrink-0 ${isActive ? "text-indigo-400" : "text-slate-400"}`}
-                      />
-                      {!collapsed && (
-                        <span className="truncate">{item.label}</span>
-                      )}
-                      {!collapsed && item.badge && (
-                        <span className="ml-auto text-[10px] px-1.5 py-0.2 rounded-full font-bold bg-indigo-500/20 text-indigo-300">
-                          {item.badge}
-                        </span>
-                      )}
-                    </Link>
-                  );
-                })}
+        {/* Vertical Navigation Area */}
+        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+          {/* Main Items */}
+          <div className="space-y-1">
+            {!collapsed && (
+              <div className="px-3 text-[10px] font-bold uppercase tracking-wider text-[#747A96] mb-2">
+                Main Menu
               </div>
-            </div>
-          ))}
+            )}
+            {primaryNavItems.map((item) => {
+              const Icon = item.icon;
+              const isActive =
+                item.href === "/dashboard"
+                  ? pathname === "/dashboard"
+                  : item.href === "/settings"
+                    ? pathname.startsWith("/settings")
+                    : pathname.startsWith(item.href);
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  prefetch={false}
+                  onClick={(e) => handleNavigation(e, item.href)}
+                  title={collapsed ? item.label : undefined}
+                  aria-current={isActive ? "page" : undefined}
+                  className={`flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    isActive
+                      ? "bg-[#6738E8] text-white shadow-xs font-semibold"
+                      : "text-[#A3A8C2] hover:text-white hover:bg-[#20233F]"
+                  } ${collapsed ? "justify-center px-0" : ""}`}
+                >
+                  <Icon
+                    className={`w-4.5 h-4.5 shrink-0 ${
+                      isActive ? "text-white" : "text-[#747A96]"
+                    }`}
+                  />
+                  {!collapsed && <span className="truncate">{item.label}</span>}
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* Platform / Workflow Features */}
+          <div className="space-y-1">
+            {!collapsed && (
+              <div className="px-3 text-[10px] font-bold uppercase tracking-wider text-[#747A96] mb-2">
+                Platform
+              </div>
+            )}
+            {secondaryNavItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = pathname.startsWith(item.href);
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  prefetch={false}
+                  onClick={(e) => handleNavigation(e, item.href)}
+                  title={collapsed ? item.label : undefined}
+                  aria-current={isActive ? "page" : undefined}
+                  className={`flex items-center gap-3.5 px-3.5 py-2 rounded-xl text-xs font-medium transition-all ${
+                    isActive
+                      ? "bg-[#6738E8]/20 text-[#8156F2] font-semibold border-l-2 border-[#6738E8]"
+                      : "text-[#747A96] hover:text-[#A3A8C2] hover:bg-[#20233F]/70"
+                  } ${collapsed ? "justify-center px-0" : ""}`}
+                >
+                  <Icon
+                    className={`w-4 h-4 shrink-0 ${
+                      isActive ? "text-[#8156F2]" : "text-[#747A96]"
+                    }`}
+                  />
+                  {!collapsed && <span className="truncate">{item.label}</span>}
+                </Link>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Health Telemetry Status Indicator */}
-        {!collapsed && (
-          <div className="mx-3 mb-2 p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/80 text-[11px] space-y-1.5">
-            <div className="flex items-center justify-between text-slate-400 font-semibold">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-slate-300 text-[11px]">
-                  System Operational
-                </span>
-              </span>
-              <span className="text-[10px] text-emerald-400 font-mono">
-                100%
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-[10px] text-slate-400">
-              <span>API :4000</span>
-              <span className="text-emerald-400 font-medium">HEALTHY</span>
-            </div>
-            <div className="flex items-center justify-between text-[10px] text-slate-400">
-              <span>Worker :4001</span>
-              <span className="text-emerald-400 font-medium">ACTIVE</span>
-            </div>
-          </div>
-        )}
-
-        {/* Footer / User Profile & Collapse Toggle */}
-        <div className="p-3 border-t border-slate-800/80 bg-slate-950/40 flex items-center justify-between gap-2">
+        {/* Bottom Section: Theme Toggle & User Profile */}
+        <div className="p-3.5 border-t border-[#232644] bg-[#15172C] flex flex-col gap-3">
+          {/* Theme Toggle Button */}
           {!collapsed ? (
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-indigo-400 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
-                FF
-              </div>
-              <div className="flex flex-col min-w-0">
-                <span className="text-xs font-semibold text-slate-200 truncate">
-                  Admin User
-                </span>
-                <span className="text-[10px] text-indigo-400 font-medium">
-                  Organization Owner
-                </span>
-              </div>
-            </div>
-          ) : (
-            <div className="w-8 h-8 mx-auto rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center">
-              FF
-            </div>
-          )}
-
-          <div className="flex items-center gap-1">
-            {!collapsed && (
-              <Link
-                href="/login"
-                prefetch={false}
-                onClick={(e) => handleNavigation(e, "/login")}
-                title="Sign out"
-                aria-label="Sign out"
-                className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-md transition"
-              >
-                <LogOut className="w-4 h-4" />
-              </Link>
-            )}
-
             <button
               type="button"
-              onClick={onToggleCollapse}
-              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-              className="hidden md:flex p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-md transition"
+              onClick={toggleTheme}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-[#1E213D] hover:bg-[#25294A] text-xs font-medium text-[#A3A8C2] hover:text-white transition"
+              aria-label="Toggle light or dark theme"
             >
-              {collapsed ? (
-                <ChevronRight className="w-4 h-4" />
+              <span className="flex items-center gap-2">
+                {resolvedTheme === "dark" ? (
+                  <Moon className="w-4 h-4 text-[#8156F2]" />
+                ) : (
+                  <Sun className="w-4 h-4 text-amber-400" />
+                )}
+                <span>
+                  {resolvedTheme === "dark" ? "Dark Mode" : "Light Mode"}
+                </span>
+              </span>
+              <span className="text-[10px] uppercase font-bold text-[#747A96] px-1.5 py-0.5 rounded bg-[#15172C]">
+                {resolvedTheme}
+              </span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={toggleTheme}
+              title="Toggle theme"
+              className="w-10 h-10 mx-auto rounded-xl bg-[#1E213D] flex items-center justify-center text-[#A3A8C2] hover:text-white"
+            >
+              {resolvedTheme === "dark" ? (
+                <Moon className="w-4 h-4 text-[#8156F2]" />
               ) : (
-                <ChevronLeft className="w-4 h-4" />
+                <Sun className="w-4 h-4 text-amber-400" />
               )}
             </button>
+          )}
+
+          {/* User Profile Bar */}
+          <div className="relative">
+            {!collapsed ? (
+              <div className="flex items-center justify-between p-1.5 rounded-xl hover:bg-[#1E213D] transition">
+                <div
+                  onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+                  className="flex items-center gap-3 min-w-0 cursor-pointer flex-1"
+                >
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#6738E8] to-[#8156F2] text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-sm">
+                    JD
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs font-semibold text-white truncate">
+                      John Doe
+                    </span>
+                    <span className="text-[11px] text-[#747A96] truncate">
+                      Product Lead
+                    </span>
+                  </div>
+                </div>
+                <Link
+                  href="/login"
+                  prefetch={false}
+                  onClick={(e) => handleNavigation(e, "/login")}
+                  className="p-1.5 text-[#747A96] hover:text-[#EB5757] hover:bg-[#25294A] rounded-lg transition"
+                  title="Sign out"
+                  aria-label="Sign out"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2">
+                <div
+                  onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+                  className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#6738E8] to-[#8156F2] text-white font-bold text-xs flex items-center justify-center cursor-pointer"
+                  title="John Doe (Product Lead)"
+                >
+                  JD
+                </div>
+                <Link
+                  href="/login"
+                  prefetch={false}
+                  onClick={(e) => handleNavigation(e, "/login")}
+                  className="p-1.5 text-[#747A96] hover:text-[#EB5757] rounded-lg transition"
+                  title="Sign out"
+                  aria-label="Sign out"
+                >
+                  <LogOut className="w-4 h-4" />
+                </Link>
+              </div>
+            )}
+
+            {/* Profile Dropdown Menu */}
+            {profileMenuOpen && (
+              <div className="absolute bottom-full left-0 right-0 mb-2 z-50 bg-[#1D203A] border border-[#2E335B] rounded-xl shadow-2xl py-1.5 text-xs text-white animate-in fade-in-0 duration-150">
+                <div className="px-3 py-1.5 border-b border-[#2A2E4E] mb-1">
+                  <p className="font-semibold">John Doe</p>
+                  <p className="text-[11px] text-[#747A96]">
+                    john@flowforge.dev
+                  </p>
+                </div>
+                <Link
+                  href="/settings"
+                  prefetch={false}
+                  onClick={(e) => {
+                    setProfileMenuOpen(false);
+                    handleNavigation(e, "/settings");
+                  }}
+                  className="w-full text-left px-3.5 py-1.5 hover:bg-[#282C50] flex items-center gap-2 text-[#A3A8C2] hover:text-white"
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                  <span>Account Settings</span>
+                </Link>
+                <Link
+                  href="/login"
+                  prefetch={false}
+                  onClick={(e) => {
+                    setProfileMenuOpen(false);
+                    handleNavigation(e, "/login");
+                  }}
+                  className="w-full text-left px-3.5 py-1.5 hover:bg-[#282C50] flex items-center gap-2 text-[#EB5757]"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Sign out</span>
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </aside>
